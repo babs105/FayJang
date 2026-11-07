@@ -1,0 +1,10 @@
+{
+  "name": "JàngPay",
+  "short_name": "JàngPay",
+  "description": "Suivi de la scolarité : inscriptions, mensualités et paiements.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8faf9",
+  "theme_color": "#059669",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}

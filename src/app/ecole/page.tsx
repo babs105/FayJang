@@ -1,0 +1,162 @@
+import { redirect } from "next/navigation";
+import { createClientEcole } from "@/lib/supabase/server";
+import { getEcoleId } from "@/lib/ecole-session";
+import { getAppBaseUrl, todayDakar } from "@/lib/config";
+import { situationInscription } from "@/lib/scolarite";
+import { EcoleDashboardClient } from "./ecole-dashboard-client";
+import type { ClasseVue, EcoleVue, EleveVue, PaiementVue } from "./types";
+
+export const dynamic = "force-dynamic";
+
+interface PageProps {
+  searchParams: Promise<{ bienvenue?: string }>;
+}
+
+export default async function EcolePage({ searchParams }: PageProps) {
+  const ecoleId = await getEcoleId();
+  if (!ecoleId) redirect("/ecole/login");
+
+  const { bienvenue } = await searchParams;
+  const supabase = createClientEcole(ecoleId);
+  const aujourdhui = todayDakar();
+  const appBaseUrl = getAppBaseUrl();
+
+  const { data: ecole, error: erreurEcole } = await supabase
+    .from("ecoles")
+    .select(
+      "id, nom, slug, ville, adresse, responsable_nom, email_contact, telephone_contact, annee_scolaire, mois_debut, nb_mensualites, jour_echeance, tranches_dernier_mois, mois_debut_tranches, nb_tranches, plan, statut_abonnement, trial_ends_at, abonnement_fin"
+    )
+    .eq("id", ecoleId)
+    .maybeSingle();
+
+  if (erreurEcole) {
+    console.error("[ecole/page] lecture de l'école :", erreurEcole.code ?? "erreur");
+    const migrationManquante = ["42703", "42P01", "PGRST204", "PGRST202"].includes(erreurEcole.code ?? "");
+    return <ErreurBase migrationManquante={migrationManquante} />;
+  }
+  if (!ecole) redirect("/ecole/login");
+
+  const annee = ecole.annee_scolaire;
+  const [{ data: classes }, { data: eleves }, { data: parents }, { data: inscriptions }] = await Promise.all([
+    supabase
+      .from("classes")
+      .select("id, nom, niveau, frais_inscription, mensualite, is_active")
+      .eq("ecole_id", ecoleId)
+      .eq("annee_scolaire", annee)
+      .order("nom"),
+    supabase
+      .from("eleves")
+      .select("id, matricule, prenom, nom, sexe, date_naissance, parent_id")
+      .eq("ecole_id", ecoleId)
+      .eq("is_active", true)
+      .order("nom"),
+    supabase.from("parents").select("id, nom, telephone, token").eq("ecole_id", ecoleId),
+    supabase
+      .from("inscriptions")
+      .select("id, eleve_id, classe_id, annee_scolaire, frais_inscription, mensualite, reduction_mensuelle, statut")
+      .eq("ecole_id", ecoleId)
+      .eq("annee_scolaire", annee),
+  ]);
+
+  const idsInscriptions = (inscriptions ?? []).map((i) => i.id);
+  const { data: paiements } = idsInscriptions.length
+    ? await supabase
+        .from("paiements")
+        .select("id, inscription_id, numero_recu, type, mois, montant, mode, reference, libelle, paye_le, annule, motif_annulation")
+        .eq("ecole_id", ecoleId)
+        .in("inscription_id", idsInscriptions)
+        .order("created_at", { ascending: false })
+    : { data: [] };
+
+  const classeParId = new Map((classes ?? []).map((c) => [c.id, c]));
+  const parentParId = new Map((parents ?? []).map((p) => [p.id, p]));
+  const inscriptionParEleve = new Map((inscriptions ?? []).map((i) => [i.eleve_id, i]));
+  const eleveParInscription = new Map<string, { eleveId: string; nom: string; classe: string }>();
+  const paiementsParInscription = new Map<string, Array<NonNullable<typeof paiements>[number]>>();
+  for (const p of paiements ?? []) {
+    const liste = paiementsParInscription.get(p.inscription_id) ?? [];
+    liste.push(p);
+    paiementsParInscription.set(p.inscription_id, liste);
+  }
+
+  const elevesVue: EleveVue[] = (eleves ?? []).map((e) => {
+    const ins = inscriptionParEleve.get(e.id);
+    const parent = e.parent_id ? parentParId.get(e.parent_id) : undefined;
+    const classeNom = ins ? (classeParId.get(ins.classe_id)?.nom ?? "—") : "";
+    if (ins) eleveParInscription.set(ins.id, { eleveId: e.id, nom: `${e.prenom} ${e.nom}`, classe: classeNom });
+    return {
+      id: e.id,
+      matricule: e.matricule,
+      prenom: e.prenom,
+      nom: e.nom,
+      sexe: e.sexe,
+      date_naissance: e.date_naissance,
+      parent: parent ? { id: parent.id, nom: parent.nom, telephone: parent.telephone, lien: `${appBaseUrl}/p/${parent.token}` } : null,
+      inscription: ins
+        ? {
+            id: ins.id,
+            classe_id: ins.classe_id,
+            classe_nom: classeNom,
+            statut: ins.statut,
+            frais_inscription: ins.frais_inscription,
+            mensualite: ins.mensualite,
+            reduction_mensuelle: ins.reduction_mensuelle,
+          }
+        : null,
+      situation: ins ? situationInscription(ins, paiementsParInscription.get(ins.id) ?? [], ecole, aujourdhui) : null,
+    };
+  });
+
+  const paiementsVue: PaiementVue[] = (paiements ?? []).map((p) => {
+    const e = eleveParInscription.get(p.inscription_id);
+    return {
+      id: p.id,
+      numero_recu: p.numero_recu,
+      type: p.type,
+      mois: p.mois,
+      montant: p.montant,
+      mode: p.mode,
+      reference: p.reference,
+      libelle: p.libelle,
+      paye_le: p.paye_le,
+      annule: p.annule,
+      motif_annulation: p.motif_annulation,
+      eleve_id: e?.eleveId ?? "",
+      eleve_nom: e?.nom ?? "Élève retiré",
+      classe_nom: e?.classe ?? "",
+    };
+  });
+
+  const effectifs = new Map<string, number>();
+  for (const i of inscriptions ?? []) {
+    if (i.statut === "active") effectifs.set(i.classe_id, (effectifs.get(i.classe_id) ?? 0) + 1);
+  }
+  const classesVue: ClasseVue[] = (classes ?? []).map((c) => ({ ...c, effectif: effectifs.get(c.id) ?? 0 }));
+
+  return (
+    <EcoleDashboardClient
+      ecole={ecole as EcoleVue}
+      classes={classesVue}
+      eleves={elevesVue}
+      paiements={paiementsVue}
+      aujourdhui={aujourdhui}
+      bienvenue={bienvenue === "1"}
+      numeroWave={process.env.WAVE_NUMERO_PAIEMENT || null}
+    />
+  );
+}
+
+function ErreurBase({ migrationManquante }: { migrationManquante: boolean }) {
+  return (
+    <div className="min-h-screen flex items-center justify-center px-4">
+      <div className="max-w-md bg-white border border-neutral-200 rounded-3xl p-6 text-sm text-neutral-700 space-y-2">
+        <h1 className="font-extrabold text-neutral-900">Lecture des données impossible</h1>
+        <p>
+          {migrationManquante
+            ? "La base n'est pas à jour : relancez supabase/schema.sql dans l'éditeur SQL Supabase."
+            : "Réessayez dans un instant. Si le problème persiste, contactez le support JàngPay."}
+        </p>
+      </div>
+    </div>
+  );
+}

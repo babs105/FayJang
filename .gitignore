@@ -1,0 +1,34 @@
+# Node dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Next.js build output
+.next/
+/.next-*/
+out/
+build/
+dist/
+
+# Environment files
+.env*.local
+.env
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS Files
+.DS_Store
+Thumbs.db
+*.local.md
+
+# Fichiers locaux à ne pas versionner
+*.tsbuildinfo
+supabase/.temp/
+/*.pdf
+/structure.txt
+
+# Clé privée de signature JWT (ne jamais versionner)
+supabase/signing_keys.json
