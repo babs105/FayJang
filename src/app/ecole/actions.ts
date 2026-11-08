@@ -9,6 +9,7 @@ import { isAnneeScolaireValide, isDateValide, moisScolaires } from "@/lib/dates"
 import { messageErreur } from "@/lib/erreurs";
 import { MODES_PAIEMENT, NIVEAUX } from "@/lib/libelles";
 import { libelleTranche, moisDesTranches, situationInscription, trancheAvecMois } from "@/lib/scolarite";
+import { matriculeSuivant } from "@/lib/matricule";
 import { normaliserTelephone } from "@/lib/telephone";
 import type { ModePaiement, Niveau, StatutInscription, TypePaiement } from "@/types/database";
 
@@ -146,16 +147,20 @@ async function trouverOuCreerParent(
   return data.id;
 }
 
-/** Matricule : 2 chiffres de l'année de rentrée + numéro d'ordre (ex : 260042) */
+/** Matricule suivant de l'année (plus grand matricule existant + 1, voir matriculeSuivant) */
 async function prochainMatricule(supabase: ReturnType<typeof createClientEcole>, ecoleId: string, annee: string): Promise<string> {
   const prefixe = annee.slice(2, 4);
-  const { count, error } = await supabase
+  const { data, error } = await supabase
     .from("eleves")
-    .select("id", { count: "exact", head: true })
+    .select("matricule")
     .eq("ecole_id", ecoleId)
-    .like("matricule", `${prefixe}%`);
+    .like("matricule", `${prefixe}%`)
+    // Matricules de longueur fixe (6 caractères) : l'ordre texte suit l'ordre numérique.
+    // Le plus grand suffit, et la lecture reste sous le plafond de lignes de PostgREST.
+    .order("matricule", { ascending: false })
+    .limit(1);
   if (error) throw error;
-  return `${prefixe}${String((count ?? 0) + 1).padStart(4, "0")}`;
+  return matriculeSuivant(prefixe, (data ?? []).map((e) => e.matricule));
 }
 
 export async function inscrireEleve(saisie: SaisieInscription): Promise<Resultat<{ eleveId: string }>> {
