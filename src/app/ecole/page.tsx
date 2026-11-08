@@ -24,7 +24,7 @@ export default async function EcolePage({ searchParams }: PageProps) {
   const { data: ecole, error: erreurEcole } = await supabase
     .from("ecoles")
     .select(
-      "id, nom, slug, ville, adresse, responsable_nom, email_contact, telephone_contact, annee_scolaire, mois_debut, nb_mensualites, jour_echeance, tranches_dernier_mois, mois_debut_tranches, nb_tranches, plan, statut_abonnement, trial_ends_at, abonnement_fin"
+      "id, nom, slug, ville, adresse, responsable_nom, email_contact, telephone_contact, annee_scolaire, mois_debut, nb_mensualites, jour_echeance, tranches_dernier_mois, mois_debut_tranches, nb_tranches, rang_mois_tranches, premier_mois_a_linscription, dernier_mois_a_linscription, plan, statut_abonnement, trial_ends_at, abonnement_fin"
     )
     .eq("id", ecoleId)
     .maybeSingle();
@@ -37,10 +37,10 @@ export default async function EcolePage({ searchParams }: PageProps) {
   if (!ecole) redirect("/ecole/login");
 
   const annee = ecole.annee_scolaire;
-  const [{ data: classes }, { data: eleves }, { data: parents }, { data: inscriptions }] = await Promise.all([
+  const [{ data: classes }, { data: eleves }, { data: parents }, { data: inscriptions }, { data: catalogue }] = await Promise.all([
     supabase
       .from("classes")
-      .select("id, nom, niveau, frais_inscription, mensualite, is_active")
+      .select("id, nom, niveau, frais_inscription, mensualite, mensualite_dernier_mois, is_active")
       .eq("ecole_id", ecoleId)
       .eq("annee_scolaire", annee)
       .order("nom"),
@@ -53,20 +53,37 @@ export default async function EcolePage({ searchParams }: PageProps) {
     supabase.from("parents").select("id, nom, telephone, token").eq("ecole_id", ecoleId),
     supabase
       .from("inscriptions")
-      .select("id, eleve_id, classe_id, annee_scolaire, frais_inscription, mensualite, reduction_mensuelle, statut")
+      .select("id, eleve_id, classe_id, annee_scolaire, frais_inscription, mensualite, mensualite_dernier_mois, reduction_mensuelle, statut")
       .eq("ecole_id", ecoleId)
       .eq("annee_scolaire", annee),
+    supabase
+      .from("articles_classe")
+      .select("id, classe_id, libelle, nature, prix_unitaire, quantite_defaut, obligatoire")
+      .eq("ecole_id", ecoleId)
+      .order("ordre"),
   ]);
 
   const idsInscriptions = (inscriptions ?? []).map((i) => i.id);
-  const { data: paiements } = idsInscriptions.length
-    ? await supabase
-        .from("paiements")
-        .select("id, inscription_id, numero_recu, type, mois, montant, mode, reference, libelle, paye_le, annule, motif_annulation")
-        .eq("ecole_id", ecoleId)
-        .in("inscription_id", idsInscriptions)
-        .order("created_at", { ascending: false })
-    : { data: [] };
+  const [{ data: paiements }, { data: articlesEleves }] = idsInscriptions.length
+    ? await Promise.all([
+        supabase
+          .from("paiements")
+          .select("id, inscription_id, numero_recu, type, mois, montant, mode, reference, libelle, paye_le, annule, motif_annulation, article_id")
+          .eq("ecole_id", ecoleId)
+          .in("inscription_id", idsInscriptions)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("articles_inscription")
+          .select("id, inscription_id, libelle, nature, prix_unitaire, quantite, obligatoire, mois_debut, mois_fin")
+          .eq("ecole_id", ecoleId)
+          .in("inscription_id", idsInscriptions)
+          .order("created_at"),
+      ])
+    : [{ data: [] }, { data: [] }];
+  const articlesParInscription = new Map<string, Array<NonNullable<typeof articlesEleves>[number]>>();
+  for (const a of articlesEleves ?? []) {
+    articlesParInscription.set(a.inscription_id, [...(articlesParInscription.get(a.inscription_id) ?? []), a]);
+  }
 
   const classeParId = new Map((classes ?? []).map((c) => [c.id, c]));
   const parentParId = new Map((parents ?? []).map((p) => [p.id, p]));
@@ -100,10 +117,11 @@ export default async function EcolePage({ searchParams }: PageProps) {
             statut: ins.statut,
             frais_inscription: ins.frais_inscription,
             mensualite: ins.mensualite,
+            mensualite_dernier_mois: ins.mensualite_dernier_mois,
             reduction_mensuelle: ins.reduction_mensuelle,
           }
         : null,
-      situation: ins ? situationInscription(ins, paiementsParInscription.get(ins.id) ?? [], ecole, aujourdhui) : null,
+      situation: ins ? situationInscription(ins, paiementsParInscription.get(ins.id) ?? [], ecole, aujourdhui, articlesParInscription.get(ins.id) ?? []) : null,
     };
   });
 
@@ -131,7 +149,11 @@ export default async function EcolePage({ searchParams }: PageProps) {
   for (const i of inscriptions ?? []) {
     if (i.statut === "active") effectifs.set(i.classe_id, (effectifs.get(i.classe_id) ?? 0) + 1);
   }
-  const classesVue: ClasseVue[] = (classes ?? []).map((c) => ({ ...c, effectif: effectifs.get(c.id) ?? 0 }));
+  const classesVue: ClasseVue[] = (classes ?? []).map((c) => ({
+    ...c,
+    effectif: effectifs.get(c.id) ?? 0,
+    articles: (catalogue ?? []).filter((a) => a.classe_id === c.id).map(({ classe_id: _c, ...a }) => a),
+  }));
 
   return (
     <EcoleDashboardClient

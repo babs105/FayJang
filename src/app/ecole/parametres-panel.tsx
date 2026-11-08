@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { formatDate, formatMois } from "@/lib/dates";
+import { formatDate, formatMois, moisScolaires } from "@/lib/dates";
 import { formatFCFA } from "@/lib/utils";
-import { maxTranches, moisDesTranches } from "@/lib/scolarite";
+import { maxTranches, moisCibleTranches, moisDesTranches, nomRang, partEchue, verifierReglages } from "@/lib/scolarite";
 import { Badge, Bouton, Carte, Label, Message, champ } from "@/components/ui";
 import { changerCodeAcces, enregistrerParametres } from "./actions";
 import type { DonneesEcole } from "./ecole-dashboard-client";
@@ -24,6 +24,9 @@ export function ParametresPanel({ ecole, numeroWave }: DonneesEcole & { numeroWa
     tranches_dernier_mois: ecole.tranches_dernier_mois,
     mois_debut_tranches: String(ecole.mois_debut_tranches ?? 1),
     nb_tranches: ecole.nb_tranches ? String(ecole.nb_tranches) : "",
+    rang_mois_tranches: String(ecole.rang_mois_tranches ?? 1),
+    premier_mois_a_linscription: ecole.premier_mois_a_linscription,
+    dernier_mois_a_linscription: ecole.dernier_mois_a_linscription,
   });
   const [code, setCode] = useState({ ancien: "", nouveau: "" });
   const [retour, setRetour] = useState<{ ok: boolean; texte: string } | null>(null);
@@ -39,23 +42,31 @@ export function ParametresPanel({ ecole, numeroWave }: DonneesEcole & { numeroWa
   }
 
   const changementAnnee = f.annee_scolaire !== ecole.annee_scolaire;
-  // Aperçu des tranches avec les valeurs saisies (même calcul que le serveur)
+  // Aperçu des tranches avec les valeurs saisies (mêmes fonctions que le serveur)
+  const anneeValide = /^\d{4}-\d{4}$/.test(f.annee_scolaire);
   const calendrier = {
     mois_debut: Number(f.mois_debut),
     nb_mensualites: Number(f.nb_mensualites) || 0,
     jour_echeance: Number(f.jour_echeance) || 1,
     tranches_dernier_mois: true,
     mois_debut_tranches: Number(f.mois_debut_tranches),
+    rang_mois_tranches: Number(f.rang_mois_tranches) || 1,
+    premier_mois_a_linscription: f.premier_mois_a_linscription,
+    dernier_mois_a_linscription: f.dernier_mois_a_linscription,
   };
-  const anneeValide = /^\d{4}-\d{4}$/.test(f.annee_scolaire);
-  // Nombre de tranches : au plus jusqu'à l'avant-dernier mois ; vide = le maximum
+  const moisDeLAnnee = anneeValide && calendrier.nb_mensualites > 0 ? moisScolaires(f.annee_scolaire, calendrier.mois_debut, calendrier.nb_mensualites) : [];
+  const cible = anneeValide ? moisCibleTranches(f.annee_scolaire, calendrier) : null;
+  // Mois possibles pour la 1re tranche : ceux qui précèdent le mois ciblé
+  const moisPossibles = cible ? moisDeLAnnee.filter((m) => m < cible).map((m) => Number(m.slice(5, 7))) : [];
+  // Nombre de tranches : au plus jusqu'au mois qui précède le mois ciblé ; vide = le maximum
   const nbMax = anneeValide ? maxTranches(f.annee_scolaire, calendrier, calendrier.mois_debut_tranches) : 0;
   const nbTranches = Math.min(Number(f.nb_tranches) || nbMax, nbMax);
   const apercu = anneeValide && nbTranches > 0 ? moisDesTranches(f.annee_scolaire, { ...calendrier, nb_tranches: nbTranches }) : [];
-  const moisAnnee = /^\d{4}-\d{4}$/.test(f.annee_scolaire) && calendrier.nb_mensualites > 1
-    ? Array.from({ length: calendrier.nb_mensualites - 1 }, (_, i) => ((calendrier.mois_debut - 1 + i) % 12) + 1)
-    : [];
-  const dernierMois = MOIS[(calendrier.mois_debut - 2 + calendrier.nb_mensualites + 12) % 12];
+  const probleme = f.tranches_dernier_mois && anneeValide ? verifierReglages(f.annee_scolaire, { ...calendrier, nb_tranches: nbTranches || null }) : null;
+  const nomCible = cible ? formatMois(cible).split(" ")[0] : "";
+  const premierNom = moisDeLAnnee[0] ? formatMois(moisDeLAnnee[0]).split(" ")[0] : "";
+  const dernierNom = moisDeLAnnee.length ? formatMois(moisDeLAnnee[moisDeLAnnee.length - 1]).split(" ")[0] : "";
+  const parts = apercu.map((_, i) => partEchue(20000, i + 1, apercu.length) - partEchue(20000, i, apercu.length));
 
   return (
     <div className="grid lg:grid-cols-3 gap-4">
@@ -67,6 +78,7 @@ export function ParametresPanel({ ecole, numeroWave }: DonneesEcole & { numeroWa
           onSubmit={(e) => {
             e.preventDefault();
             if (changementAnnee && !confirm(`Passer à l'année ${f.annee_scolaire} ? Les classes seront reprises et les élèves devront être réinscrits.`)) return;
+            if (probleme) return setRetour({ ok: false, texte: probleme });
             executer(() => enregistrerParametres({ ...f, nb_tranches: nbTranches }));
           }}
         >
@@ -89,42 +101,74 @@ export function ParametresPanel({ ecole, numeroWave }: DonneesEcole & { numeroWa
             <div><Label>Échéance (jour)</Label><input inputMode="numeric" value={f.jour_echeance} onChange={maj("jour_echeance")} className={champ} /></div>
           </div>
           <div className="rounded-2xl border border-neutral-200 p-3 space-y-2">
+            <p className="text-xs font-extrabold">Mensualités payées à l'inscription</p>
+            <label className="flex items-center gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={f.premier_mois_a_linscription}
+                onChange={(e) => setF({ ...f, premier_mois_a_linscription: e.target.checked })}
+              />
+              1er mois ({premierNom.toLowerCase()}) payé à l'inscription
+            </label>
+            <label className="flex items-center gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={f.dernier_mois_a_linscription}
+                onChange={(e) => setF({ ...f, dernier_mois_a_linscription: e.target.checked })}
+              />
+              Dernier mois ({dernierNom.toLowerCase()}) payé à l'inscription
+            </label>
+            <p className="text-[11px] text-neutral-500">
+              S'ajoutent aux frais d'inscription et aux articles (tenues...) sur le reçu de l'inscription.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-neutral-200 p-3 space-y-2">
             <label className="flex items-center gap-2 text-xs font-bold">
               <input
                 type="checkbox"
                 checked={f.tranches_dernier_mois}
                 onChange={(e) => setF({ ...f, tranches_dernier_mois: e.target.checked })}
               />
-              Faire payer le dernier mois ({dernierMois?.toLowerCase()}) par tranches
+              Faire payer un mois d'avance par tranches
             </label>
             {f.tranches_dernier_mois && (
               <>
                 <div className="flex flex-wrap items-center gap-2 text-xs">
-                  <span>Première tranche avec la mensualité de</span>
+                  <span>Le</span>
+                  <select value={f.rang_mois_tranches} onChange={maj("rang_mois_tranches")} className={`${champ} w-auto`}>
+                    {[1, 2, 3].map((r) => (
+                      <option key={r} value={r}>{nomRang(r)}</option>
+                    ))}
+                  </select>
+                  <span>({nomCible.toLowerCase()}), première tranche avec la mensualité de</span>
                   <select value={f.mois_debut_tranches} onChange={maj("mois_debut_tranches")} className={`${champ} w-auto`}>
-                    {moisAnnee.map((m) => <option key={m} value={m}>{MOIS[m - 1]}</option>)}
+                    {!moisPossibles.includes(Number(f.mois_debut_tranches)) && <option value={f.mois_debut_tranches}>—</option>}
+                    {moisPossibles.map((m) => <option key={m} value={m}>{MOIS[m - 1]}</option>)}
                   </select>
                   <span>en</span>
                   <select value={String(nbTranches)} onChange={maj("nb_tranches")} disabled={nbMax === 0} className={`${champ} w-auto`}>
+                    {nbMax === 0 && <option value="0">—</option>}
                     {Array.from({ length: nbMax }, (_, i) => i + 1).map((n) => (
                       <option key={n} value={n}>{n} tranche{n > 1 ? "s" : ""}</option>
                     ))}
                   </select>
                 </div>
-                <p className="text-[11px] text-neutral-600 bg-neutral-50 rounded-xl p-2.5">
-                  {apercu.length > 0 ? (
-                    <>
-                      {dernierMois} est réparti en <b>{apercu.length} tranche{apercu.length > 1 ? "s" : ""}</b> égales, dues avec les mensualités
-                      de {apercu.map((m) => formatMois(m).split(" ")[0]).join(", ")}. Exemple : pour une mensualité de {formatFCFA(20000)},{" "}
-                      {formatFCFA(Math.floor(20000 / apercu.length))} de plus par mois. Le dernier mois est ainsi soldé avant son échéance.
-                    </>
-                  ) : (
-                    "Choisissez un mois de l'année scolaire situé avant le dernier mois."
-                  )}
-                </p>
+                {probleme ? (
+                  <Message ok={false}>{probleme}</Message>
+                ) : (
+                  <p className="text-[11px] text-neutral-600 bg-neutral-50 rounded-xl p-2.5">
+                    {nomCible} est payé d'avance en <b>{apercu.length} tranche{apercu.length > 1 ? "s" : ""}</b>, dues avec les mensualités de{" "}
+                    {apercu.map((m) => formatMois(m).split(" ")[0].toLowerCase()).join(", ")}. Exemple pour {formatFCFA(20000)} :{" "}
+                    {parts.map((p) => formatFCFA(p)).join(" + ")}.
+                  </p>
+                )}
               </>
             )}
           </div>
+          <p className="text-[11px] text-amber-700 bg-amber-50 rounded-xl p-2.5">
+            Fixez ces règles en début d'année : elles s'appliquent à tous les élèves inscrits.
+          </p>
           {changementAnnee && (
             <p className="text-[11px] text-amber-700 bg-amber-50 rounded-xl p-2.5">
               Nouvelle année : les classes actives seront copiées avec leurs tarifs. L'historique de {ecole.annee_scolaire} reste conservé.

@@ -30,7 +30,7 @@ export default async function ParentPage({ params }: { params: Promise<{ token: 
   const aujourdhui = todayDakar();
 
   const [{ data: ecole }, { data: parent }, { data: enfants }] = await Promise.all([
-    supabase.from("ecoles").select("nom, ville, telephone_contact, annee_scolaire, mois_debut, nb_mensualites, jour_echeance, tranches_dernier_mois, mois_debut_tranches, nb_tranches").eq("id", ecoleId).maybeSingle(),
+    supabase.from("ecoles").select("nom, ville, telephone_contact, annee_scolaire, mois_debut, nb_mensualites, jour_echeance, tranches_dernier_mois, mois_debut_tranches, nb_tranches, rang_mois_tranches, premier_mois_a_linscription, dernier_mois_a_linscription").eq("id", ecoleId).maybeSingle(),
     supabase.from("parents").select("nom").eq("id", parentId).maybeSingle(),
     supabase.from("eleves").select("id, prenom, nom, matricule").eq("ecole_id", ecoleId).eq("parent_id", parentId).eq("is_active", true).order("prenom"),
   ]);
@@ -40,22 +40,25 @@ export default async function ParentPage({ params }: { params: Promise<{ token: 
   const { data: inscriptions } = idsEnfants.length
     ? await supabase
         .from("inscriptions")
-        .select("id, eleve_id, classe_id, annee_scolaire, frais_inscription, mensualite, reduction_mensuelle, statut")
+        .select("id, eleve_id, classe_id, annee_scolaire, frais_inscription, mensualite, mensualite_dernier_mois, reduction_mensuelle, statut")
         .eq("ecole_id", ecoleId)
         .eq("annee_scolaire", ecole.annee_scolaire)
         .in("eleve_id", idsEnfants)
     : { data: [] };
   const idsIns = (inscriptions ?? []).map((i) => i.id);
-  const [{ data: paiements }, { data: classes }] = await Promise.all([
+  const [{ data: paiements }, { data: classes }, { data: articles }] = await Promise.all([
     idsIns.length
       ? supabase
           .from("paiements")
-          .select("id, inscription_id, numero_recu, type, mois, montant, mode, libelle, paye_le, annule")
+          .select("id, inscription_id, numero_recu, type, mois, montant, mode, libelle, paye_le, annule, article_id")
           .eq("ecole_id", ecoleId)
           .in("inscription_id", idsIns)
           .order("paye_le", { ascending: false })
       : Promise.resolve({ data: [] as never[] }),
     supabase.from("classes").select("id, nom").eq("ecole_id", ecoleId),
+    idsIns.length
+      ? supabase.from("articles_inscription").select("id, inscription_id, libelle, nature, prix_unitaire, quantite, obligatoire, mois_debut, mois_fin").eq("ecole_id", ecoleId).in("inscription_id", idsIns).order("created_at")
+      : Promise.resolve({ data: [] as never[] }),
   ]);
   const classeNom = new Map((classes ?? []).map((c) => [c.id, c.nom]));
 
@@ -78,7 +81,18 @@ export default async function ParentPage({ params }: { params: Promise<{ token: 
         {(enfants ?? []).map((enfant) => {
           const ins = (inscriptions ?? []).find((i) => i.eleve_id === enfant.id);
           const ps = (paiements ?? []).filter((p) => p.inscription_id === ins?.id);
-          const s = ins ? situationInscription(ins, ps, ecole, aujourdhui) : null;
+          const s = ins ? situationInscription(ins, ps, ecole, aujourdhui, (articles ?? []).filter((a) => a.inscription_id === ins.id)) : null;
+          // Frais uniques, puis services mensuels regroupés (une ligne par service, pas par mois)
+          const uniques = s ? s.articles.filter((a) => a.nature === "unique") : [];
+          const services = new Map<string, { libelle: string; du: number; paye: number; resteEchu: number }>();
+          for (const a of s?.articles ?? []) {
+            if (a.nature !== "mensuel") continue;
+            const cumul = services.get(a.article_id) ?? { libelle: a.libelle.split(" — ")[0], du: 0, paye: 0, resteEchu: 0 };
+            cumul.du += a.du;
+            cumul.paye += a.paye;
+            cumul.resteEchu += a.resteEchu;
+            services.set(a.article_id, cumul);
+          }
           return (
             <section key={enfant.id} className="bg-white rounded-3xl p-5 shadow-sm border border-neutral-100 space-y-4">
               <div className="flex justify-between items-start">
@@ -122,6 +136,26 @@ export default async function ParentPage({ params }: { params: Promise<{ token: 
                             : ""}
                       </p>
                     ) : null
+                  )}
+                  {(uniques.length > 0 || services.size > 0) && (
+                    <ul className="text-[11px] text-neutral-700 space-y-1">
+                      {uniques.map((a) => (
+                        <li key={a.cle} className="flex justify-between gap-2">
+                          <span>{a.libelle}</span>
+                          <span className={cn("font-bold", a.reste === 0 ? "text-jang-700" : "text-red-600")}>
+                            {a.reste === 0 ? "✓ payé" : `${formatFCFA(a.reste)} à régler`}
+                          </span>
+                        </li>
+                      ))}
+                      {[...services.entries()].map(([id, v]) => (
+                        <li key={id} className="flex justify-between gap-2">
+                          <span>{v.libelle} (mensuel)</span>
+                          <span className={cn("font-bold", v.resteEchu === 0 ? "text-jang-700" : "text-red-600")}>
+                            {v.resteEchu === 0 ? `✓ à jour · ${formatFCFA(v.paye)} versés` : `${formatFCFA(v.resteEchu)} à régler`}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
                   )}
                   <p className="text-[11px] text-neutral-500">
                     Payé cette année : <b className="text-neutral-800">{formatFCFA(s.totalPaye)}</b> · Reste sur l'année : <b className="text-neutral-800">{formatFCFA(s.resteAnnee)}</b>

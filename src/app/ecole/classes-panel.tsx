@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Pencil, Plus } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import { formatFCFA } from "@/lib/utils";
 import { LIBELLE_NIVEAU, NIVEAUX } from "@/lib/libelles";
 import { Badge, Bouton, Carte, Label, Message, Modal, champ } from "@/components/ui";
-import { archiverClasse, enregistrerClasse } from "./actions";
+import { archiverClasse, enregistrerClasse, type SaisieArticle } from "./actions";
 import type { DonneesEcole } from "./ecole-dashboard-client";
 import type { ClasseVue } from "./types";
 
@@ -50,8 +50,28 @@ export function ClassesPanel({ classes, ecole }: DonneesEcole) {
                 <div className="rounded-xl bg-neutral-50 p-2">
                   <p className="text-[11px] text-neutral-500">Mensualité</p>
                   <p className="font-bold">{formatFCFA(c.mensualite)}</p>
+                  {c.mensualite_dernier_mois !== null && c.mensualite_dernier_mois !== c.mensualite && (
+                    <p className="text-[10px] text-neutral-500">Dernier mois : {formatFCFA(c.mensualite_dernier_mois)}</p>
+                  )}
                 </div>
               </div>
+              {c.articles.length > 0 && (
+                <ul className="mt-2 space-y-0.5 text-[11px] text-neutral-600">
+                  {c.articles.map((a) => (
+                    <li key={a.id} className="flex justify-between gap-2">
+                      <span>
+                        {a.libelle}
+                        {a.nature === "unique" && a.quantite_defaut > 1 ? ` × ${a.quantite_defaut}` : ""}
+                        {!a.obligatoire && <span className="text-neutral-400"> (option)</span>}
+                      </span>
+                      <span className="font-semibold">
+                        {formatFCFA(a.prix_unitaire * (a.nature === "unique" ? a.quantite_defaut : 1))}
+                        {a.nature === "mensuel" ? "/mois" : ""}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
               <button
                 disabled={isPending}
                 onClick={() => startTransition(async () => void (await archiverClasse(c.id, !c.is_active)))}
@@ -69,16 +89,43 @@ export function ClassesPanel({ classes, ecole }: DonneesEcole) {
   );
 }
 
+/** Préréglages proposés dans le catalogue d'une classe (prix à compléter par l'école) */
+const PRESETS: Array<Omit<LigneArticle, "cle">> = [
+  { libelle: "Tenue", nature: "unique", prix_unitaire: "", quantite_defaut: "2", obligatoire: true },
+  { libelle: "Ensemble blouson", nature: "unique", prix_unitaire: "", quantite_defaut: "1", obligatoire: true },
+  { libelle: "Jacket", nature: "unique", prix_unitaire: "", quantite_defaut: "1", obligatoire: true },
+  { libelle: "Pensionnat", nature: "mensuel", prix_unitaire: "", quantite_defaut: "1", obligatoire: false },
+  { libelle: "Transport", nature: "mensuel", prix_unitaire: "", quantite_defaut: "1", obligatoire: false },
+];
+
+type LigneArticle = SaisieArticle & { cle: number; prix_unitaire: string; quantite_defaut: string };
+
 function ClasseModal({ classe, onClose }: { classe?: ClasseVue; onClose: () => void }) {
   const [f, setF] = useState({
     nom: classe?.nom ?? "",
     niveau: classe?.niveau ?? "elementaire",
     frais_inscription: String(classe?.frais_inscription ?? ""),
     mensualite: String(classe?.mensualite ?? ""),
+    mensualite_dernier_mois: classe?.mensualite_dernier_mois != null ? String(classe.mensualite_dernier_mois) : "",
   });
+  const [articles, setArticles] = useState<LigneArticle[]>(
+    (classe?.articles ?? []).map((a, i) => ({
+      cle: i,
+      id: a.id,
+      libelle: a.libelle,
+      nature: a.nature,
+      prix_unitaire: String(a.prix_unitaire),
+      quantite_defaut: String(a.quantite_defaut),
+      obligatoire: a.obligatoire,
+    }))
+  );
   const [erreur, setErreur] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const maj = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
+  const majArticle = (cle: number, champs: Partial<LigneArticle>) =>
+    setArticles((liste) => liste.map((a) => (a.cle === cle ? { ...a, ...champs } : a)));
+  const ajouter = (a: Omit<LigneArticle, "cle">) => setArticles((liste) => [...liste, { ...a, cle: Date.now() + liste.length }]);
+  const presents = new Set(articles.map((a) => a.libelle.toLowerCase()));
 
   return (
     <Modal titre={classe ? `Modifier ${classe.nom}` : "Nouvelle classe"} onClose={onClose}>
@@ -87,7 +134,7 @@ function ClasseModal({ classe, onClose }: { classe?: ClasseVue; onClose: () => v
         onSubmit={(e) => {
           e.preventDefault();
           startTransition(async () => {
-            const r = await enregistrerClasse({ ...f, id: classe?.id });
+            const r = await enregistrerClasse({ ...f, id: classe?.id, articles: articles.map(({ cle: _c, ...a }) => a) });
             if (r.success) onClose();
             else setErreur(r.message ?? "Enregistrement impossible.");
           });
@@ -115,7 +162,89 @@ function ClasseModal({ classe, onClose }: { classe?: ClasseVue; onClose: () => v
             <Label>Mensualité (FCFA)</Label>
             <input required inputMode="numeric" value={f.mensualite} onChange={maj("mensualite")} placeholder="25000" className={champ} />
           </div>
+          <div className="col-span-2">
+            <Label>Mensualité du dernier mois (FCFA)</Label>
+            <input
+              inputMode="numeric"
+              value={f.mensualite_dernier_mois}
+              onChange={maj("mensualite_dernier_mois")}
+              placeholder={f.mensualite ? `Vide = ${f.mensualite}` : "Vide = même montant"}
+              className={champ}
+            />
+          </div>
         </div>
+
+        <div className="space-y-2 pt-1">
+          <p className="text-xs font-extrabold">Articles et services</p>
+          <p className="text-[11px] text-neutral-500">
+            Frais unique : payé à l'inscription (prix × quantité). Mensuel : dû chaque mois, comme la mensualité.
+            Les articles optionnels sont cochés ou non à l'inscription de chaque élève.
+          </p>
+          {articles.map((a) => (
+            <div key={a.cle} className="rounded-xl border border-neutral-200 p-2 space-y-2">
+              <div className="flex gap-2">
+                <input
+                  value={a.libelle}
+                  onChange={(e) => majArticle(a.cle, { libelle: e.target.value })}
+                  placeholder="Libellé"
+                  className={`${champ} flex-1`}
+                />
+                <button type="button" onClick={() => setArticles((l) => l.filter((x) => x.cle !== a.cle))} className="p-2 rounded-lg hover:bg-neutral-100" title="Retirer">
+                  <Trash2 className="w-4 h-4 text-neutral-500" />
+                </button>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <select value={a.nature} onChange={(e) => majArticle(a.cle, { nature: e.target.value })} className={champ}>
+                  <option value="unique">Frais unique</option>
+                  <option value="mensuel">Mensuel</option>
+                </select>
+                <input
+                  inputMode="numeric"
+                  value={a.prix_unitaire}
+                  onChange={(e) => majArticle(a.cle, { prix_unitaire: e.target.value })}
+                  placeholder={a.nature === "mensuel" ? "Prix / mois" : "Prix unitaire"}
+                  className={champ}
+                />
+                {a.nature === "unique" ? (
+                  <input
+                    inputMode="numeric"
+                    value={a.quantite_defaut}
+                    onChange={(e) => majArticle(a.cle, { quantite_defaut: e.target.value })}
+                    placeholder="Qté"
+                    title="Quantité"
+                    className={champ}
+                  />
+                ) : (
+                  <span className="text-[11px] text-neutral-400 self-center">par mois</span>
+                )}
+              </div>
+              <label className="flex items-center gap-2 text-[11px]">
+                <input type="checkbox" checked={a.obligatoire} onChange={(e) => majArticle(a.cle, { obligatoire: e.target.checked })} />
+                Obligatoire pour tous les élèves de la classe
+              </label>
+            </div>
+          ))}
+          <div className="flex flex-wrap gap-1.5">
+            {PRESETS.filter((p) => !presents.has(p.libelle.toLowerCase())).map((p) => (
+              <button
+                key={p.libelle}
+                type="button"
+                onClick={() => ajouter(p)}
+                className="px-2.5 py-1 rounded-full border border-neutral-200 text-[11px] font-bold hover:bg-neutral-50"
+              >
+                + {p.libelle}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => ajouter({ libelle: "", nature: "unique", prix_unitaire: "", quantite_defaut: "1", obligatoire: true })}
+              className="px-2.5 py-1 rounded-full border border-dashed border-neutral-300 text-[11px] font-bold hover:bg-neutral-50"
+            >
+              + Autre
+            </button>
+          </div>
+        </div>
+
         {classe && <p className="text-[11px] text-neutral-500">Les nouveaux tarifs s'appliquent aux prochaines inscriptions.</p>}
         <Bouton type="submit" disabled={isPending} className="w-full">{isPending ? "Enregistrement..." : "Enregistrer"}</Bouton>
       </form>
