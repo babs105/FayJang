@@ -2,7 +2,7 @@ import ExcelJS from "exceljs";
 import { getEcoleId } from "@/lib/ecole-session";
 import { createClientEcole } from "@/lib/supabase/server";
 import { todayDakar } from "@/lib/config";
-import { LIBELLE_MODE, libellePaiement } from "@/lib/libelles";
+import { LIBELLE_MODE, LIBELLE_STATUT_INSCRIPTION, libellePaiement } from "@/lib/libelles";
 import { situationInscription } from "@/lib/scolarite";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +24,7 @@ export async function GET() {
   const [{ data: inscriptions }, { data: eleves }, { data: classes }, { data: parents }] = await Promise.all([
     supabase
       .from("inscriptions")
-      .select("id, eleve_id, classe_id, annee_scolaire, frais_inscription, mensualite, mensualite_dernier_mois, reduction_mensuelle, statut")
+      .select("id, eleve_id, classe_id, annee_scolaire, frais_inscription, mensualite, mensualite_dernier_mois, reduction_mensuelle, statut, date_depart")
       .eq("ecole_id", ecoleId)
       .eq("annee_scolaire", ecole.annee_scolaire),
     supabase.from("eleves").select("id, matricule, prenom, nom, parent_id").eq("ecole_id", ecoleId),
@@ -89,6 +89,8 @@ export async function GET() {
     { header: "Classe", key: "classe", width: 12 },
     { header: "Parent", key: "parent", width: 24 },
     { header: "Téléphone", key: "telephone", width: 16 },
+    { header: "Statut", key: "statut", width: 12 },
+    { header: "Date de départ", key: "depart", width: 14 },
     { header: "Payé", key: "paye", width: 13 },
     { header: "Articles/services dus", key: "articles_dus", width: 20 },
     { header: "Articles/services payés", key: "articles_payes", width: 22 },
@@ -112,6 +114,8 @@ export async function GET() {
       classe: classeParId.get(ins.classe_id),
       parent: parent?.nom,
       telephone: parent?.telephone,
+      statut: LIBELLE_STATUT_INSCRIPTION[ins.statut],
+      depart: ins.date_depart ?? "",
       paye: s.totalPaye,
       articles_dus: s.articles.reduce((t, a) => t + a.du, 0),
       articles_payes: s.articles.reduce((t, a) => t + a.paye, 0),
