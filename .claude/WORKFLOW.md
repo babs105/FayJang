@@ -33,6 +33,11 @@
   **une seule fois**, à la fin de la feature.
 
 ### Sur le dev
+- **Qui code** : une tranche d'encaissement (fiche élève, `encaisserPaiement`,
+  `annulerPaiement`, `scolarite.ts`, reçus) va à `dev-encaissement`. **Toute
+  autre tranche** (classes, inscriptions, paramètres, page parent, export,
+  tableau de bord, impayés) est codée par la **session principale** (Claude),
+  avec les mêmes règles qu'un agent dev ci-dessous.
 - Le dev reçoit **une seule tranche** à la fois. Le texte exact copié depuis
   le plan.
 - Le dev **ne touche jamais** `supabase/schema.sql` (il propose l'`ALTER`,
@@ -59,12 +64,12 @@
   au backlog. On ne relance pas d'audit après.
 - **Si un audit produit 3 findings ou plus, on gèle `schema.sql` pendant
   2 semaines.** On livre une feature utilisateur avant de rouvrir.
-- **Mise à jour du backlog** : après chaque review, l'agent dev (ou l'humain)
+- **Mise à jour du backlog** : après chaque review, le dev (agent dev ou session principale, ou l'humain)
   ajoute les findings non corrigés à `BACKLOG.md` **avant** de fermer la PR. Un
   finding non corrigé et non consigné est un finding oublié.
 - **Lecture du backlog** : `architect` lit `BACKLOG.md` avant chaque plan
   et intègre les findings que la feature croise comme tranches.
-- **Seul l'agent dev écrit dans `BACKLOG.md`, et seulement pour ajouter** des
+- **Seul le dev (agent dev ou session principale) écrit dans `BACKLOG.md`, et seulement pour ajouter** des
   findings non corrigés de sa tranche (format du fichier : titre, problème,
   correctif, estimation, « Croise »). Il ne coche, ne supprime et ne modifie
   aucune entrée, et n'écrit jamais dans « Décisions tranchées » : c'est l'humain.
@@ -174,6 +179,7 @@ Ces trois agents **ne changent pas** au fil des features. Ils sont stables.
 | Agent | Feature |
 |---|---|
 | `dev-encaissement` | Encaissements, reçus, annulations, tranches du dernier mois |
+| *session principale* | Tout le reste de l'Espace École, la page parent et l'export (pas un agent : Claude lui-même) |
 | `dev-relances` | Relances WhatsApp / SMS des impayés (à créer) |
 | `dev-espace-parent` | Page `/p/[token]` (à créer) |
 | etc. | |

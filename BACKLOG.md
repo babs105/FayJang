@@ -8,7 +8,7 @@
 > - Ne rien corriger depuis ce fichier sans passer par `architect`.
 > - Ne rien supprimer sans avoir la preuve que c'est fait (commit, PR, numéro de ligne).
 > - Une décision tranchée ne se rouvre pas sans raison nouvelle.
-> - L'agent dev (`dev-encaissement`) peut **ajouter** des findings non corrigés de sa tranche.
+> - Le dev (`dev-encaissement` ou la session principale) peut **ajouter** des findings non corrigés de sa tranche.
 >   Seul l'humain coche, supprime, modifie une entrée ou écrit dans « Décisions tranchées ».
 
 ---
