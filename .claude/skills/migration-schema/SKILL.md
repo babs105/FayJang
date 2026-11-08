@@ -1,6 +1,6 @@
 ---
 name: migration-schema
-description: Faire évoluer la base Supabase de JàngPay (nouvelle colonne, table, contrainte ou index) sans casser l'existant. À utiliser dès qu'un changement nécessite de modifier supabase/schema.sql.
+description: Faire évoluer la base Supabase de FayJàng (nouvelle colonne, table, contrainte ou index) sans casser l'existant. À utiliser dès qu'un changement nécessite de modifier supabase/schema.sql.
 ---
 
 # Faire évoluer le schéma Supabase

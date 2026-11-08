@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { cache } from "react";
 import { sessionEncoreValide } from "@/lib/supabase/client-serveur";
 
-const COOKIE_NAME = "jangpay_ecole";
+const COOKIE_NAME = "fayjang_ecole";
 const SESSION_DURATION_SECONDS = 60 * 60 * 24 * 30; // 30 jours
 
 function getSecret(): string {

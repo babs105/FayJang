@@ -15,7 +15,7 @@ export default function Accueil() {
     <div className="min-h-screen bg-white">
       <header className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
         <p className="text-lg font-extrabold">
-          Jàng<span className="text-jang-600">Pay</span>
+          Fay<span className="text-jang-600">Jàng</span>
         </p>
         <Link href="/ecole/login" className="text-xs font-bold text-neutral-700 hover:text-neutral-900">Espace École</Link>
       </header>
@@ -46,7 +46,7 @@ export default function Accueil() {
         </div>
       </section>
 
-      <footer className="text-center text-[11px] text-neutral-400 py-8">JàngPay · « jàng » : apprendre, en wolof</footer>
+      <footer className="text-center text-[11px] text-neutral-400 py-8">FayJàng · « fay » : payer, « jàng » : étudier, en wolof</footer>
     </div>
   );
 }

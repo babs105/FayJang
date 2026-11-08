@@ -18,7 +18,7 @@ if [[ "$file_path" == *"/supabase/admin.ts" ]] || [[ "$file_path" == *"/api/cron
 fi
 
 if echo "$content" | grep -q "SUPABASE_SERVICE_ROLE_KEY\|service_role"; then
-  echo "BLOQUÉ : service_role interdit hors de src/lib/supabase/admin.ts et src/app/api/cron/ (JàngPay)." >&2
+  echo "BLOQUÉ : service_role interdit hors de src/lib/supabase/admin.ts et src/app/api/cron/ (FayJàng)." >&2
   exit 2
 fi
 

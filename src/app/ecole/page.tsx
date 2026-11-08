@@ -154,7 +154,7 @@ function ErreurBase({ migrationManquante }: { migrationManquante: boolean }) {
         <p>
           {migrationManquante
             ? "La base n'est pas à jour : relancez supabase/schema.sql dans l'éditeur SQL Supabase."
-            : "Réessayez dans un instant. Si le problème persiste, contactez le support JàngPay."}
+            : "Réessayez dans un instant. Si le problème persiste, contactez le support FayJàng."}
         </p>
       </div>
     </div>

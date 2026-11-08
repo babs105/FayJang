@@ -2,7 +2,7 @@ import "server-only";
 import { cookies } from "next/headers";
 import { hashCode, safeEqual, sign } from "@/lib/ecole-session";
 
-const COOKIE_NAME = "jangpay_admin";
+const COOKIE_NAME = "fayjang_admin";
 const SESSION_DURATION_SECONDS = 60 * 60 * 12; // 12 heures
 
 /** Console SuperAdmin : accès par le code secret SUPERADMIN_CODE (variable d'environnement) */

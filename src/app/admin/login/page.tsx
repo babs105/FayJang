@@ -11,7 +11,7 @@ export default function AdminLoginPage() {
       <form action={formAction} className="bg-white rounded-3xl p-6 w-full max-w-xs space-y-4">
         <div className="text-center">
           <ShieldCheck className="w-8 h-8 mx-auto text-jang-600" />
-          <h1 className="text-sm font-extrabold mt-2">Console JàngPay</h1>
+          <h1 className="text-sm font-extrabold mt-2">Console FayJàng</h1>
         </div>
         {state?.error && <p className="text-xs text-red-600 text-center">{state.error}</p>}
         <input name="code" type="password" required autoComplete="current-password" placeholder="Code SuperAdmin" className="w-full text-xs px-3 py-2.5 rounded-xl border border-neutral-200" />

@@ -10,7 +10,7 @@ const config: Config = {
         foreground: "hsl(var(--foreground))",
         border: "hsl(var(--border))",
         ring: "hsl(var(--ring))",
-        // Couleurs de marque JàngPay (vert « savoir », rappel du drapeau)
+        // Couleurs de marque FayJàng (vert « savoir », rappel du drapeau)
         jang: {
           50: "#ecfdf5",
           100: "#d1fae5",

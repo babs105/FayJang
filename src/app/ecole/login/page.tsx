@@ -16,7 +16,7 @@ export default function EcoleLoginPage() {
             <GraduationCap className="w-7 h-7" />
           </div>
           <h1 className="text-xl font-extrabold text-neutral-900">
-            Espace École <span className="text-jang-600">JàngPay</span>
+            Espace École <span className="text-jang-600">FayJàng</span>
           </h1>
           <p className="text-xs text-neutral-500 mt-1">Connectez-vous avec le code choisi à l&apos;ouverture de votre compte.</p>
         </div>

@@ -1,4 +1,4 @@
-# WORKFLOW — JàngPay
+# WORKFLOW — FayJàng
 
 ## Le cycle de livraison (non négociable)
 

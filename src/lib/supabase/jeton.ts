@@ -5,7 +5,7 @@ import { createPrivateKey, sign, type KeyObject } from "crypto";
 const DUREE_JETON_SECONDES = 5 * 60;
 
 /** Claims lus par les politiques RLS (fonctions public.jwt_* de supabase/schema.sql) */
-export type ClaimsJangPay =
+export type ClaimsFayJang =
   | { role_app: "ecole"; ecole_id: string }
   | { role_app: "parent"; ecole_id: string; parent_id: string }
   // Appel des fonctions de connexion par le serveur : ce rôle n'ouvre aucune table, il atteste seulement
@@ -46,7 +46,7 @@ function getCleSignature(): { kid: string; cle: KeyObject } {
 }
 
 /** Signe un JWT ES256 accepté par Supabase : role « authenticated » + claims métier filtrés par la RLS */
-export function signerJetonSupabase(claims: ClaimsJangPay): string {
+export function signerJetonSupabase(claims: ClaimsFayJang): string {
   const { kid, cle } = getCleSignature();
   const maintenant = Math.floor(Date.now() / 1000);
   const sujet =

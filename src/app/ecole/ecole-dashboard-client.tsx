@@ -84,7 +84,7 @@ export function EcoleDashboardClient(props: DonneesEcole & { bienvenue: boolean;
         {bienvenue && (
           <div className="p-4 rounded-3xl bg-jang-50 border border-jang-100 text-xs text-jang-800 flex justify-between gap-3">
             <p>
-              <b>Bienvenue sur JàngPay !</b> Commencez par créer vos classes et leurs tarifs, puis inscrivez vos élèves.
+              <b>Bienvenue sur FayJàng !</b> Commencez par créer vos classes et leurs tarifs, puis inscrivez vos élèves.
               Chaque parent reçoit un lien pour suivre les paiements et télécharger ses reçus.
             </p>
             <button onClick={() => setBienvenue(false)} className="font-bold shrink-0">OK</button>

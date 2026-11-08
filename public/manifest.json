@@ -1,6 +1,6 @@
 {
-  "name": "JàngPay",
-  "short_name": "JàngPay",
+  "name": "FayJàng",
+  "short_name": "FayJàng",
   "description": "Suivi de la scolarité : inscriptions, mensualités et paiements.",
   "start_url": "/",
   "display": "standalone",

@@ -1,6 +1,6 @@
 ---
 name: verifier
-description: Vérifier un changement dans JàngPay avant de le considérer comme terminé ou de le pousser - types, règles du projet, build et contrôle visuel dans la preview.
+description: Vérifier un changement dans FayJàng avant de le considérer comme terminé ou de le pousser - types, règles du projet, build et contrôle visuel dans la preview.
 ---
 
 # Vérifier un changement
@@ -14,7 +14,7 @@ description: Vérifier un changement dans JàngPay avant de le considérer comme
    - pas de `new Date()` brut pour une date métier (utiliser `todayDakar()`) ;
    - textes d'interface en français ;
    - si `supabase/schema.sql` a changé : `src/types/database.ts` est à jour et l'utilisateur est prévenu de relancer le schéma.
-3. **Interface** (si un écran a changé) : preview `jangpay` (port 3126), qui lit la **vraie base** Supabase.
+3. **Interface** (si un écran a changé) : preview `fayjang` (port 3126), qui lit la **vraie base** Supabase.
    Vérifier la console et l'affichage, aussi en largeur mobile (375 px). Ne pas créer, modifier ni envoyer de
    données réelles (élèves, paiements) sans l'accord de l'utilisateur. L'Espace École demande une connexion :
    c'est à l'utilisateur de se connecter.

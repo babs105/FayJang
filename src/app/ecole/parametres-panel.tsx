@@ -136,7 +136,7 @@ export function ParametresPanel({ ecole, numeroWave }: DonneesEcole & { numeroWa
 
       <div className="space-y-4">
         <Carte className="space-y-2">
-          <h3 className="text-sm font-extrabold">Abonnement JàngPay</h3>
+          <h3 className="text-sm font-extrabold">Abonnement FayJàng</h3>
           <div className="flex items-center gap-2 text-xs">
             <Badge ton={ecole.statut_abonnement === "actif" ? "vert" : ecole.statut_abonnement === "essai" ? "bleu" : "rouge"}>
               {ecole.statut_abonnement === "essai" ? "Essai gratuit" : ecole.statut_abonnement === "actif" ? "Actif" : ecole.statut_abonnement === "expire" ? "Expiré" : "Suspendu"}

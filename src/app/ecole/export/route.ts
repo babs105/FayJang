@@ -47,7 +47,7 @@ export async function GET() {
   const insParId = new Map((inscriptions ?? []).map((i) => [i.id, i]));
 
   const classeur = new ExcelJS.Workbook();
-  classeur.creator = "JàngPay";
+  classeur.creator = "FayJàng";
 
   const journal = classeur.addWorksheet("Paiements");
   journal.columns = [
@@ -118,7 +118,7 @@ export async function GET() {
   return new Response(tampon as ArrayBuffer, {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "Content-Disposition": `attachment; filename="jangpay-${ecole.slug}-${ecole.annee_scolaire}.xlsx"`,
+      "Content-Disposition": `attachment; filename="fayjang-${ecole.slug}-${ecole.annee_scolaire}.xlsx"`,
       "Cache-Control": "private, no-store",
     },
   });

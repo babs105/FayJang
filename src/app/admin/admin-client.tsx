@@ -17,7 +17,7 @@ export function AdminClient({ ecoles }: { ecoles: EcoleAdmin[] }) {
   return (
     <div className="min-h-screen bg-neutral-50">
       <header className="bg-neutral-900 text-white px-4 py-3 flex justify-between items-center">
-        <p className="text-sm font-extrabold">Console JàngPay</p>
+        <p className="text-sm font-extrabold">Console FayJàng</p>
         <form action={logoutAdminAction}>
           <button className="text-xs flex items-center gap-1 opacity-80 hover:opacity-100"><LogOut className="w-4 h-4" /> Quitter</button>
         </form>

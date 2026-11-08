@@ -1,7 +1,7 @@
 import "server-only";
 import { serverClient, type SupabaseServeur } from "./client-serveur";
 import { getEcoleId, hashCode } from "@/lib/ecole-session";
-import { signerJetonSupabase, type ClaimsJangPay } from "./jeton";
+import { signerJetonSupabase, type ClaimsFayJang } from "./jeton";
 import { ipVisiteur } from "@/lib/ip";
 
 export type { SupabaseServeur };
@@ -16,7 +16,7 @@ export type { SupabaseServeur };
  */
 
 /** Client portant les claims donnés (sans vérification : réservé aux identifiants déjà échangés) */
-export function createClientAvecClaims(claims: ClaimsJangPay): SupabaseServeur {
+export function createClientAvecClaims(claims: ClaimsFayJang): SupabaseServeur {
   return serverClient(signerJetonSupabase(claims));
 }
 

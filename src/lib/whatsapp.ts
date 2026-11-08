@@ -28,7 +28,7 @@ export function messageRelance(p: {
 export function messageLienParent(p: { ecole: string; parent: string; lienParent: string }): string {
   return (
     `Bonjour ${p.parent},\n` +
-    `${p.ecole} utilise JàngPay pour le suivi de la scolarité.\n` +
+    `${p.ecole} utilise FayJàng pour le suivi de la scolarité.\n` +
     `Consultez à tout moment les paiements et reçus de vos enfants : ${p.lienParent}`
   );
 }

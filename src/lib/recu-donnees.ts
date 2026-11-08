@@ -59,7 +59,7 @@ export function reponsePdf(pdf: Uint8Array, numero: string | null): Response {
   return new Response(Buffer.from(pdf), {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename="recu-${(numero ?? "jangpay").replace(/[^\w-]/g, "")}.pdf"`,
+      "Content-Disposition": `inline; filename="recu-${(numero ?? "fayjang").replace(/[^\w-]/g, "")}.pdf"`,
       "Cache-Control": "private, no-store",
     },
   });

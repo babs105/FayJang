@@ -1,5 +1,5 @@
 -- ==============================================================================
--- JÀNGPAY — SCHÉMA SUPABASE
+-- FAYJÀNG — SCHÉMA SUPABASE
 -- Version: 1.0 — écoles (tenants), accès École, classes, parents, élèves, inscriptions,
 --               paiements (inscription / mensualités), reçus numérotés, limite des tentatives,
 --               RLS par claims JWT (pattern hybride « token -> JWT court » repris de Cantine Pro)
@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS public.ecoles (
     mois_debut INTEGER NOT NULL DEFAULT 10 CHECK (mois_debut BETWEEN 1 AND 12), -- octobre
     nb_mensualites INTEGER NOT NULL DEFAULT 9 CHECK (nb_mensualites BETWEEN 1 AND 12), -- octobre → juin
     jour_echeance INTEGER NOT NULL DEFAULT 5 CHECK (jour_echeance BETWEEN 1 AND 28), -- mensualité due le 5
-    -- Abonnement JàngPay (réservé au SuperAdmin, voir trigger section 10)
+    -- Abonnement FayJàng (réservé au SuperAdmin, voir trigger section 10)
     plan TEXT NOT NULL DEFAULT 'essai' CHECK (plan IN ('essai', 'standard', 'premium')),
     statut_abonnement TEXT NOT NULL DEFAULT 'essai' CHECK (statut_abonnement IN ('essai', 'actif', 'expire', 'suspendu')),
     trial_ends_at TIMESTAMPTZ DEFAULT (now() + INTERVAL '30 days'),
@@ -502,7 +502,7 @@ BEGIN
         OR NEW.trial_ends_at IS DISTINCT FROM OLD.trial_ends_at
         OR NEW.abonnement_fin IS DISTINCT FROM OLD.abonnement_fin
     ) THEN
-        RAISE EXCEPTION 'Ces informations ne peuvent être modifiées que par JàngPay.' USING ERRCODE = 'JP403';
+        RAISE EXCEPTION 'Ces informations ne peuvent être modifiées que par FayJàng.' USING ERRCODE = 'JP403';
     END IF;
     RETURN NEW;
 END;

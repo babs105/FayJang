@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "JàngPay — Suivi de la scolarité des écoles privées",
+  title: "FayJàng — Suivi de la scolarité des écoles privées",
   description: "Inscriptions, mensualités, paiements Wave / Orange Money et reçus pour les écoles privées du Sénégal.",
   manifest: "/manifest.json",
   icons: { icon: "/icon.svg" },

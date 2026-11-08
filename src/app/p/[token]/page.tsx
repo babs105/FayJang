@@ -11,7 +11,7 @@ import { cn, formatFCFA } from "@/lib/utils";
 export const dynamic = "force-dynamic";
 
 // Lien personnel : jamais indexé
-export const metadata: Metadata = { title: "Suivi de scolarité — JàngPay", robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: "Suivi de scolarité — FayJàng", robots: { index: false, follow: false } };
 
 const STYLE: Record<StatutMois, string> = {
   paye: "bg-jang-50 text-jang-700 border-jang-100",
@@ -155,7 +155,7 @@ export default async function ParentPage({ params }: { params: Promise<{ token: 
             <Phone className="w-4 h-4" /> Contacter l'administration
           </a>
         )}
-        <p className="text-center text-[10px] text-neutral-400">Lien personnel : ne le partagez pas. Propulsé par JàngPay.</p>
+        <p className="text-center text-[10px] text-neutral-400">Lien personnel : ne le partagez pas. Propulsé par FayJàng.</p>
       </main>
     </div>
   );

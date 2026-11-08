@@ -1,4 +1,4 @@
-# JàngPay
+# FayJàng
 
 Suivi de la scolarité des écoles privées au Sénégal : inscriptions, mensualités, paiements (espèces, Wave,
 Orange Money, Free Money, virement, chèque), reçus PDF, relances WhatsApp et espace parent.
@@ -13,7 +13,7 @@ Même architecture que Cantine Pro : Next.js 15 + Supabase (RLS par JWT court ES
 | `/inscription` | Nouvelle école | Ouverture du compte (essai 30 jours) |
 | `/ecole` | Direction / comptabilité | Identifiant (ou e-mail) + code |
 | `/p/[token]` | Parents | Lien magique envoyé par WhatsApp |
-| `/admin` | Équipe JàngPay | `SUPERADMIN_CODE` |
+| `/admin` | Équipe FayJàng | `SUPERADMIN_CODE` |
 
 ## Mise en route
 

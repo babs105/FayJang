@@ -39,7 +39,7 @@ export async function genererRecuPdf(d: DonneesRecu): Promise<Uint8Array> {
     page.drawText(texte(t), { x: x - font.widthOfTextAtSize(texte(t), size), y, size, font, color });
 
   page.drawRectangle({ x: 0, y: 565, width: 420, height: 30, color: vert });
-  page.drawText("JangPay - Recu de paiement", { x: 24, y: 575, size: 11, font: gras, color: rgb(1, 1, 1) });
+  page.drawText(texte("FayJàng - Reçu de paiement"), { x: 24, y: 575, size: 11, font: gras, color: rgb(1, 1, 1) });
 
   let y = 535;
   page.drawText(texte(d.ecole.nom), { x: 24, y, size: 15, font: gras });
@@ -88,7 +88,7 @@ export async function genererRecuPdf(d: DonneesRecu): Promise<Uint8Array> {
   }
 
   page.drawText(texte("Cachet et signature de l'administration"), { x: 200, y: 110, size: 9, font: normal, color: gris });
-  page.drawText(texte("Reçu généré par JàngPay - conservez-le comme justificatif."), { x: 24, y: 30, size: 8, font: normal, color: gris });
+  page.drawText(texte("Reçu généré par FayJàng - conservez-le comme justificatif."), { x: 24, y: 30, size: 8, font: normal, color: gris });
 
   return doc.save();
 }
