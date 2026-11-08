@@ -200,6 +200,82 @@ CREATE INDEX IF NOT EXISTS idx_paiements_lot ON public.paiements (ecole_id, lot_
 ALTER TABLE public.paiements DROP CONSTRAINT IF EXISTS paiements_ecole_id_numero_recu_key;
 CREATE INDEX IF NOT EXISTS idx_paiements_numero_recu ON public.paiements (ecole_id, numero_recu);
 
+-- v1.5 : frais de classe paramétrables.
+-- 1) Mensualité spécifique pour le dernier mois (NULL = mensualité ordinaire), figée sur l'inscription.
+-- 2) Réglages d'école : 1er et/ou dernier mois exigibles dès l'inscription ; mois payé par tranches choisi par son
+--    rang depuis la fin (1 = dernier, 2 = avant-dernier, 3 = antépénultième). Les colonnes tranches_dernier_mois,
+--    mois_debut_tranches et nb_tranches (v1.2, v1.3) gardent leur nom : « tranches activées », mois de la première
+--    tranche, nombre de tranches.
+-- 3) Catalogue d'articles par classe (tenue, blouson, jacket : frais uniques ; pensionnat, transport : services
+--    mensuels), obligatoires ou optionnels, avec prix unitaire et quantité. Copie figée par élève dans
+--    articles_inscription ; un paiement d'article porte article_id (type « autre »).
+ALTER TABLE public.classes ADD COLUMN IF NOT EXISTS mensualite_dernier_mois INTEGER;
+ALTER TABLE public.inscriptions ADD COLUMN IF NOT EXISTS mensualite_dernier_mois INTEGER;
+ALTER TABLE public.ecoles ADD COLUMN IF NOT EXISTS premier_mois_a_linscription BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE public.ecoles ADD COLUMN IF NOT EXISTS dernier_mois_a_linscription BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE public.ecoles ADD COLUMN IF NOT EXISTS rang_mois_tranches INTEGER NOT NULL DEFAULT 1;
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'classes_mensualite_dernier_mois_check') THEN
+        ALTER TABLE public.classes ADD CONSTRAINT classes_mensualite_dernier_mois_check
+            CHECK (mensualite_dernier_mois IS NULL OR mensualite_dernier_mois >= 0);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'inscriptions_mensualite_dernier_mois_check') THEN
+        ALTER TABLE public.inscriptions ADD CONSTRAINT inscriptions_mensualite_dernier_mois_check
+            CHECK (mensualite_dernier_mois IS NULL OR mensualite_dernier_mois >= 0);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ecoles_rang_mois_tranches_check') THEN
+        ALTER TABLE public.ecoles ADD CONSTRAINT ecoles_rang_mois_tranches_check
+            CHECK (rang_mois_tranches BETWEEN 1 AND 3);
+    END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS public.articles_classe (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    ecole_id UUID NOT NULL REFERENCES public.ecoles(id) ON DELETE CASCADE,
+    classe_id UUID NOT NULL REFERENCES public.classes(id) ON DELETE CASCADE,
+    libelle TEXT NOT NULL,
+    nature TEXT NOT NULL CHECK (nature IN ('unique', 'mensuel')), -- unique : tenue, blouson ; mensuel : transport
+    prix_unitaire INTEGER NOT NULL CHECK (prix_unitaire >= 0), -- FCFA (par mois pour un service mensuel)
+    quantite_defaut INTEGER NOT NULL DEFAULT 1 CHECK (quantite_defaut BETWEEN 0 AND 99),
+    obligatoire BOOLEAN NOT NULL DEFAULT true,
+    ordre INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_articles_classe_classe ON public.articles_classe (classe_id);
+
+CREATE TABLE IF NOT EXISTS public.articles_inscription (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    ecole_id UUID NOT NULL REFERENCES public.ecoles(id) ON DELETE CASCADE,
+    inscription_id UUID NOT NULL REFERENCES public.inscriptions(id) ON DELETE CASCADE,
+    article_classe_id UUID REFERENCES public.articles_classe(id) ON DELETE SET NULL,
+    libelle TEXT NOT NULL,
+    nature TEXT NOT NULL CHECK (nature IN ('unique', 'mensuel')),
+    prix_unitaire INTEGER NOT NULL CHECK (prix_unitaire >= 0),
+    quantite INTEGER NOT NULL DEFAULT 1 CHECK (quantite BETWEEN 0 AND 99),
+    obligatoire BOOLEAN NOT NULL DEFAULT true,
+    mois_debut DATE, -- service mensuel : premier mois dû (1er du mois)
+    mois_fin DATE,   -- service mensuel : dernier mois dû (NULL = jusqu'à la fin de l'année)
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CHECK (mois_debut IS NULL OR extract(day FROM mois_debut) = 1),
+    CHECK (mois_fin IS NULL OR extract(day FROM mois_fin) = 1),
+    CHECK (mois_fin IS NULL OR mois_debut IS NULL OR mois_fin >= mois_debut)
+);
+CREATE INDEX IF NOT EXISTS idx_articles_inscription_inscription ON public.articles_inscription (inscription_id);
+
+ALTER TABLE public.paiements
+    ADD COLUMN IF NOT EXISTS article_id UUID REFERENCES public.articles_inscription(id) ON DELETE RESTRICT;
+CREATE INDEX IF NOT EXISTS idx_paiements_article ON public.paiements (article_id) WHERE article_id IS NOT NULL;
+-- Un paiement d'article est toujours de type « autre » (sinon il fausserait le solde d'un mois).
+-- NOT VALID : les paiements existants ne sont pas relus.
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'paiements_article_type_check') THEN
+        ALTER TABLE public.paiements ADD CONSTRAINT paiements_article_type_check
+            CHECK (article_id IS NULL OR type = 'autre') NOT VALID;
+    END IF;
+END $$;
+
 -- 8. SÉCURITÉ : RLS ACTIVÉE SUR TOUTES LES TABLES
 ALTER TABLE public.schema_migrations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ecoles ENABLE ROW LEVEL SECURITY;
@@ -211,6 +287,8 @@ ALTER TABLE public.inscriptions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.paiements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.compteurs_recus ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tentatives_connexion ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.articles_classe ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.articles_inscription ENABLE ROW LEVEL SECURITY;
 
 -- 9. POLITIQUES RLS : PATTERN HYBRIDE « TOKEN -> JWT COURT »
 -- 1) Le serveur échange l'identifiant reçu (code École, token parent) via une fonction SECURITY DEFINER.
@@ -731,3 +809,127 @@ BEGIN
     RETURN NEW;
 END;
 $$;
+
+-- ==============================================================================
+-- v1.5 : politiques, cohérence multi-écoles et protections des articles.
+-- Remplace verifier_meme_ecole (v1.1) et proteger_paiement (v1.4). Bloc final : garder en dernier.
+-- ==============================================================================
+DROP POLICY IF EXISTS ecole_gere_ses_articles_classe ON public.articles_classe;
+CREATE POLICY ecole_gere_ses_articles_classe ON public.articles_classe FOR ALL TO authenticated
+    USING (public.jwt_role_app() = 'ecole' AND ecole_id = public.jwt_ecole_id())
+    WITH CHECK (public.jwt_role_app() = 'ecole' AND ecole_id = public.jwt_ecole_id());
+
+DROP POLICY IF EXISTS ecole_gere_ses_articles_inscription ON public.articles_inscription;
+CREATE POLICY ecole_gere_ses_articles_inscription ON public.articles_inscription FOR ALL TO authenticated
+    USING (public.jwt_role_app() = 'ecole' AND ecole_id = public.jwt_ecole_id())
+    WITH CHECK (public.jwt_role_app() = 'ecole' AND ecole_id = public.jwt_ecole_id());
+DROP POLICY IF EXISTS parent_lit_ses_articles ON public.articles_inscription;
+CREATE POLICY parent_lit_ses_articles ON public.articles_inscription FOR SELECT TO authenticated
+    USING (public.jwt_role_app() = 'parent' AND ecole_id = public.jwt_ecole_id()
+           AND EXISTS (SELECT 1 FROM public.inscriptions i JOIN public.eleves el ON el.id = i.eleve_id
+                       WHERE i.id = articles_inscription.inscription_id AND el.parent_id = public.jwt_parent_id()));
+
+-- Une branche par table ; NEW n'est lu que dans sa branche (pas de court-circuit en PL/pgSQL)
+CREATE OR REPLACE FUNCTION public.verifier_meme_ecole()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+    IF TG_TABLE_NAME = 'eleves' THEN
+        IF NEW.parent_id IS NOT NULL
+           AND NOT EXISTS (SELECT 1 FROM public.parents WHERE id = NEW.parent_id AND ecole_id = NEW.ecole_id) THEN
+            RAISE EXCEPTION 'Parent introuvable dans cette école.' USING ERRCODE = 'JP404';
+        END IF;
+    ELSIF TG_TABLE_NAME = 'inscriptions' THEN
+        IF NOT EXISTS (SELECT 1 FROM public.eleves WHERE id = NEW.eleve_id AND ecole_id = NEW.ecole_id)
+           OR NOT EXISTS (SELECT 1 FROM public.classes WHERE id = NEW.classe_id AND ecole_id = NEW.ecole_id) THEN
+            RAISE EXCEPTION 'Élève ou classe introuvable dans cette école.' USING ERRCODE = 'JP404';
+        END IF;
+    ELSIF TG_TABLE_NAME = 'articles_classe' THEN
+        IF NOT EXISTS (SELECT 1 FROM public.classes WHERE id = NEW.classe_id AND ecole_id = NEW.ecole_id) THEN
+            RAISE EXCEPTION 'Classe introuvable dans cette école.' USING ERRCODE = 'JP404';
+        END IF;
+    ELSIF TG_TABLE_NAME = 'articles_inscription' THEN
+        IF NOT EXISTS (SELECT 1 FROM public.inscriptions WHERE id = NEW.inscription_id AND ecole_id = NEW.ecole_id)
+           OR (NEW.article_classe_id IS NOT NULL
+               AND NOT EXISTS (SELECT 1 FROM public.articles_classe WHERE id = NEW.article_classe_id AND ecole_id = NEW.ecole_id)) THEN
+            RAISE EXCEPTION 'Inscription ou article introuvable dans cette école.' USING ERRCODE = 'JP404';
+        END IF;
+    ELSIF TG_TABLE_NAME = 'paiements' THEN
+        IF NOT EXISTS (SELECT 1 FROM public.inscriptions WHERE id = NEW.inscription_id AND ecole_id = NEW.ecole_id) THEN
+            RAISE EXCEPTION 'Inscription introuvable dans cette école.' USING ERRCODE = 'JP404';
+        END IF;
+        -- Un paiement d'article vise un article de la même inscription
+        IF NEW.article_id IS NOT NULL
+           AND NOT EXISTS (SELECT 1 FROM public.articles_inscription
+                           WHERE id = NEW.article_id AND inscription_id = NEW.inscription_id AND ecole_id = NEW.ecole_id) THEN
+            RAISE EXCEPTION 'Article introuvable pour cet élève.' USING ERRCODE = 'JP404';
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.verifier_meme_ecole() FROM PUBLIC, anon, authenticated;
+DROP TRIGGER IF EXISTS trg_meme_ecole ON public.articles_classe;
+CREATE TRIGGER trg_meme_ecole BEFORE INSERT OR UPDATE OF classe_id, ecole_id ON public.articles_classe
+    FOR EACH ROW EXECUTE FUNCTION public.verifier_meme_ecole();
+DROP TRIGGER IF EXISTS trg_meme_ecole ON public.articles_inscription;
+CREATE TRIGGER trg_meme_ecole BEFORE INSERT OR UPDATE OF inscription_id, article_classe_id, ecole_id ON public.articles_inscription
+    FOR EACH ROW EXECUTE FUNCTION public.verifier_meme_ecole();
+DROP TRIGGER IF EXISTS trg_meme_ecole ON public.paiements;
+CREATE TRIGGER trg_meme_ecole BEFORE INSERT OR UPDATE OF inscription_id, ecole_id, article_id ON public.paiements
+    FOR EACH ROW EXECUTE FUNCTION public.verifier_meme_ecole();
+
+-- Paiement encaissé : seule l'annulation motivée passe (article_id ajouté à la liste immuable)
+CREATE OR REPLACE FUNCTION public.proteger_paiement()
+RETURNS TRIGGER LANGUAGE plpgsql SET search_path = public AS $$
+BEGIN
+    IF OLD.annule THEN
+        RAISE EXCEPTION 'Ce paiement est déjà annulé.' USING ERRCODE = 'JP412';
+    END IF;
+    IF NEW.inscription_id IS DISTINCT FROM OLD.inscription_id
+       OR NEW.ecole_id IS DISTINCT FROM OLD.ecole_id
+       OR NEW.type IS DISTINCT FROM OLD.type
+       OR NEW.mois IS DISTINCT FROM OLD.mois
+       OR NEW.montant IS DISTINCT FROM OLD.montant
+       OR NEW.mode IS DISTINCT FROM OLD.mode
+       OR NEW.reference IS DISTINCT FROM OLD.reference
+       OR NEW.libelle IS DISTINCT FROM OLD.libelle
+       OR NEW.numero_recu IS DISTINCT FROM OLD.numero_recu
+       OR NEW.lot_id IS DISTINCT FROM OLD.lot_id
+       OR NEW.article_id IS DISTINCT FROM OLD.article_id
+       OR NEW.paye_le IS DISTINCT FROM OLD.paye_le
+       OR NEW.created_at IS DISTINCT FROM OLD.created_at THEN
+        RAISE EXCEPTION 'Un paiement encaissé ne se modifie pas : annulez-le puis saisissez le bon.' USING ERRCODE = 'JP412';
+    END IF;
+    IF NEW.annule AND length(trim(coalesce(NEW.motif_annulation, ''))) < 3 THEN
+        RAISE EXCEPTION 'Indiquez le motif de l''annulation.' USING ERRCODE = 'JP422';
+    END IF;
+    IF NEW.annule THEN
+        NEW.annule_at := now();
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+-- Article d'un élève déjà payé : prix, quantité, nature et début figés ; seule la fin d'un service peut bouger.
+-- Un article qui a des paiements ne se supprime pas (on arrête le service, ou on annule les reçus d'abord).
+CREATE OR REPLACE FUNCTION public.proteger_article_inscription()
+RETURNS TRIGGER LANGUAGE plpgsql SET search_path = public AS $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM public.paiements WHERE article_id = OLD.id AND NOT annule) THEN
+        IF TG_OP = 'DELETE' THEN
+            RAISE EXCEPTION 'Cet article a des paiements : arrêtez le service ou annulez les reçus.' USING ERRCODE = 'JP412';
+        END IF;
+        IF NEW.prix_unitaire IS DISTINCT FROM OLD.prix_unitaire
+           OR NEW.quantite IS DISTINCT FROM OLD.quantite
+           OR NEW.nature IS DISTINCT FROM OLD.nature
+           OR NEW.inscription_id IS DISTINCT FROM OLD.inscription_id
+           OR NEW.mois_debut IS DISTINCT FROM OLD.mois_debut THEN
+            RAISE EXCEPTION 'Article déjà payé : son prix et sa quantité ne changent plus.' USING ERRCODE = 'JP412';
+        END IF;
+    END IF;
+    RETURN COALESCE(NEW, OLD);
+END;
+$$;
+DROP TRIGGER IF EXISTS trg_proteger_article_inscription ON public.articles_inscription;
+CREATE TRIGGER trg_proteger_article_inscription BEFORE UPDATE OR DELETE ON public.articles_inscription
+    FOR EACH ROW EXECUTE FUNCTION public.proteger_article_inscription();

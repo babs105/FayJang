@@ -30,11 +30,16 @@ export type Ecole = {
   mois_debut: number;
   nb_mensualites: number;
   jour_echeance: number;
-  /** Dernier mois payé par tranches à partir de mois_debut_tranches (1-12) */
+  /** Tranches activées (nom historique) : le mois ciblé par rang_mois_tranches se paie par tranches à partir de mois_debut_tranches (1-12) */
   tranches_dernier_mois: boolean;
   mois_debut_tranches: number | null;
-  /** Nombre de tranches ; null = jusqu'à l'avant-dernier mois */
+  /** Nombre de tranches ; null = autant de mois que possible avant le mois ciblé */
   nb_tranches: number | null;
+  /** Mois payé par tranches, compté depuis la fin : 1 = dernier, 2 = avant-dernier, 3 = antépénultième */
+  rang_mois_tranches: number;
+  /** Mensualités exigibles dès l'inscription (payées d'avance) */
+  premier_mois_a_linscription: boolean;
+  dernier_mois_a_linscription: boolean;
   plan: PlanId;
   statut_abonnement: StatutAbonnement;
   trial_ends_at: string | null;
@@ -57,6 +62,8 @@ export type Classe = {
   annee_scolaire: string;
   frais_inscription: number;
   mensualite: number;
+  /** Mensualité du dernier mois ; null = mensualité ordinaire */
+  mensualite_dernier_mois: number | null;
   is_active: boolean;
   created_at: string;
 }
@@ -92,6 +99,7 @@ export type Inscription = {
   annee_scolaire: string;
   frais_inscription: number;
   mensualite: number;
+  mensualite_dernier_mois: number | null;
   reduction_mensuelle: number;
   statut: StatutInscription;
   created_at: string;
@@ -110,11 +118,45 @@ export type Paiement = {
   numero_recu: string | null;
   /** Lignes encaissées ensemble : même lot = même reçu */
   lot_id: string | null;
+  /** Paiement d'un article (tenue, transport…) : ligne d'articles_inscription */
+  article_id: string | null;
   paye_le: string; // YYYY-MM-DD
   encaisse_par: string | null;
   annule: boolean;
   motif_annulation: string | null;
   annule_at: string | null;
+  created_at: string;
+}
+
+export type NatureArticle = "unique" | "mensuel";
+
+/** Catalogue d'une classe : frais uniques (tenue, blouson) ou services mensuels (transport, pensionnat) */
+export type ArticleClasse = {
+  id: string;
+  ecole_id: string;
+  classe_id: string;
+  libelle: string;
+  nature: NatureArticle;
+  prix_unitaire: number;
+  quantite_defaut: number;
+  obligatoire: boolean;
+  ordre: number;
+  created_at: string;
+}
+
+/** Copie figée d'un article pour un élève (quantité choisie, période du service) */
+export type ArticleInscription = {
+  id: string;
+  ecole_id: string;
+  inscription_id: string;
+  article_classe_id: string | null;
+  libelle: string;
+  nature: NatureArticle;
+  prix_unitaire: number;
+  quantite: number;
+  obligatoire: boolean;
+  mois_debut: string | null;
+  mois_fin: string | null;
   created_at: string;
 }
 
@@ -131,6 +173,8 @@ export type Database = {
         "ecole_id" | "eleve_id" | "classe_id" | "annee_scolaire" | "frais_inscription" | "mensualite"
       >;
       paiements: Table<Paiement, "ecole_id" | "inscription_id" | "type" | "montant" | "mode">;
+      articles_classe: Table<ArticleClasse, "ecole_id" | "classe_id" | "libelle" | "nature" | "prix_unitaire">;
+      articles_inscription: Table<ArticleInscription, "ecole_id" | "inscription_id" | "libelle" | "nature" | "prix_unitaire">;
     };
     Views: { [_ in never]: never };
     Functions: { [_ in never]: never };
