@@ -8,7 +8,7 @@ import { generateToken, todayDakar } from "@/lib/config";
 import { isAnneeScolaireValide, isDateValide, moisScolaires } from "@/lib/dates";
 import { messageErreur } from "@/lib/erreurs";
 import { MODES_PAIEMENT, NIVEAUX } from "@/lib/libelles";
-import { choixALinscription, lignesAEncaisser, situationInscription, verifierReglages } from "@/lib/scolarite";
+import { choixALinscription, lignesAEncaisser, paiementLibreAutorise, situationInscription, verifierReglages } from "@/lib/scolarite";
 import { matriculeSuivant } from "@/lib/matricule";
 import { normaliserTelephone } from "@/lib/telephone";
 import type { ModePaiement, NatureArticle, Niveau, StatutInscription } from "@/types/database";
@@ -496,11 +496,11 @@ export async function modifierInscription(
   if (!s) return { success: false, message: SESSION_EXPIREE };
 
   const maj: { statut?: StatutInscription; date_depart?: string | null; reduction_mensuelle?: number } = {};
-  if (champs.statut) {
+  if (champs.statut !== undefined) {
     if (!["active", "abandon", "transfert"].includes(champs.statut)) return { success: false, message: "Statut inconnu." };
     maj.statut = champs.statut;
   }
-  if (champs.statut || champs.date_depart !== undefined) {
+  if (champs.statut !== undefined || champs.date_depart !== undefined) {
     try {
       const { data: ins, error: erreurIns } = await s.supabase
         .from("inscriptions")
@@ -517,9 +517,10 @@ export async function modifierInscription(
       } else {
         const date = champs.date_depart;
         if (date === undefined || date === null || date === "") {
-          if (champs.statut) return { success: false, message: "Indiquez la date de départ de l'élève." };
+          if (champs.statut !== undefined) return { success: false, message: "Indiquez la date de départ de l'élève." };
         } else {
-          if (!isDateValide(date)) return { success: false, message: "Date de départ invalide." };
+          if (typeof date !== "string" || !isDateValide(date) || new Date(date + "T00:00:00Z").toISOString().slice(0, 10) !== date)
+            return { success: false, message: "Date de départ invalide." };
           if (date > todayDakar()) return { success: false, message: "La date de départ ne peut pas être dans le futur." };
           const ecole = await lireEcole(s.supabase, s.ecoleId);
           const mois = moisScolaires(ins.annee_scolaire, ecole.mois_debut, ecole.nb_mensualites);
@@ -540,9 +541,14 @@ export async function modifierInscription(
     if (r === null) return { success: false, message: "Réduction invalide." };
     maj.reduction_mensuelle = r;
   }
+  if (Object.keys(maj).length === 0) return { success: true };
   const { error } = await s.supabase.from("inscriptions").update(maj).eq("id", id).eq("ecole_id", s.ecoleId);
   if (error) {
-    if (error.code === "23514") return { success: false, message: "La réduction ne peut pas dépasser la mensualité." };
+    if (error.code === "23514") {
+      if (`${error.message} ${error.details ?? ""}`.includes("date_depart"))
+        return { success: false, message: "La date de départ n'est possible que pour un élève en abandon ou transféré." };
+      return { success: false, message: "La réduction ne peut pas dépasser la mensualité." };
+    }
     return { success: false, message: messageErreur("inscriptions", error) };
   }
   revalidatePath("/ecole");
@@ -625,6 +631,7 @@ export async function encaisserPaiement(saisie: SaisiePaiement): Promise<Resulta
 
     let lignes;
     if (saisie.libre) {
+      if (!paiementLibreAutorise(ins.statut)) return { success: false, message: "Élève parti : seul le solde dû peut être encaissé." };
       const libelle = texte(saisie.libre.libelle, 80);
       const m = montant(saisie.libre.montant);
       if (!libelle) return { success: false, message: "Précisez l'objet du paiement." };

@@ -3,6 +3,7 @@ import {
   choixALinscription,
   libelleTranche,
   lignesAEncaisser,
+  paiementLibreAutorise,
   partEchue,
   situationInscription,
   trancheAvecMois,
@@ -578,4 +579,10 @@ describe("départ d'un élève", () => {
     expect(avec).toEqual(sans);
     expect(avec.mois.find((m) => m.mois === "2027-04-01")?.duEchu).toBe(0);
   });
+});
+
+describe("paiementLibreAutorise", () => {
+  it("autorise un élève inscrit", () => expect(paiementLibreAutorise("active")).toBe(true));
+  it("refuse un élève en abandon", () => expect(paiementLibreAutorise("abandon")).toBe(false));
+  it("refuse un élève transféré", () => expect(paiementLibreAutorise("transfert")).toBe(false));
 });

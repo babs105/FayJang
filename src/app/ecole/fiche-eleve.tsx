@@ -7,7 +7,7 @@ import { formatDate, formatMois, formatMoisCourt } from "@/lib/dates";
 import { LIBELLE_MODE, LIBELLE_STATUT_INSCRIPTION, MODES_PAIEMENT, libellePaiement } from "@/lib/libelles";
 import { lienWhatsApp, messageLienParent, messageRelance } from "@/lib/whatsapp";
 import { Badge, Bouton, Label, Message, Modal, champ } from "@/components/ui";
-import { choixALinscription, lignesAEncaisser, type LigneArticle, type StatutMois } from "@/lib/scolarite";
+import { choixALinscription, lignesAEncaisser, paiementLibreAutorise, type LigneArticle, type StatutMois } from "@/lib/scolarite";
 import type { StatutInscription } from "@/types/database";
 import {
   ajouterArticleInscription,
@@ -53,7 +53,7 @@ export function FicheEleve({
   const [montant, setMontant] = useState("");
   const [mode, setMode] = useState("especes");
   const [reference, setReference] = useState("");
-  const [libre, setLibre] = useState(false);
+  const [libreCoche, setLibre] = useState(false);
   const [libelle, setLibelle] = useState("");
   const [inclureTranche, setInclureTranche] = useState(true);
   const [edition, setEdition] = useState(false);
@@ -62,6 +62,8 @@ export function FicheEleve({
   const [dateDepart, setDateDepart] = useState(eleve.inscription?.date_depart ?? aujourdhui);
   const s = eleve.situation;
   const ins = eleve.inscription;
+  // Élève parti : pas de paiement libre, même si la case était cochée avant le changement de statut
+  const libre = libreCoche && (ins ? paiementLibreAutorise(ins.statut) : false);
   const classe = classes.find((c) => c.id === ins?.classe_id);
 
   function executer(action: () => Promise<{ success: boolean; message?: string }>, apres?: () => void) {
@@ -377,10 +379,11 @@ export function FicheEleve({
             <form onSubmit={encaisser} className="rounded-2xl bg-neutral-50 p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-extrabold text-neutral-900">Encaisser un paiement</p>
+                {paiementLibreAutorise(ins.statut) && (
                 <label className="flex items-center gap-1.5 text-[11px] font-bold text-neutral-600">
                   <input
                     type="checkbox"
-                    checked={libre}
+                    checked={libreCoche}
                     onChange={(e) => {
                       setLibre(e.target.checked);
                       if (e.target.checked) viderSelection();
@@ -388,6 +391,7 @@ export function FicheEleve({
                   />
                   Paiement libre (hors catalogue)
                 </label>
+                )}
               </div>
               {(() => {
                 const cible = s.mois.find((m) => m.tranches && m.reste > 0);
