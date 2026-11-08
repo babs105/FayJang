@@ -119,7 +119,7 @@ export default async function ParentPage({ params }: { params: Promise<{ token: 
                 <>
                   <div className="grid grid-cols-5 gap-1.5">
                     {/* Élève parti : les mois qui ne sont plus dus (après le départ, non payés) sont masqués */}
-                    {s.mois.filter((m) => !(ins?.date_depart && ins.statut !== "active" && m.statut === "non_du")).map((m) => (
+                    {s.mois.filter((m) => !(ins?.date_depart && ins.statut !== "active" && m.statut === "non_du" && m.paye === 0)).map((m) => (
                       <div key={m.mois} className={cn("rounded-xl border py-1.5 text-center", STYLE[m.statut])}>
                         <p className="text-[10px] font-bold capitalize">{formatMoisCourt(m.mois)}</p>
                         <p className="text-[9px]">

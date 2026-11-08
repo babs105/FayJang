@@ -58,7 +58,7 @@ export function ImpayesPanel({ eleves, classes, ecole, ouvrirEleve }: DonneesEco
                 <button onClick={() => ouvrirEleve(e.id)} className="flex-1 min-w-0 text-left">
                   <p className="text-xs font-bold truncate">
                     {e.prenom} {e.nom} <span className="text-neutral-400 font-normal">· {e.inscription?.classe_nom}</span>
-                    {e.inscription?.date_depart && (
+                    {e.inscription?.statut !== "active" && e.inscription?.date_depart && (
                       <span className="ml-1.5 px-1.5 py-0.5 rounded bg-neutral-100 text-neutral-600 text-[10px] font-bold">
                         {e.sexe === "F" ? "Partie" : "Parti"} le {formatDate(e.inscription.date_depart)}
                       </span>
@@ -73,7 +73,7 @@ export function ImpayesPanel({ eleves, classes, ecole, ouvrirEleve }: DonneesEco
                   <a
                     href={lienWhatsApp(
                       e.parent.telephone,
-                      messageRelance({ ecole: ecole.nom, parent: e.parent.nom, eleve: e.prenom, arriere: e.situation!.arriere, moisEnRetard: e.situation!.moisEnRetard, lienParent: e.parent.lien, dateDepart: e.inscription?.date_depart })
+                      messageRelance({ ecole: ecole.nom, parent: e.parent.nom, eleve: e.prenom, arriere: e.situation!.arriere, moisEnRetard: e.situation!.moisEnRetard, lienParent: e.parent.lien, dateDepart: e.inscription?.statut !== "active" ? e.inscription?.date_depart : null })
                     )}
                     target="_blank"
                     rel="noreferrer"

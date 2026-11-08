@@ -108,6 +108,11 @@
   au-delà de 9 999 élèves sur une année (matricule à 7 caractères), l'ordre texte ne suivrait plus
   l'ordre numérique. *Estimé : 15 min. Croise : très grosses écoles.* (review du hotfix matricule, 2026-11-08)
 
+- [ ] **Formules Excel non neutralisées dans l'export** — les noms d'élève et de parent saisis
+  librement peuvent commencer par `=`, `+`, `-` ou `@` et être interprétés comme formules à
+  l'ouverture (`src/app/ecole/export/route.ts`). Correctif : préfixer d'une apostrophe ces chaînes
+  avant `addRow`. *Estimé : 20 min. Croise : toute évolution de l'export.* (review tranche 3 « départ d'un élève », 2026-11-08)
+
 ---
 
 ## Décisions tranchées (ne plus rouvrir)
