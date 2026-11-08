@@ -132,8 +132,8 @@ T(n+1).
 - Jamais de merge sans les reviews du scope nommé.
 - Jamais de merge sans `npx tsc --noEmit` (le hook le fait, mais vérifier).
 - Jamais de `git push` sur `main` par un agent sans l'accord explicite de l'humain.
-- Pas de tests automatisés dans le projet (règle du `CLAUDE.md`) : les tests
-  sont manuels, listés dans le rapport du dev.
+- Jamais de merge sans `npm test` vert (tests Vitest écrits par le dev de la
+  tranche) ; les écrans restent testés à la main, tests listés dans le rapport du dev.
 
 ### Sur le schéma en dev vs prod
 
