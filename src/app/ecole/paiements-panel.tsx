@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Download, FileText } from "lucide-react";
+import { Fragment, useMemo, useState } from "react";
+import { ChevronDown, ChevronRight, Download, FileText } from "lucide-react";
 import { cn, formatFCFA } from "@/lib/utils";
 import { formatDate } from "@/lib/dates";
 import { LIBELLE_MODE, MODES_PAIEMENT, libellePaiement } from "@/lib/libelles";
+import { regrouperParRecu, resumeRecu } from "@/lib/regrouper-recus";
 import { Badge, Carte, champ } from "@/components/ui";
 import type { DonneesEcole } from "./ecole-dashboard-client";
 
@@ -12,6 +13,7 @@ export function PaiementsPanel({ paiements, aujourdhui, ouvrirEleve }: DonneesEc
   const [periode, setPeriode] = useState<"jour" | "mois" | "annee">("mois");
   const [mode, setMode] = useState("");
   const [annules, setAnnules] = useState(false);
+  const [ouverts, setOuverts] = useState<Set<string>>(new Set());
 
   const liste = useMemo(
     () =>
@@ -24,7 +26,18 @@ export function PaiementsPanel({ paiements, aujourdhui, ouvrirEleve }: DonneesEc
       }),
     [paiements, periode, mode, annules, aujourdhui]
   );
-  const total = liste.filter((p) => !p.annule).reduce((s, p) => s + p.montant, 0);
+  // Une ligne par reçu (lot) : un encaissement de 3 mois n'apparaît qu'une fois
+  const recus = useMemo(() => regrouperParRecu(liste), [liste]);
+  const total = recus.reduce((s, r) => s + r.total, 0);
+
+  function basculer(cle: string) {
+    setOuverts((prec) => {
+      const suivant = new Set(prec);
+      if (suivant.has(cle)) suivant.delete(cle);
+      else suivant.add(cle);
+      return suivant;
+    });
+  }
 
   return (
     <div className="space-y-4">
@@ -55,7 +68,7 @@ export function PaiementsPanel({ paiements, aujourdhui, ouvrirEleve }: DonneesEc
       </div>
 
       <Carte className="flex justify-between items-center py-4">
-        <span className="text-xs text-neutral-600">{liste.filter((p) => !p.annule).length} paiement(s)</span>
+        <span className="text-xs text-neutral-600">{recus.filter((r) => !r.annule).length} reçu(s)</span>
         <span className="text-lg font-extrabold text-jang-700">{formatFCFA(total)}</span>
       </Carte>
 
@@ -75,32 +88,72 @@ export function PaiementsPanel({ paiements, aujourdhui, ouvrirEleve }: DonneesEc
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-100">
-              {liste.map((p) => (
-                <tr key={p.id} className={cn(p.annule && "opacity-50")}>
-                  <td className="px-4 py-2.5">
-                    <p className="font-bold">{p.numero_recu}</p>
-                    <p className="text-[11px] text-neutral-500">{formatDate(p.paye_le)}</p>
-                  </td>
-                  <td className="px-4 py-2.5">
-                    <button onClick={() => ouvrirEleve(p.eleve_id)} className="font-bold hover:text-jang-700 text-left">{p.eleve_nom}</button>
-                    <p className="text-[11px] text-neutral-500">{p.classe_nom}</p>
-                  </td>
-                  <td className="px-4 py-2.5 hidden md:table-cell">
-                    {libellePaiement(p)}
-                    {p.annule && <span className="ml-1"><Badge ton="rouge">Annulé</Badge></span>}
-                  </td>
-                  <td className="px-4 py-2.5 hidden md:table-cell">
-                    {LIBELLE_MODE[p.mode]}
-                    {p.reference && <span className="text-neutral-400"> · {p.reference}</span>}
-                  </td>
-                  <td className={cn("px-4 py-2.5 text-right font-extrabold", p.annule && "line-through")}>{formatFCFA(p.montant)}</td>
-                  <td className="px-2">
-                    <a href={`/ecole/recu/${p.id}`} target="_blank" className="p-1.5 inline-block rounded-lg hover:bg-neutral-100" title="Reçu PDF">
-                      <FileText className="w-4 h-4 text-neutral-600" />
-                    </a>
-                  </td>
-                </tr>
-              ))}
+              {recus.map((r) => {
+                const p = r.premiere;
+                const detail = r.lignes.length > 1;
+                const ouvert = ouverts.has(r.cle);
+                return (
+                  <Fragment key={r.cle}>
+                    <tr className={cn(r.annule && "opacity-50", detail && "cursor-pointer hover:bg-neutral-50")} onClick={detail ? () => basculer(r.cle) : undefined}>
+                      <td className="px-4 py-2.5">
+                        <p className="font-bold flex items-center gap-1 whitespace-nowrap">
+                          {detail && (ouvert ? <ChevronDown className="w-3.5 h-3.5 text-neutral-400" /> : <ChevronRight className="w-3.5 h-3.5 text-neutral-400" />)}
+                          {p.numero_recu}
+                        </p>
+                        <p className="text-[11px] text-neutral-500">{formatDate(p.paye_le)}</p>
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            ouvrirEleve(p.eleve_id);
+                          }}
+                          className="font-bold hover:text-jang-700 text-left"
+                        >
+                          {p.eleve_nom}
+                        </button>
+                        <p className="text-[11px] text-neutral-500">{p.classe_nom}</p>
+                        <p className="text-[11px] text-neutral-500 md:hidden">{resumeRecu(r.lignes)}</p>
+                      </td>
+                      <td className="px-4 py-2.5 hidden md:table-cell">
+                        {resumeRecu(r.lignes)}
+                        {r.annule && <span className="ml-1"><Badge ton="rouge">Annulé</Badge></span>}
+                        {r.annule && r.motif_annulation && <p className="text-[11px] text-neutral-500">{r.motif_annulation}</p>}
+                      </td>
+                      <td className="px-4 py-2.5 hidden md:table-cell">
+                        {LIBELLE_MODE[p.mode]}
+                        {p.reference && <span className="text-neutral-400"> · {p.reference}</span>}
+                      </td>
+                      <td className={cn("px-4 py-2.5 text-right font-extrabold", r.annule && "line-through")}>
+                        {formatFCFA(r.annule ? r.totalBrut : r.total)}
+                      </td>
+                      <td className="px-2">
+                        <a
+                          href={`/ecole/recu/${p.id}`}
+                          target="_blank"
+                          onClick={(e) => e.stopPropagation()}
+                          className="p-1.5 inline-block rounded-lg hover:bg-neutral-100"
+                          title="Reçu PDF"
+                        >
+                          <FileText className="w-4 h-4 text-neutral-600" />
+                        </a>
+                      </td>
+                    </tr>
+                    {detail &&
+                      ouvert &&
+                      r.lignes.map((l) => (
+                        <tr key={l.id} className={cn("bg-neutral-50/60 text-neutral-600", l.annule && "opacity-50")}>
+                          <td className="px-4 py-1.5" />
+                          <td className="px-4 py-1.5 md:hidden">{libellePaiement(l)}</td>
+                          <td className="px-4 py-1.5 hidden md:table-cell" />
+                          <td className="px-4 py-1.5 hidden md:table-cell" colSpan={2}>{libellePaiement(l)}</td>
+                          <td className={cn("px-4 py-1.5 text-right", l.annule && "line-through")}>{formatFCFA(l.montant)}</td>
+                          <td />
+                        </tr>
+                      ))}
+                  </Fragment>
+                );
+              })}
             </tbody>
           </table>
         )}
