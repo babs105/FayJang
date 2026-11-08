@@ -40,7 +40,7 @@ export default async function ParentPage({ params }: { params: Promise<{ token: 
   const { data: inscriptions } = idsEnfants.length
     ? await supabase
         .from("inscriptions")
-        .select("id, eleve_id, classe_id, annee_scolaire, frais_inscription, mensualite, mensualite_dernier_mois, reduction_mensuelle, statut")
+        .select("id, eleve_id, classe_id, annee_scolaire, frais_inscription, mensualite, mensualite_dernier_mois, reduction_mensuelle, statut, date_depart")
         .eq("ecole_id", ecoleId)
         .eq("annee_scolaire", ecole.annee_scolaire)
         .in("eleve_id", idsEnfants)

@@ -102,6 +102,8 @@ export type Inscription = {
   mensualite_dernier_mois: number | null;
   reduction_mensuelle: number;
   statut: StatutInscription;
+  /** Date de départ (abandon, transfert) ; null pour une inscription active */
+  date_depart: string | null;
   created_at: string;
 }
 

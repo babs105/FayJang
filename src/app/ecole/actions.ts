@@ -79,7 +79,7 @@ async function chargerSituation(supabase: Client, ecoleId: string, inscriptionId
   const ecole = await lireEcole(supabase, ecoleId);
   const { data: ins, error: erreurIns } = await supabase
     .from("inscriptions")
-    .select("id, annee_scolaire, frais_inscription, mensualite, mensualite_dernier_mois, reduction_mensuelle, statut")
+    .select("id, annee_scolaire, frais_inscription, mensualite, mensualite_dernier_mois, reduction_mensuelle, statut, date_depart")
     .eq("id", inscriptionId)
     .eq("ecole_id", ecoleId)
     .maybeSingle();
@@ -485,15 +485,50 @@ export async function supprimerEleve(id: string): Promise<Resultat> {
 
 export async function modifierInscription(
   id: string,
-  champs: { statut?: StatutInscription; reduction_mensuelle?: string | number }
+  champs: { statut?: StatutInscription; date_depart?: string | null; reduction_mensuelle?: string | number }
 ): Promise<Resultat> {
   const s = await session();
   if (!s) return { success: false, message: SESSION_EXPIREE };
 
-  const maj: { statut?: StatutInscription; reduction_mensuelle?: number } = {};
+  const maj: { statut?: StatutInscription; date_depart?: string | null; reduction_mensuelle?: number } = {};
   if (champs.statut) {
     if (!["active", "abandon", "transfert"].includes(champs.statut)) return { success: false, message: "Statut inconnu." };
     maj.statut = champs.statut;
+  }
+  if (champs.statut || champs.date_depart !== undefined) {
+    try {
+      const { data: ins, error: erreurIns } = await s.supabase
+        .from("inscriptions")
+        .select("statut, annee_scolaire")
+        .eq("id", id)
+        .eq("ecole_id", s.ecoleId)
+        .maybeSingle();
+      if (erreurIns) throw erreurIns;
+      if (!ins) return { success: false, message: "Inscription introuvable." };
+      const statut = champs.statut ?? ins.statut;
+      if (statut === "active") {
+        // Retour en « Inscrit » : la date de départ est effacée
+        maj.date_depart = null;
+      } else {
+        const date = champs.date_depart;
+        if (date === undefined || date === null || date === "") {
+          if (champs.statut) return { success: false, message: "Indiquez la date de départ de l'élève." };
+        } else {
+          if (!isDateValide(date)) return { success: false, message: "Date de départ invalide." };
+          if (date > todayDakar()) return { success: false, message: "La date de départ ne peut pas être dans le futur." };
+          const ecole = await lireEcole(s.supabase, s.ecoleId);
+          const mois = moisScolaires(ins.annee_scolaire, ecole.mois_debut, ecole.nb_mensualites);
+          const premier = mois[0];
+          const [a, m] = mois[mois.length - 1].split("-").map(Number);
+          const dernierJour = `${mois[mois.length - 1].slice(0, 8)}${String(new Date(Date.UTC(a, m, 0)).getUTCDate()).padStart(2, "0")}`;
+          if (date < premier || date > dernierJour)
+            return { success: false, message: `La date de départ doit être dans l'année scolaire ${ins.annee_scolaire}.` };
+          maj.date_depart = date;
+        }
+      }
+    } catch (err) {
+      return { success: false, message: messageErreur("inscriptions", err) };
+    }
   }
   if (champs.reduction_mensuelle !== undefined) {
     const r = montant(champs.reduction_mensuelle);

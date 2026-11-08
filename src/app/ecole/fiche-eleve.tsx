@@ -58,6 +58,8 @@ export function FicheEleve({
   const [inclureTranche, setInclureTranche] = useState(true);
   const [edition, setEdition] = useState(false);
   const [reinscription, setReinscription] = useState(false);
+  const [statutChoisi, setStatutChoisi] = useState<StatutInscription>(eleve.inscription?.statut ?? "active");
+  const [dateDepart, setDateDepart] = useState(eleve.inscription?.date_depart ?? aujourdhui);
   const s = eleve.situation;
   const ins = eleve.inscription;
   const classe = classes.find((c) => c.id === ins?.classe_id);
@@ -176,6 +178,20 @@ export function FicheEleve({
 
         {ins && s && (
           <>
+            {ins.statut !== "active" && (
+              <div
+                className={cn(
+                  "rounded-xl border p-2.5 text-[11px]",
+                  ins.date_depart ? "bg-neutral-50 border-neutral-200 text-neutral-700" : "bg-amber-50 border-amber-200 text-amber-800"
+                )}
+              >
+                {ins.date_depart ? (
+                  <>Parti le <b>{formatDate(ins.date_depart)}</b> : les mensualités sont dues jusqu'à {formatMois(ins.date_depart)} inclus.</>
+                ) : (
+                  <><b>Date de départ manquante</b> : indiquez-la ci-dessous pour calculer ce que doit cet élève.</>
+                )}
+              </div>
+            )}
             <div className="grid grid-cols-3 gap-2">
               <Resume label="Payé" valeur={formatFCFA(s.totalPaye)} ton="vert" />
               <Resume label="Arriéré" valeur={formatFCFA(s.arriere)} ton={s.arriere > 0 ? "rouge" : undefined} />
@@ -471,14 +487,41 @@ export function FicheEleve({
 
             <div className="flex flex-wrap gap-2 text-xs">
               <select
-                value={ins.statut}
-                onChange={(e) => executer(() => modifierInscription(ins.id, { statut: e.target.value as StatutInscription }))}
+                value={statutChoisi}
+                onChange={(e) => setStatutChoisi(e.target.value as StatutInscription)}
                 className={`${champ} w-auto`}
+                aria-label="Statut de l'inscription"
               >
                 <option value="active">Inscrit</option>
                 <option value="abandon">Abandon</option>
                 <option value="transfert">Transféré</option>
               </select>
+              {statutChoisi !== "active" && (
+                <input
+                  type="date"
+                  value={dateDepart}
+                  max={aujourdhui}
+                  onChange={(e) => setDateDepart(e.target.value)}
+                  className={`${champ} w-auto`}
+                  aria-label="Date de départ"
+                />
+              )}
+              {(statutChoisi !== ins.statut || (statutChoisi !== "active" && dateDepart !== (ins.date_depart ?? ""))) && (
+                <Bouton
+                  variante="secondaire"
+                  disabled={isPending || (statutChoisi !== "active" && !dateDepart)}
+                  onClick={() =>
+                    executer(() =>
+                      modifierInscription(ins.id, {
+                        statut: statutChoisi,
+                        date_depart: statutChoisi === "active" ? null : dateDepart,
+                      })
+                    )
+                  }
+                >
+                  Appliquer le statut
+                </Bouton>
+              )}
               <ReductionEditable valeur={ins.reduction_mensuelle} onSave={(v) => executer(() => modifierInscription(ins.id, { reduction_mensuelle: v }))} />
             </div>
           </>
