@@ -38,6 +38,9 @@ export type ClasseVue = Pick<Classe, "id" | "nom" | "niveau" | "frais_inscriptio
 
 export interface PaiementVue {
   id: string;
+  inscription_id: string;
+  /** Lignes encaissées ensemble (même reçu) ; null pour les anciennes lignes */
+  lot_id: string | null;
   numero_recu: string | null;
   type: TypePaiement;
   mois: string | null;

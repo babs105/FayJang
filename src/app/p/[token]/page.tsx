@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { CheckCircle2, FileText, GraduationCap, Phone } from "lucide-react";
+import { CheckCircle2, ChevronRight, FileText, GraduationCap, Phone } from "lucide-react";
 import { echangerJetonParent } from "@/lib/supabase/server";
 import { todayDakar } from "@/lib/config";
 import { formatDate, formatMois, formatMoisCourt } from "@/lib/dates";
 import { LIBELLE_MODE, libellePaiement } from "@/lib/libelles";
+import { regrouperParRecu, resumeRecu } from "@/lib/regrouper-recus";
 import { situationInscription, type StatutMois } from "@/lib/scolarite";
 import { cn, formatFCFA } from "@/lib/utils";
 
@@ -50,10 +51,11 @@ export default async function ParentPage({ params }: { params: Promise<{ token: 
     idsIns.length
       ? supabase
           .from("paiements")
-          .select("id, inscription_id, numero_recu, type, mois, montant, mode, libelle, paye_le, annule, article_id")
+          .select("id, inscription_id, lot_id, numero_recu, type, mois, montant, mode, libelle, paye_le, annule, article_id")
           .eq("ecole_id", ecoleId)
           .in("inscription_id", idsIns)
           .order("paye_le", { ascending: false })
+          .order("created_at", { ascending: false })
       : Promise.resolve({ data: [] as never[] }),
     supabase.from("classes").select("id, nom").eq("ecole_id", ecoleId),
     idsIns.length
@@ -93,6 +95,8 @@ export default async function ParentPage({ params }: { params: Promise<{ token: 
             cumul.resteEchu += a.resteEchu;
             services.set(a.article_id, cumul);
           }
+          // Une ligne par reçu (la RLS parent ne renvoie déjà pas les annulés ; le filtre reste par prudence)
+          const recus = regrouperParRecu(ps.filter((p) => !p.annule).map((p) => ({ ...p, motif_annulation: null })));
           return (
             <section key={enfant.id} className="bg-white rounded-3xl p-5 shadow-sm border border-neutral-100 space-y-4">
               <div className="flex justify-between items-start">
@@ -167,21 +171,51 @@ export default async function ParentPage({ params }: { params: Promise<{ token: 
                 </>
               )}
 
-              {ps.filter((p) => !p.annule).length > 0 && (
+              {recus.length > 0 && (
                 <ul className="divide-y divide-neutral-100 border-t border-neutral-100">
-                  {ps.filter((p) => !p.annule).map((p) => (
-                    <li key={p.id} className="py-2 flex items-center gap-2">
+                  {recus.map((r) => {
+                    const p = r.premiere;
+                    const entete = (
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-bold">
-                          {libellePaiement(p)} · {formatFCFA(p.montant)}
+                          {resumeRecu(r.lignes)} · {formatFCFA(r.total)}
                         </p>
                         <p className="text-[10px] text-neutral-500">{formatDate(p.paye_le)} · {LIBELLE_MODE[p.mode]} · {p.numero_recu}</p>
                       </div>
+                    );
+                    const lien = (
                       <a href={`/p/${token}/recu/${p.id}`} className="flex items-center gap-1 text-[11px] font-bold text-jang-700">
                         <FileText className="w-4 h-4" /> Reçu
                       </a>
-                    </li>
-                  ))}
+                    );
+                    return (
+                      <li key={r.cle} className="py-2">
+                        {r.lignes.length > 1 ? (
+                          // Détail dépliable sans JavaScript (<details> natif)
+                          <details className="group">
+                            <summary className="flex items-center gap-2 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+                              <ChevronRight className="w-3.5 h-3.5 text-neutral-400 shrink-0 transition-transform group-open:rotate-90" />
+                              {entete}
+                              {lien}
+                            </summary>
+                            <ul className="mt-1.5 pl-5 space-y-0.5">
+                              {r.lignes.map((l) => (
+                                <li key={l.id} className="flex justify-between gap-2 text-[11px] text-neutral-600">
+                                  <span>{libellePaiement(l)}</span>
+                                  <span>{formatFCFA(l.montant)}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </details>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            {entete}
+                            {lien}
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </section>
