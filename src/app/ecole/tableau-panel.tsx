@@ -3,7 +3,8 @@
 import { ArrowRight } from "lucide-react";
 import { formatFCFA } from "@/lib/utils";
 import { formatDate, formatMois } from "@/lib/dates";
-import { LIBELLE_MODE, libellePaiement } from "@/lib/libelles";
+import { LIBELLE_MODE } from "@/lib/libelles";
+import { regrouperParRecu, resumeRecu } from "@/lib/regrouper-recus";
 import { Carte, Kpi } from "@/components/ui";
 import type { DonneesEcole, Onglet } from "./ecole-dashboard-client";
 
@@ -17,6 +18,8 @@ export function TableauPanel({
 }: DonneesEcole & { ouvrirEleve: (id: string) => void; allerA: (o: Onglet) => void }) {
   const inscrits = eleves.filter((e) => e.inscription?.statut === "active");
   const valides = paiements.filter((p) => !p.annule);
+  // 8 derniers reçus (un encaissement de plusieurs lignes compte pour un seul)
+  const derniersRecus = regrouperParRecu(valides).slice(0, 8);
   const moisCourant = aujourdhui.slice(0, 7);
   const encaisseMois = valides.filter((p) => p.paye_le.slice(0, 7) === moisCourant).reduce((s, p) => s + p.montant, 0);
   const encaisseJour = valides.filter((p) => p.paye_le === aujourdhui).reduce((s, p) => s + p.montant, 0);
@@ -61,24 +64,27 @@ export function TableauPanel({
               Tout voir <ArrowRight className="w-3 h-3" />
             </button>
           </div>
-          {valides.length === 0 ? (
+          {derniersRecus.length === 0 ? (
             <p className="text-xs text-neutral-500">Aucun paiement encaissé pour l'instant.</p>
           ) : (
             <ul className="divide-y divide-neutral-100">
-              {valides.slice(0, 8).map((p) => (
-                <li key={p.id}>
+              {derniersRecus.map((r) => {
+                const p = r.premiere;
+                return (
+                <li key={r.cle}>
                   <button onClick={() => ouvrirEleve(p.eleve_id)} className="w-full py-2 flex items-center justify-between gap-3 text-left">
                     <div className="min-w-0">
                       <p className="text-xs font-bold text-neutral-900 truncate">{p.eleve_nom}</p>
                       <p className="text-[11px] text-neutral-500">
-                        {libellePaiement(p)} ·{" "}
+                        {resumeRecu(r.lignes)} ·{" "}
                         {LIBELLE_MODE[p.mode]} · {formatDate(p.paye_le)}
                       </p>
                     </div>
-                    <span className="text-xs font-extrabold text-jang-700 whitespace-nowrap">{formatFCFA(p.montant)}</span>
+                    <span className="text-xs font-extrabold text-jang-700 whitespace-nowrap">{formatFCFA(r.total)}</span>
                   </button>
                 </li>
-              ))}
+                );
+              })}
             </ul>
           )}
         </Carte>
