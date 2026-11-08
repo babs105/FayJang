@@ -1,7 +1,14 @@
-# Mise en production de FayJàng (v1.5)
+# Mise en production de FayJàng (v1.5 + v1.6)
 
 Projet Vercel : `fayjang` (https://fayjang.vercel.app), dépôt `babs105/FayJang`, branche `main`.
-Schéma : `supabase/schema.sql` v1.5 (articles et services par classe, mensualité du dernier mois, mois payés à l'inscription, mois payé par tranches au choix).
+Schéma : `supabase/schema.sql` v1.5 (articles et services par classe, mensualité du dernier mois, mois payés à l'inscription,
+mois payé par tranches au choix) et v1.6 (date de départ d'un élève, `inscriptions.date_depart`).
+
+**Ordre de déploiement (une feature = un merge vers `main`) :**
+1. Relancer `supabase/schema.sql` **de `feat/depart-eleve`** (contient v1.5 et v1.6) sur la base de production.
+   Les deux blocs ne font qu'ajouter : le code actuellement en production continue de fonctionner.
+2. Merger `feat/frais-classe` → `main` et pousser (déploiement v1.5), puis faire les vérifications v1.5 (section 4).
+3. Merger `feat/depart-eleve` → `main` et pousser (déploiement v1.6), puis les vérifications « Départ ».
 
 **Ordre impératif : schéma d'abord, code ensuite.** Le code de la v1.5 lit `articles_classe`, `articles_inscription`,
 `paiements.article_id`, `mensualite_dernier_mois`, `rang_mois_tranches`, `premier_mois_a_linscription` et
@@ -31,7 +38,7 @@ Schéma : `supabase/schema.sql` v1.5 (articles et services par classe, mensualit
   WHERE table_schema = 'public' AND table_name IN ('ecoles', 'paiements', 'classes', 'inscriptions')
     AND column_name IN ('lot_id', 'nb_tranches', 'tranches_dernier_mois', 'mois_debut_tranches', 'article_id',
                         'mensualite_dernier_mois', 'rang_mois_tranches', 'premier_mois_a_linscription',
-                        'dernier_mois_a_linscription');                                              -- 10 lignes
+                        'dernier_mois_a_linscription', 'date_depart');                               -- 11 lignes
   SELECT count(*) FROM information_schema.tables
   WHERE table_schema = 'public' AND table_name IN ('articles_classe', 'articles_inscription');       -- 2
   SELECT count(*) FROM pg_policies WHERE schemaname = 'public';                                     -- 17
@@ -85,6 +92,15 @@ Avec l'école de test, pas les données d'une vraie école.
 
 **Console**
 - [ ] `/admin/login` avec `SUPERADMIN_CODE` ; désactiver l'école de test → connexion et lien parent refusés ; réactiver.
+
+**Départ d'un élève (v1.6), avec un élève de test**
+- [ ] Fiche élève → statut « Abandon », date du jour → bandeau « Parti le … », mois suivants grisés, arriéré = mois dus
+  jusqu'au départ (ex. inscription 25 000 non payée + octobre et novembre = 65 000).
+- [ ] La case « Paiement libre » disparaît pour cet élève ; elle revient au retour en « Inscrit ».
+- [ ] Liste des élèves (« Abandon le … »), Impayés (badge), relance WhatsApp (« dû jusqu'à son départ le … »),
+  export Excel (colonnes Statut, Date de départ) et page parent (« Départ enregistré le … ») : même arriéré partout.
+- [ ] Retour en « Inscrit » : date effacée, calcul normal.
+- [ ] Une nouvelle inscription après la suppression d'un élève reçoit un matricule libre (correctif du 2026-11-08).
 
 ## 5. Avant les premiers vrais reçus
 
