@@ -1,4 +1,4 @@
-import type { Classe, Ecole, ModePaiement, StatutInscription, TypePaiement } from "@/types/database";
+import type { ArticleClasse, Classe, Ecole, ModePaiement, StatutInscription, TypePaiement } from "@/types/database";
 import type { Situation } from "@/lib/scolarite";
 
 /** Données préparées par page.tsx (serveur) pour l'Espace École (client) */
@@ -20,14 +20,20 @@ export type EcoleVue = Pick<
   | "tranches_dernier_mois"
   | "mois_debut_tranches"
   | "nb_tranches"
+  | "rang_mois_tranches"
+  | "premier_mois_a_linscription"
+  | "dernier_mois_a_linscription"
   | "plan"
   | "statut_abonnement"
   | "trial_ends_at"
   | "abonnement_fin"
 >;
 
-export type ClasseVue = Pick<Classe, "id" | "nom" | "niveau" | "frais_inscription" | "mensualite" | "is_active"> & {
+export type ArticleClasseVue = Pick<ArticleClasse, "id" | "libelle" | "nature" | "prix_unitaire" | "quantite_defaut" | "obligatoire">;
+
+export type ClasseVue = Pick<Classe, "id" | "nom" | "niveau" | "frais_inscription" | "mensualite" | "mensualite_dernier_mois" | "is_active"> & {
   effectif: number;
+  articles: ArticleClasseVue[];
 };
 
 export interface PaiementVue {
@@ -62,6 +68,7 @@ export interface EleveVue {
     statut: StatutInscription;
     frais_inscription: number;
     mensualite: number;
+    mensualite_dernier_mois: number | null;
     reduction_mensuelle: number;
   } | null;
   situation: Situation | null;

@@ -16,7 +16,7 @@ export async function GET() {
 
   const { data: ecole } = await supabase
     .from("ecoles")
-    .select("nom, slug, annee_scolaire, mois_debut, nb_mensualites, jour_echeance, tranches_dernier_mois, mois_debut_tranches, nb_tranches")
+    .select("nom, slug, annee_scolaire, mois_debut, nb_mensualites, jour_echeance, tranches_dernier_mois, mois_debut_tranches, nb_tranches, rang_mois_tranches, premier_mois_a_linscription, dernier_mois_a_linscription")
     .eq("id", ecoleId)
     .maybeSingle();
   if (!ecole) return new Response("École introuvable", { status: 404 });
@@ -24,7 +24,7 @@ export async function GET() {
   const [{ data: inscriptions }, { data: eleves }, { data: classes }, { data: parents }] = await Promise.all([
     supabase
       .from("inscriptions")
-      .select("id, eleve_id, classe_id, annee_scolaire, frais_inscription, mensualite, reduction_mensuelle, statut")
+      .select("id, eleve_id, classe_id, annee_scolaire, frais_inscription, mensualite, mensualite_dernier_mois, reduction_mensuelle, statut")
       .eq("ecole_id", ecoleId)
       .eq("annee_scolaire", ecole.annee_scolaire),
     supabase.from("eleves").select("id, matricule, prenom, nom, parent_id").eq("ecole_id", ecoleId),
@@ -32,14 +32,17 @@ export async function GET() {
     supabase.from("parents").select("id, nom, telephone").eq("ecole_id", ecoleId),
   ]);
   const ids = (inscriptions ?? []).map((i) => i.id);
-  const { data: paiements } = ids.length
-    ? await supabase
-        .from("paiements")
-        .select("inscription_id, numero_recu, type, mois, montant, mode, reference, libelle, paye_le, annule, motif_annulation")
-        .eq("ecole_id", ecoleId)
-        .in("inscription_id", ids)
-        .order("paye_le")
-    : { data: [] };
+  const [{ data: paiements }, { data: articles }] = ids.length
+    ? await Promise.all([
+        supabase
+          .from("paiements")
+          .select("inscription_id, numero_recu, type, mois, montant, mode, reference, libelle, paye_le, annule, motif_annulation, article_id")
+          .eq("ecole_id", ecoleId)
+          .in("inscription_id", ids)
+          .order("paye_le"),
+        supabase.from("articles_inscription").select("id, inscription_id, libelle, nature, prix_unitaire, quantite, obligatoire, mois_debut, mois_fin").eq("ecole_id", ecoleId).in("inscription_id", ids),
+      ])
+    : [{ data: [] }, { data: [] }];
 
   const eleveParId = new Map((eleves ?? []).map((e) => [e.id, e]));
   const classeParId = new Map((classes ?? []).map((c) => [c.id, c.nom]));
@@ -87,6 +90,8 @@ export async function GET() {
     { header: "Parent", key: "parent", width: 24 },
     { header: "Téléphone", key: "telephone", width: 16 },
     { header: "Payé", key: "paye", width: 13 },
+    { header: "Articles/services dus", key: "articles_dus", width: 20 },
+    { header: "Articles/services payés", key: "articles_payes", width: 22 },
     { header: "Arriéré", key: "arriere", width: 13 },
     { header: "Mois en retard", key: "retard", width: 14 },
     { header: "Reste année", key: "reste", width: 13 },
@@ -94,7 +99,13 @@ export async function GET() {
   for (const ins of inscriptions ?? []) {
     const e = eleveParId.get(ins.eleve_id);
     const parent = e?.parent_id ? parentParId.get(e.parent_id) : undefined;
-    const s = situationInscription(ins, (paiements ?? []).filter((p) => p.inscription_id === ins.id), ecole, aujourdhui);
+    const s = situationInscription(
+      ins,
+      (paiements ?? []).filter((p) => p.inscription_id === ins.id),
+      ecole,
+      aujourdhui,
+      (articles ?? []).filter((a) => a.inscription_id === ins.id)
+    );
     soldes.addRow({
       matricule: e?.matricule,
       eleve: e ? `${e.prenom} ${e.nom}` : "",
@@ -102,6 +113,8 @@ export async function GET() {
       parent: parent?.nom,
       telephone: parent?.telephone,
       paye: s.totalPaye,
+      articles_dus: s.articles.reduce((t, a) => t + a.du, 0),
+      articles_payes: s.articles.reduce((t, a) => t + a.paye, 0),
       arriere: s.arriere,
       retard: s.moisEnRetard,
       reste: s.resteAnnee,

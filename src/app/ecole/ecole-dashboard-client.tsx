@@ -104,6 +104,7 @@ export function EcoleDashboardClient(props: DonneesEcole & { bienvenue: boolean;
           eleve={eleve}
           ecole={props.ecole}
           classes={props.classes}
+          aujourdhui={props.aujourdhui}
           paiements={props.paiements.filter((p) => p.eleve_id === eleve.id)}
           onClose={() => setEleveOuvert(null)}
         />

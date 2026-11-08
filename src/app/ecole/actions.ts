@@ -8,10 +8,10 @@ import { generateToken, todayDakar } from "@/lib/config";
 import { isAnneeScolaireValide, isDateValide, moisScolaires } from "@/lib/dates";
 import { messageErreur } from "@/lib/erreurs";
 import { MODES_PAIEMENT, NIVEAUX } from "@/lib/libelles";
-import { libelleTranche, moisDesTranches, situationInscription, trancheAvecMois } from "@/lib/scolarite";
+import { choixALinscription, lignesAEncaisser, situationInscription, verifierReglages } from "@/lib/scolarite";
 import { matriculeSuivant } from "@/lib/matricule";
 import { normaliserTelephone } from "@/lib/telephone";
-import type { ModePaiement, Niveau, StatutInscription, TypePaiement } from "@/types/database";
+import type { ModePaiement, NatureArticle, Niveau, StatutInscription } from "@/types/database";
 
 export interface Resultat<T = undefined> {
   success: boolean;
@@ -40,14 +40,99 @@ async function session() {
 async function lireEcole(supabase: ReturnType<typeof createClientEcole>, ecoleId: string) {
   const { data, error } = await supabase
     .from("ecoles")
-    .select("id, nom, annee_scolaire, mois_debut, nb_mensualites, jour_echeance, tranches_dernier_mois, mois_debut_tranches, nb_tranches")
+    .select(
+      "id, nom, annee_scolaire, mois_debut, nb_mensualites, jour_echeance, tranches_dernier_mois, mois_debut_tranches, nb_tranches, rang_mois_tranches, premier_mois_a_linscription, dernier_mois_a_linscription"
+    )
     .eq("id", ecoleId)
     .single();
   if (error) throw error;
   return data;
 }
 
+type Client = ReturnType<typeof createClientEcole>;
+
+const MOBILE_MONEY: ModePaiement[] = ["wave", "orange_money", "free_money"];
+
+/** Mode et référence d'un encaissement ; message d'erreur si invalide */
+function lireMode(modeSaisi: unknown, referenceSaisie: unknown): { mode: ModePaiement; reference: string | null } | string {
+  const mode = String(modeSaisi || "especes") as ModePaiement;
+  if (!MODES_PAIEMENT.includes(mode)) return "Mode de paiement inconnu.";
+  const reference = texte(referenceSaisie, 60) || null;
+  if (MOBILE_MONEY.includes(mode) && !reference) return "Indiquez la référence de la transaction mobile money.";
+  return { mode, reference };
+}
+
+/** Premier jour du mois courant à Dakar (YYYY-MM-01) */
+function moisCourant(): string {
+  return `${todayDakar().slice(0, 7)}-01`;
+}
+
+/** Premier mois dû pour un service pris en cours d'année : le mois courant, borné à l'année scolaire */
+function debutService(mois: string[]): string {
+  const courant = moisCourant();
+  if (courant <= mois[0]) return mois[0];
+  if (courant >= mois[mois.length - 1]) return mois[mois.length - 1];
+  return courant;
+}
+
+/** Inscription, paiements et articles d'un élève, puis sa situation recalculée côté serveur */
+async function chargerSituation(supabase: Client, ecoleId: string, inscriptionId: string) {
+  const ecole = await lireEcole(supabase, ecoleId);
+  const { data: ins, error: erreurIns } = await supabase
+    .from("inscriptions")
+    .select("id, annee_scolaire, frais_inscription, mensualite, mensualite_dernier_mois, reduction_mensuelle, statut")
+    .eq("id", inscriptionId)
+    .eq("ecole_id", ecoleId)
+    .maybeSingle();
+  if (erreurIns) throw erreurIns;
+  if (!ins) return null;
+  const [{ data: paiements, error: e1 }, { data: articles, error: e2 }] = await Promise.all([
+    supabase.from("paiements").select("type, mois, montant, annule, article_id").eq("inscription_id", ins.id).eq("ecole_id", ecoleId),
+    supabase
+      .from("articles_inscription")
+      .select("id, libelle, nature, prix_unitaire, quantite, obligatoire, mois_debut, mois_fin")
+      .eq("inscription_id", ins.id)
+      .eq("ecole_id", ecoleId)
+      .order("created_at"),
+  ]);
+  if (e1) throw e1;
+  if (e2) throw e2;
+  const situation = situationInscription(ins, paiements ?? [], ecole, todayDakar(), articles ?? []);
+  return { ecole, ins, situation, paiements: paiements ?? [], articles: articles ?? [] };
+}
+
+const fcfa = (n: number) => `${new Intl.NumberFormat("fr-FR").format(n)} FCFA`;
+
 // ------------------------------------------------------------------ Classes
+
+export interface SaisieArticle {
+  /** Ligne existante du catalogue (mise à jour sur place) ; absent = nouvelle ligne */
+  id?: string;
+  libelle: string;
+  nature: string;
+  prix_unitaire: string | number;
+  quantite_defaut?: string | number;
+  obligatoire: boolean;
+}
+
+/** Catalogue saisi pour une classe ; message d'erreur si une ligne est invalide */
+function lireArticles(saisis: SaisieArticle[] | undefined) {
+  if (saisis !== undefined && !Array.isArray(saisis)) return "Articles invalides.";
+  if ((saisis ?? []).length > 30) return "30 articles au plus par classe.";
+  const lignes: { id?: string; libelle: string; nature: NatureArticle; prix_unitaire: number; quantite_defaut: number; obligatoire: boolean; ordre: number }[] = [];
+  for (const [i, a] of (saisis ?? []).entries()) {
+    if (!a || typeof a !== "object") return "Articles invalides.";
+    const libelle = texte(a.libelle, 60);
+    if (!libelle) continue;
+    const nature: NatureArticle = a.nature === "mensuel" ? "mensuel" : "unique";
+    const prix = montant(a.prix_unitaire);
+    const quantite = nature === "mensuel" ? 1 : Number(a.quantite_defaut ?? 1);
+    if (prix === null) return `Prix invalide pour « ${libelle} ».`;
+    if (!Number.isInteger(quantite) || quantite < 0 || quantite > 99) return `Quantité invalide pour « ${libelle} ».`;
+    lignes.push({ id: a.id || undefined, libelle, nature, prix_unitaire: prix, quantite_defaut: quantite, obligatoire: a.obligatoire === true, ordre: i });
+  }
+  return lignes;
+}
 
 export interface SaisieClasse {
   id?: string;
@@ -55,6 +140,9 @@ export interface SaisieClasse {
   niveau: string;
   frais_inscription: string | number;
   mensualite: string | number;
+  /** Vide = même montant que la mensualité */
+  mensualite_dernier_mois?: string | number;
+  articles?: SaisieArticle[];
 }
 
 export async function enregistrerClasse(saisie: SaisieClasse): Promise<Resultat> {
@@ -68,26 +156,54 @@ export async function enregistrerClasse(saisie: SaisieClasse): Promise<Resultat>
   if (nom.length < 1) return { success: false, message: "Indiquez le nom de la classe (ex : CM2 A)." };
   if (!NIVEAUX.includes(niveau)) return { success: false, message: "Niveau inconnu." };
   if (frais === null || mensualite === null) return { success: false, message: "Montants invalides (en FCFA, sans décimales)." };
+  const dernierSaisi = String(saisie.mensualite_dernier_mois ?? "").trim();
+  const dernier = dernierSaisi === "" ? null : montant(dernierSaisi);
+  if (dernierSaisi !== "" && dernier === null) return { success: false, message: "Mensualité du dernier mois invalide." };
+  const articles = lireArticles(saisie.articles);
+  if (typeof articles === "string") return { success: false, message: articles };
 
   try {
-    if (saisie.id) {
-      const { error } = await s.supabase
-        .from("classes")
-        .update({ nom, niveau, frais_inscription: frais, mensualite })
-        .eq("id", saisie.id)
-        .eq("ecole_id", s.ecoleId);
+    let classeId = saisie.id;
+    const champs = { nom, niveau, frais_inscription: frais, mensualite, mensualite_dernier_mois: dernier };
+    if (classeId) {
+      const { data, error } = await s.supabase.from("classes").update(champs).eq("id", classeId).eq("ecole_id", s.ecoleId).select("id");
       if (error) throw error;
+      if (!data?.length) return { success: false, message: "Classe introuvable." };
     } else {
       const ecole = await lireEcole(s.supabase, s.ecoleId);
-      const { error } = await s.supabase.from("classes").insert({
-        ecole_id: s.ecoleId,
-        nom,
-        niveau,
-        annee_scolaire: ecole.annee_scolaire,
-        frais_inscription: frais,
-        mensualite,
-      });
+      const { data, error } = await s.supabase
+        .from("classes")
+        .insert({ ...champs, ecole_id: s.ecoleId, annee_scolaire: ecole.annee_scolaire })
+        .select("id")
+        .single();
       if (error) throw error;
+      classeId = data.id;
+    }
+    // Catalogue mis à jour ligne par ligne : une ligne gardée garde son id, donc le lien avec les élèves
+    // déjà inscrits (qui conservent leur copie et leur prix dans articles_inscription)
+    if (saisie.articles) {
+      const { data: existants, error: erreurLecture } = await s.supabase
+        .from("articles_classe")
+        .select("id")
+        .eq("classe_id", classeId!)
+        .eq("ecole_id", s.ecoleId);
+      if (erreurLecture) throw erreurLecture;
+      const ids = new Set((existants ?? []).map((a) => a.id));
+      for (const { id, ...a } of articles) {
+        if (id && ids.has(id)) {
+          const { error } = await s.supabase.from("articles_classe").update(a).eq("id", id).eq("ecole_id", s.ecoleId);
+          if (error) throw error;
+        } else {
+          const { error } = await s.supabase.from("articles_classe").insert({ ...a, ecole_id: s.ecoleId, classe_id: classeId! });
+          if (error) throw error;
+        }
+      }
+      const gardes = new Set(articles.map((a) => a.id).filter(Boolean));
+      const retires = [...ids].filter((id) => !gardes.has(id));
+      if (retires.length) {
+        const { error } = await s.supabase.from("articles_classe").delete().in("id", retires).eq("ecole_id", s.ecoleId);
+        if (error) throw error;
+      }
     }
   } catch (err) {
     return { success: false, message: messageErreur("classes", err, undefined, "Une classe porte déjà ce nom cette année.") };
@@ -117,6 +233,9 @@ export interface SaisieInscription {
   parent_telephone?: string;
   classe_id: string;
   reduction_mensuelle?: string | number;
+  /** Articles de la classe retenus pour l'élève : les obligatoires sont toujours pris, quantité modifiable */
+  articles?: { article_classe_id: string; quantite?: string | number }[];
+  /** Encaisser tout ce qui est dû à l'inscription (frais, mensualités d'avance, articles) en un seul reçu */
   payer_inscription?: boolean;
   mode?: string;
   reference?: string;
@@ -169,8 +288,8 @@ export async function inscrireEleve(saisie: SaisieInscription): Promise<Resultat
 
   const reduction = montant(saisie.reduction_mensuelle || 0);
   if (reduction === null) return { success: false, message: "Réduction invalide." };
-  const mode = (saisie.mode || "especes") as ModePaiement;
-  if (saisie.payer_inscription && !MODES_PAIEMENT.includes(mode)) return { success: false, message: "Mode de paiement inconnu." };
+  const reglement = saisie.payer_inscription ? lireMode(saisie.mode, saisie.reference) : null;
+  if (typeof reglement === "string") return { success: false, message: reglement };
 
   // Pas de transaction côté Supabase JS : ce qui a été créé ici est supprimé si une étape suivante échoue,
   // pour ne pas laisser d'élève sans inscription (ni d'inscription sans ses frais encaissés)
@@ -180,7 +299,7 @@ export async function inscrireEleve(saisie: SaisieInscription): Promise<Resultat
     const ecole = await lireEcole(s.supabase, s.ecoleId);
     const { data: classe, error: erreurClasse } = await s.supabase
       .from("classes")
-      .select("id, frais_inscription, mensualite, annee_scolaire, is_active")
+      .select("id, frais_inscription, mensualite, mensualite_dernier_mois, annee_scolaire, is_active")
       .eq("id", saisie.classe_id)
       .eq("ecole_id", s.ecoleId)
       .maybeSingle();
@@ -190,6 +309,34 @@ export async function inscrireEleve(saisie: SaisieInscription): Promise<Resultat
       return { success: false, message: `Cette classe appartient à l'année ${classe.annee_scolaire}.` };
     }
     if (reduction > classe.mensualite) return { success: false, message: "La réduction dépasse la mensualité." };
+
+    // Articles retenus : obligatoires toujours, optionnels s'ils sont cochés ; quantité saisie pour les frais uniques
+    const { data: catalogue, error: erreurCatalogue } = await s.supabase
+      .from("articles_classe")
+      .select("id, libelle, nature, prix_unitaire, quantite_defaut, obligatoire")
+      .eq("classe_id", classe.id)
+      .eq("ecole_id", s.ecoleId)
+      .order("ordre");
+    if (erreurCatalogue) throw erreurCatalogue;
+    const choisis = new Map((Array.isArray(saisie.articles) ? saisie.articles.slice(0, 50) : []).map((a) => [a?.article_classe_id, a?.quantite]));
+    const moisAnnee = moisScolaires(ecole.annee_scolaire, ecole.mois_debut, ecole.nb_mensualites);
+    const articlesEleve = [];
+    for (const a of catalogue ?? []) {
+      if (!a.obligatoire && !choisis.has(a.id)) continue;
+      const q = a.nature === "unique" && choisis.get(a.id) !== undefined ? Number(choisis.get(a.id)) : a.quantite_defaut;
+      if (!Number.isInteger(q) || q < 0 || q > 99) return { success: false, message: `Quantité invalide pour « ${a.libelle} ».` };
+      if (a.obligatoire && a.nature === "unique" && q < 1 && a.quantite_defaut > 0) return { success: false, message: `« ${a.libelle} » est obligatoire pour cette classe.` };
+      if (a.nature === "unique" && q === 0) continue;
+      articlesEleve.push({
+        article_classe_id: a.id,
+        libelle: a.libelle,
+        nature: a.nature,
+        prix_unitaire: a.prix_unitaire,
+        quantite: a.nature === "mensuel" ? 1 : q,
+        obligatoire: a.obligatoire,
+        mois_debut: a.nature === "mensuel" ? debutService(moisAnnee) : null,
+      });
+    }
 
     let eleveId = saisie.eleve_id;
     if (eleveId) {
@@ -233,6 +380,7 @@ export async function inscrireEleve(saisie: SaisieInscription): Promise<Resultat
         annee_scolaire: ecole.annee_scolaire,
         frais_inscription: classe.frais_inscription,
         mensualite: classe.mensualite,
+        mensualite_dernier_mois: classe.mensualite_dernier_mois,
         reduction_mensuelle: reduction,
       })
       .select("id")
@@ -240,24 +388,43 @@ export async function inscrireEleve(saisie: SaisieInscription): Promise<Resultat
     if (erreurInscription) throw erreurInscription;
     inscriptionCreee = inscription.id;
 
-    if (saisie.payer_inscription && classe.frais_inscription > 0) {
-      const { error } = await s.supabase.from("paiements").insert({
-        ecole_id: s.ecoleId,
-        inscription_id: inscription.id,
-        type: "inscription",
-        montant: classe.frais_inscription,
-        mode,
-        reference: texte(saisie.reference, 60) || null,
-        paye_le: todayDakar(),
-      });
+    if (articlesEleve.length) {
+      const { error } = await s.supabase
+        .from("articles_inscription")
+        .insert(articlesEleve.map((a) => ({ ...a, ecole_id: s.ecoleId, inscription_id: inscription.id })));
       if (error) throw error;
     }
 
+    // Tout ce qui est dû à l'inscription, recalculé par le serveur, sur un seul reçu
+    let encaisse = 0;
+    let avertissement = "";
+    if (reglement) {
+      const charge = await chargerSituation(s.supabase, s.ecoleId, inscription.id);
+      const calcul = charge ? lignesAEncaisser(charge.situation, choixALinscription(charge.situation)) : null;
+      if (calcul && "lignes" in calcul) {
+        const base = { ecole_id: s.ecoleId, inscription_id: inscription.id, ...reglement, paye_le: todayDakar(), lot_id: randomUUID() };
+        const { error } = await s.supabase.from("paiements").insert(calcul.lignes.map((l) => ({ ...base, ...l })));
+        if (error) throw error;
+        encaisse = calcul.lignes.reduce((t, l) => t + l.montant, 0);
+      } else if (calcul && "erreur" in calcul && !calcul.erreur.startsWith("Rien à encaisser")) {
+        avertissement = ` Encaissement non fait : ${calcul.erreur} Encaissez depuis la fiche.`;
+      }
+    }
+
     revalidatePath("/ecole");
-    return { success: true, message: "Élève inscrit.", data: { eleveId } };
+    return {
+      success: true,
+      message: encaisse ? `Élève inscrit. Reçu créé : ${fcfa(encaisse)} encaissés.` : `Élève inscrit.${avertissement}`,
+      data: { eleveId },
+    };
   } catch (err) {
-    if (inscriptionCreee) await s.supabase.from("inscriptions").delete().eq("id", inscriptionCreee).eq("ecole_id", s.ecoleId);
-    if (eleveCree) await s.supabase.from("eleves").delete().eq("id", eleveCree).eq("ecole_id", s.ecoleId);
+    // Nettoyage de ce qui a été créé ; un échec ici est signalé pour que l'école vérifie la liste
+    const r1 = inscriptionCreee ? await s.supabase.from("inscriptions").delete().eq("id", inscriptionCreee).eq("ecole_id", s.ecoleId) : null;
+    const r2 = eleveCree ? await s.supabase.from("eleves").delete().eq("id", eleveCree).eq("ecole_id", s.ecoleId) : null;
+    if (r1?.error || r2?.error) {
+      console.error("[inscription] nettoyage incomplet", r1?.error?.code ?? r2?.error?.code);
+      return { success: false, message: "Inscription interrompue : vérifiez la liste des élèves avant de réessayer." };
+    }
     return { success: false, message: messageErreur("inscription", err, undefined, "Cet élève est déjà inscrit cette année.") };
   }
 }
@@ -387,98 +554,75 @@ export async function modifierEleve(
 
 export interface SaisiePaiement {
   inscription_id: string;
-  type: TypePaiement;
-  mois?: string[]; // YYYY-MM-01, pour une mensualité
-  montant?: string | number; // obligatoire pour « autre » ; facultatif sinon (= reste dû)
+  /** Frais d'inscription */
+  inscription?: boolean;
+  /** Mensualités (YYYY-MM-01) */
+  mois?: string[];
+  /** Articles et mois de service (clés de LigneArticle) */
+  articles?: string[];
+  /** Montant partiel (une seule ligne choisie) ; vide = reste dû */
+  montant?: string | number;
   mode: string;
   reference?: string;
-  libelle?: string;
-  /** Mensualités : ajouter au même reçu la tranche du dernier mois due avec ces mois (oui par défaut) */
+  /** Ajouter au même reçu la tranche due avec les mensualités choisies (oui par défaut) */
   inclure_tranche?: boolean;
+  /** Paiement libre hors catalogue (objet + montant), seul sur son reçu */
+  libre?: { libelle: string; montant: string | number };
 }
 
 export async function encaisserPaiement(saisie: SaisiePaiement): Promise<Resultat<{ ids: string[] }>> {
   const s = await session();
   if (!s) return { success: false, message: SESSION_EXPIREE };
 
-  const mode = saisie.mode as ModePaiement;
-  if (!MODES_PAIEMENT.includes(mode)) return { success: false, message: "Mode de paiement inconnu." };
-  const reference = texte(saisie.reference, 60) || null;
-  if ((mode === "wave" || mode === "orange_money" || mode === "free_money") && !reference) {
-    return { success: false, message: "Indiquez la référence de la transaction mobile money." };
-  }
-  const saisi = saisie.montant === undefined || saisie.montant === "" ? null : montant(saisie.montant);
-  if (saisie.montant !== undefined && saisie.montant !== "" && (saisi === null || saisi === 0)) {
-    return { success: false, message: "Montant invalide." };
-  }
+  const reglement = lireMode(saisie.mode, saisie.reference);
+  if (typeof reglement === "string") return { success: false, message: reglement };
+  const vide = saisie.montant === undefined || saisie.montant === null || String(saisie.montant).trim() === "";
+  const saisi = vide ? null : montant(saisie.montant);
+  if (!vide && (saisi === null || saisi === 0)) return { success: false, message: "Montant invalide." };
 
   try {
-    const ecole = await lireEcole(s.supabase, s.ecoleId);
-    const { data: ins, error: erreurIns } = await s.supabase
-      .from("inscriptions")
-      .select("id, annee_scolaire, frais_inscription, mensualite, reduction_mensuelle, statut")
-      .eq("id", saisie.inscription_id)
-      .eq("ecole_id", s.ecoleId)
-      .maybeSingle();
-    if (erreurIns) throw erreurIns;
-    if (!ins) return { success: false, message: "Inscription introuvable." };
-
-    const { data: paiements, error: erreurPaiements } = await s.supabase
-      .from("paiements")
-      .select("type, mois, montant, annule")
-      .eq("inscription_id", ins.id)
-      .eq("ecole_id", s.ecoleId);
-    if (erreurPaiements) throw erreurPaiements;
-
+    const charge = await chargerSituation(s.supabase, s.ecoleId, saisie.inscription_id);
+    if (!charge) return { success: false, message: "Inscription introuvable." };
+    const { situation, ins } = charge;
     const aujourdhui = todayDakar();
-    const situation = situationInscription(ins, paiements ?? [], ecole, aujourdhui);
     // Toutes les lignes de cet encaissement partagent un lot : la base leur donne le même numéro de reçu
-    const base = { ecole_id: s.ecoleId, inscription_id: ins.id, mode, reference, paye_le: aujourdhui, lot_id: randomUUID() };
-    const lignes: Array<typeof base & { type: TypePaiement; montant: number; mois?: string; libelle?: string }> = [];
+    const base = { ecole_id: s.ecoleId, inscription_id: ins.id, ...reglement, paye_le: aujourdhui, lot_id: randomUUID() };
 
-    if (saisie.type === "inscription") {
-      const reste = Math.max(0, situation.inscriptionDue - situation.inscriptionPayee);
-      if (reste === 0) return { success: false, message: "Les frais d'inscription sont déjà réglés." };
-      const m = saisi ?? reste;
-      if (m > reste) return { success: false, message: `Il ne reste que ${reste} FCFA de frais d'inscription.` };
-      lignes.push({ ...base, type: "inscription", montant: m });
-    } else if (saisie.type === "mensualite") {
-      const valides = new Set(moisScolaires(ins.annee_scolaire, ecole.mois_debut, ecole.nb_mensualites));
-      const mois = Array.from(new Set(saisie.mois ?? [])).filter((m) => valides.has(m)).sort();
-      if (mois.length === 0) return { success: false, message: "Choisissez au moins un mois." };
-      if (saisi !== null && mois.length > 1) {
-        return { success: false, message: "Un montant partiel ne s'applique qu'à un seul mois." };
-      }
-      for (const m of mois) {
-        const ligne = situation.mois.find((l) => l.mois === m);
-        const reste = ligne?.reste ?? 0;
-        if (reste === 0) continue;
-        // Dernier mois payé par tranches, choisi seul et sans montant : on encaisse la tranche due (ou la prochaine)
-        const v = saisi ?? (ligne?.tranches && mois.length === 1 ? ligne.tranches.suggestion || reste : reste);
-        if (v > reste) return { success: false, message: `Il ne reste que ${reste} FCFA pour ce mois.` };
-        const libelleT = ligne ? libelleTranche(ligne, ligne.paye, v) : null;
-        lignes.push({ ...base, type: "mensualite", mois: m, montant: v, ...(libelleT ? { libelle: libelleT } : {}) });
-      }
-      if (lignes.length === 0) return { success: false, message: "Les mois choisis sont déjà réglés." };
-      // La tranche du dernier mois due avec ces mensualités va sur le même reçu (sauf montant partiel saisi)
-      if (saisie.inclure_tranche !== false && saisi === null) {
-        const tranche = trancheAvecMois(situation, lignes.map((l) => l.mois!));
-        if (tranche) lignes.push({ ...base, type: "mensualite", mois: tranche.mois, montant: tranche.montant, libelle: tranche.libelle });
-      }
-    } else if (saisie.type === "autre") {
-      const libelle = texte(saisie.libelle, 80);
-      if (!libelle) return { success: false, message: "Précisez l'objet (tenue, transport, cantine...)." };
-      if (!saisi) return { success: false, message: "Indiquez le montant." };
-      lignes.push({ ...base, type: "autre", montant: saisi, libelle });
+    let lignes;
+    if (saisie.libre) {
+      const libelle = texte(saisie.libre.libelle, 80);
+      const m = montant(saisie.libre.montant);
+      if (!libelle) return { success: false, message: "Précisez l'objet du paiement." };
+      if (!m) return { success: false, message: "Indiquez le montant." };
+      lignes = [{ type: "autre" as const, mois: null, article_id: null, montant: m, libelle }];
     } else {
-      return { success: false, message: "Type de paiement inconnu." };
+      // Tableaux bornés : chaque valeur est ensuite validée contre la situation recalculée
+      const mois = Array.from(new Set(Array.isArray(saisie.mois) ? saisie.mois.slice(0, 24).map(String) : [])).sort();
+      const articles = Array.isArray(saisie.articles) ? saisie.articles.slice(0, 100).map(String) : [];
+      let montantChoisi = saisi;
+      // Mois payé par tranches choisi seul et sans montant : on encaisse la tranche due (ou la prochaine)
+      if (montantChoisi === null && mois.length === 1 && !saisie.inscription && articles.length === 0) {
+        const ligne = situation.mois.find((l) => l.mois === mois[0]);
+        if (ligne?.tranches && ligne.tranches.suggestion > 0 && ligne.tranches.suggestion < ligne.reste) montantChoisi = ligne.tranches.suggestion;
+      }
+      const calcul = lignesAEncaisser(situation, {
+        inscription: saisie.inscription === true,
+        mois,
+        articles,
+        montant: montantChoisi,
+        inclure_tranche: saisie.inclure_tranche,
+      });
+      if ("erreur" in calcul) return { success: false, message: calcul.erreur };
+      lignes = calcul.lignes;
     }
 
-    const { data, error } = await s.supabase.from("paiements").insert(lignes).select("id");
+    const { data, error } = await s.supabase
+      .from("paiements")
+      .insert(lignes.map((l) => ({ ...base, ...l })))
+      .select("id");
     if (error) throw error;
     revalidatePath("/ecole");
     const total = lignes.reduce((t, l) => t + l.montant, 0);
-    const fcfa = (n: number) => `${new Intl.NumberFormat("fr-FR").format(n)} FCFA`;
     const tranche = lignes.length > 1 ? lignes.find((l) => l.libelle?.startsWith("Tranche")) : undefined;
     return {
       success: true,
@@ -487,6 +631,115 @@ export async function encaisserPaiement(saisie: SaisiePaiement): Promise<Resulta
     };
   } catch (err) {
     return { success: false, message: messageErreur("paiements", err) };
+  }
+}
+
+// ------------------------------------------------------------------ Articles et services d'un élève
+
+/** Ajoute à un élève un article du catalogue de sa classe (service optionnel pris en cours d'année, tenue en plus) */
+export async function ajouterArticleInscription(
+  inscriptionId: string,
+  articleClasseId: string,
+  quantiteSaisie?: string | number
+): Promise<Resultat> {
+  const s = await session();
+  if (!s) return { success: false, message: SESSION_EXPIREE };
+  try {
+    const ecole = await lireEcole(s.supabase, s.ecoleId);
+    const { data: ins, error: e1 } = await s.supabase
+      .from("inscriptions")
+      .select("id, classe_id, annee_scolaire, statut")
+      .eq("id", inscriptionId)
+      .eq("ecole_id", s.ecoleId)
+      .maybeSingle();
+    if (e1) throw e1;
+    if (!ins || ins.statut !== "active") return { success: false, message: "Inscription introuvable ou inactive." };
+    const { data: a, error: e2 } = await s.supabase
+      .from("articles_classe")
+      .select("id, libelle, nature, prix_unitaire, quantite_defaut, obligatoire")
+      .eq("id", articleClasseId)
+      .eq("classe_id", ins.classe_id)
+      .eq("ecole_id", s.ecoleId)
+      .maybeSingle();
+    if (e2) throw e2;
+    if (!a) return { success: false, message: "Article introuvable pour cette classe." };
+    const q = a.nature === "mensuel" ? 1 : quantiteSaisie === undefined ? a.quantite_defaut : Number(quantiteSaisie);
+    if (!Number.isInteger(q) || q < 1 || q > 99) return { success: false, message: "Quantité invalide." };
+    if (a.nature === "mensuel") {
+      const { data: actifs } = await s.supabase
+        .from("articles_inscription")
+        .select("id, mois_fin")
+        .eq("inscription_id", ins.id)
+        .eq("article_classe_id", a.id)
+        .eq("ecole_id", s.ecoleId);
+      if ((actifs ?? []).some((x) => !x.mois_fin || x.mois_fin >= moisCourant())) {
+        return { success: false, message: `${a.libelle} : service déjà en cours pour cet élève.` };
+      }
+    }
+    const mois = moisScolaires(ins.annee_scolaire, ecole.mois_debut, ecole.nb_mensualites);
+    const { error } = await s.supabase.from("articles_inscription").insert({
+      ecole_id: s.ecoleId,
+      inscription_id: ins.id,
+      article_classe_id: a.id,
+      libelle: a.libelle,
+      nature: a.nature,
+      prix_unitaire: a.prix_unitaire,
+      quantite: q,
+      obligatoire: a.obligatoire,
+      mois_debut: a.nature === "mensuel" ? debutService(mois) : null,
+    });
+    if (error) throw error;
+    revalidatePath("/ecole");
+    return { success: true, message: a.nature === "mensuel" ? `${a.libelle} ajouté à partir de ce mois.` : `${a.libelle} ajouté.` };
+  } catch (err) {
+    return { success: false, message: messageErreur("articles", err) };
+  }
+}
+
+/**
+ * Retire un article d'un élève. Sans paiement : il est supprimé. Service mensuel déjà payé : il s'arrête
+ * à la fin du mois courant (ou du dernier mois payé). Frais unique déjà payé : refusé (annuler le reçu d'abord).
+ */
+export async function retirerArticleInscription(id: string): Promise<Resultat> {
+  const s = await session();
+  if (!s) return { success: false, message: SESSION_EXPIREE };
+  try {
+    const { data: a, error: e1 } = await s.supabase
+      .from("articles_inscription")
+      .select("id, libelle, nature, mois_debut")
+      .eq("id", id)
+      .eq("ecole_id", s.ecoleId)
+      .maybeSingle();
+    if (e1) throw e1;
+    if (!a) return { success: false, message: "Article introuvable." };
+    const { data: payes, error: e2 } = await s.supabase.from("paiements").select("mois, annule").eq("article_id", id).eq("ecole_id", s.ecoleId);
+    if (e2) throw e2;
+    if (!payes?.length) {
+      const { error } = await s.supabase.from("articles_inscription").delete().eq("id", id).eq("ecole_id", s.ecoleId);
+      if (error) throw error;
+      revalidatePath("/ecole");
+      return { success: true, message: `${a.libelle} retiré.` };
+    }
+    if (a.nature === "unique") {
+      if (payes.some((p) => !p.annule)) {
+        return { success: false, message: `${a.libelle} a déjà été payé : annulez le reçu pour le retirer.` };
+      }
+      // Seuls des reçus annulés : la ligne reste (historique), mais plus rien n'est dû
+      const { error } = await s.supabase.from("articles_inscription").update({ quantite: 0 }).eq("id", id).eq("ecole_id", s.ecoleId);
+      if (error) throw error;
+      revalidatePath("/ecole");
+      return { success: true, message: `${a.libelle} retiré.` };
+    }
+    const dernierPaye = payes.filter((p) => !p.annule && p.mois).map((p) => p.mois!.slice(0, 10)).sort().pop();
+    let fin = moisCourant();
+    if (dernierPaye && dernierPaye > fin) fin = dernierPaye;
+    if (a.mois_debut && fin < a.mois_debut) fin = a.mois_debut;
+    const { error } = await s.supabase.from("articles_inscription").update({ mois_fin: fin }).eq("id", id).eq("ecole_id", s.ecoleId);
+    if (error) throw error;
+    revalidatePath("/ecole");
+    return { success: true, message: `${a.libelle} arrêté : plus rien n'est dû après ${fin.slice(5, 7)}/${fin.slice(0, 4)}.` };
+  } catch (err) {
+    return { success: false, message: messageErreur("articles", err) };
   }
 }
 
@@ -531,6 +784,10 @@ export interface SaisieParametres {
   tranches_dernier_mois: boolean;
   mois_debut_tranches: string | number;
   nb_tranches: string | number;
+  /** Mois payé par tranches : 1 = dernier, 2 = avant-dernier, 3 = antépénultième */
+  rang_mois_tranches?: string | number;
+  premier_mois_a_linscription?: boolean;
+  dernier_mois_a_linscription?: boolean;
 }
 
 export async function enregistrerParametres(saisie: SaisieParametres): Promise<Resultat> {
@@ -550,31 +807,75 @@ export async function enregistrerParametres(saisie: SaisieParametres): Promise<R
   const tranches = saisie.tranches_dernier_mois === true;
   const debutTranches = Number(saisie.mois_debut_tranches);
   const nbTranchesSaisi = Number(saisie.nb_tranches);
+  const rang = Number(saisie.rang_mois_tranches ?? 1);
+  const premierALinscription = saisie.premier_mois_a_linscription === true;
+  const dernierALinscription = saisie.dernier_mois_a_linscription === true;
   if (tranches) {
+    if (!Number.isInteger(rang) || rang < 1 || rang > 3) return { success: false, message: "Mois payé par tranches invalide." };
     if (!Number.isInteger(debutTranches) || debutTranches < 1 || debutTranches > 12) {
       return { success: false, message: "Choisissez le mois de la première tranche." };
     }
-    // La première tranche doit tomber sur un mois de l'année scolaire, avant le dernier mois
-    const nbTranches = moisDesTranches(annee, {
+    if (!Number.isInteger(nbTranchesSaisi) || nbTranchesSaisi < 1) return { success: false, message: "Nombre de tranches invalide." };
+    const probleme = verifierReglages(annee, {
       mois_debut: moisDebut,
       nb_mensualites: nb,
       jour_echeance: jour,
       tranches_dernier_mois: true,
       mois_debut_tranches: debutTranches,
-    }).length;
-    if (nbTranches === 0) {
-      return { success: false, message: "Le mois de la première tranche doit être un mois de l'année scolaire, avant le dernier mois." };
-    }
-    if (!Number.isInteger(nbTranchesSaisi) || nbTranchesSaisi < 1 || nbTranchesSaisi > nbTranches) {
-      return {
-        success: false,
-        message: `Nombre de tranches entre 1 et ${nbTranches} : elles doivent être payées avant le dernier mois.`,
-      };
-    }
+      nb_tranches: nbTranchesSaisi,
+      rang_mois_tranches: rang,
+      premier_mois_a_linscription: premierALinscription,
+      dernier_mois_a_linscription: dernierALinscription,
+    });
+    if (probleme) return { success: false, message: probleme };
   }
 
   try {
     const ecole = await lireEcole(s.supabase, s.ecoleId);
+    // Nouvelle année : reprendre les classes (et leurs tarifs) de l'année précédente si elle n'en a pas
+    let copie = 0;
+    if (annee !== ecole.annee_scolaire) {
+      const { count } = await s.supabase
+        .from("classes")
+        .select("id", { count: "exact", head: true })
+        .eq("ecole_id", s.ecoleId)
+        .eq("annee_scolaire", annee);
+      if (!count) {
+        const { data: anciennes } = await s.supabase
+          .from("classes")
+          .select("id, nom, niveau, frais_inscription, mensualite, mensualite_dernier_mois")
+          .eq("ecole_id", s.ecoleId)
+          .eq("annee_scolaire", ecole.annee_scolaire)
+          .eq("is_active", true);
+        if (anciennes?.length) {
+          const { data: nouvelles, error: erreurCopie } = await s.supabase
+            .from("classes")
+            .insert(anciennes.map(({ id: _id, ...c }) => ({ ...c, ecole_id: s.ecoleId, annee_scolaire: annee })))
+            .select("id, nom");
+          if (erreurCopie) throw erreurCopie;
+          copie = anciennes.length;
+          // Le catalogue d'articles (tenues, services) suit chaque classe
+          const parNom = new Map((nouvelles ?? []).map((c) => [c.nom, c.id]));
+          const { data: catalogue, error: erreurCatalogue } = await s.supabase
+            .from("articles_classe")
+            .select("classe_id, libelle, nature, prix_unitaire, quantite_defaut, obligatoire, ordre")
+            .eq("ecole_id", s.ecoleId)
+            .in("classe_id", anciennes.map((c) => c.id));
+          const nomDe = new Map(anciennes.map((c) => [c.id, c.nom]));
+          const copies = (catalogue ?? [])
+            .map(({ classe_id, ...a }) => ({ ...a, ecole_id: s.ecoleId, classe_id: parNom.get(nomDe.get(classe_id) ?? "") ?? "" }))
+            .filter((a) => a.classe_id);
+          const { error: erreurArticles } =
+            erreurCatalogue ? { error: erreurCatalogue } : copies.length ? await s.supabase.from("articles_classe").insert(copies) : { error: null };
+          if (erreurArticles) {
+            // Classes copiées sans leur catalogue : on les retire pour que l'école puisse réessayer
+            await s.supabase.from("classes").delete().eq("ecole_id", s.ecoleId).in("id", (nouvelles ?? []).map((c) => c.id));
+            throw erreurArticles;
+          }
+        }
+      }
+    }
+    // Après la copie : si elle échoue, l'année ne change pas et l'école peut réessayer
     const { error } = await s.supabase
       .from("ecoles")
       .update({
@@ -590,34 +891,13 @@ export async function enregistrerParametres(saisie: SaisieParametres): Promise<R
         tranches_dernier_mois: tranches,
         mois_debut_tranches: tranches ? debutTranches : null,
         nb_tranches: tranches ? nbTranchesSaisi : null,
+        rang_mois_tranches: tranches ? rang : 1,
+        premier_mois_a_linscription: premierALinscription,
+        dernier_mois_a_linscription: dernierALinscription,
       })
       .eq("id", s.ecoleId);
     if (error) throw error;
 
-    // Nouvelle année : reprendre les classes (et leurs tarifs) de l'année précédente si elle n'en a pas
-    let copie = 0;
-    if (annee !== ecole.annee_scolaire) {
-      const { count } = await s.supabase
-        .from("classes")
-        .select("id", { count: "exact", head: true })
-        .eq("ecole_id", s.ecoleId)
-        .eq("annee_scolaire", annee);
-      if (!count) {
-        const { data: anciennes } = await s.supabase
-          .from("classes")
-          .select("nom, niveau, frais_inscription, mensualite")
-          .eq("ecole_id", s.ecoleId)
-          .eq("annee_scolaire", ecole.annee_scolaire)
-          .eq("is_active", true);
-        if (anciennes?.length) {
-          const { error: erreurCopie } = await s.supabase
-            .from("classes")
-            .insert(anciennes.map((c) => ({ ...c, ecole_id: s.ecoleId, annee_scolaire: annee })));
-          if (erreurCopie) throw erreurCopie;
-          copie = anciennes.length;
-        }
-      }
-    }
     revalidatePath("/ecole");
     return {
       success: true,

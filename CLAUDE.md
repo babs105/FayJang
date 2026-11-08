@@ -19,7 +19,7 @@ Répondre et écrire en **français** : messages, commentaires de code, libellé
 - `npm run dev` : serveur de dev (ou preview `fayjang`, port 3126). L'app exige les clés Supabase de `.env.local`.
 - `npx tsc --noEmit` : vérification des types
 - `npm run build` : à lancer avant tout push, c'est ce que Vercel exécute
-- Pas de tests automatisés dans le projet.
+- `npm test` : tests automatiques (Vitest) de la logique pure de `src/lib` (fichiers `*.test.ts` à côté du code). À lancer avant tout push.
 
 ## Carte du code
 
@@ -30,6 +30,9 @@ Répondre et écrire en **français** : messages, commentaires de code, libellé
 - `src/lib/` : logique partagée (`dates.ts`, `scolarite.ts` (calcul des soldes), `whatsapp.ts`, `recu-pdf.ts`, `ecole-session.ts`, ...)
 - `src/types/database.ts` : types des tables Supabase (des `type`, pas des `interface` : supabase-js exige une signature d'index)
 - `supabase/schema.sql` : schéma complet et **idempotent** (relancé en entier dans l'éditeur SQL Supabase)
+- `.claude/SCHEMA-INDEX.md` : index du schéma (tables, fonctions, policies, triggers avec leurs lignes), **généré** par
+  `bash scripts/schema-index.sh` : à régénérer après chaque modification de `schema.sql`, jamais édité à la main
+- `BACKLOG.md` : findings d'audit en attente d'une feature (l'humain et le dev, agent ou session principale, y ajoutent des findings ; seul l'humain coche, supprime ou tranche) ; `docs/mise-en-prod.md` : checklist de mise en production
 
 Espaces : `/ecole` (Espace École, 6 onglets dans `ecole-dashboard-client.tsx` + `fiche-eleve.tsx`), `/p/[token]`
 (parent, page serveur sans JS client), `/admin` (SuperAdmin), `/inscription` (ouverture d'un compte école).
@@ -72,7 +75,7 @@ Toute action École suit ce modèle, dans cet ordre :
 - Les tarifs sont figés sur l'inscription (`inscriptions.frais_inscription`, `mensualite`) : changer le tarif d'une classe ne touche pas les élèves déjà inscrits.
 
 ### Base de données
-- Nouvelle colonne ou table : bloc `ADD COLUMN IF NOT EXISTS` / `CREATE TABLE IF NOT EXISTS` dans `supabase/schema.sql`, avant la section 8 ; jamais modifier les blocs existants (skill `/migration-schema`). Puis mettre à jour `src/types/database.ts`.
+- Nouvelle colonne ou table : bloc `ADD COLUMN IF NOT EXISTS` / `CREATE TABLE IF NOT EXISTS` dans `supabase/schema.sql`, avant la section 8 ; jamais modifier les blocs existants (skill `/migration-schema`). Puis mettre à jour `src/types/database.ts` et régénérer `.claude/SCHEMA-INDEX.md`.
 - Nouvelle table : `ecole_id`, RLS activée et politiques (section 9). Codes d'erreur métier : `JP403`, `JP404`, `JP412`, `JP422`, `JP429` (`src/lib/erreurs.ts`).
 - Le schéma est appliqué à la main par l'utilisateur dans Supabase : lui rappeler de le relancer.
 
@@ -97,8 +100,11 @@ Année scolaire « 2026-2027 », mois des mensualités au format `YYYY-MM-01` (`
 
 ## Vérifier un changement
 
-1. `npx tsc --noEmit` (un hook le lance automatiquement en fin de tour si des fichiers .ts/.tsx ont changé)
+1. `npx tsc --noEmit` (un hook le lance automatiquement en fin de tour si des fichiers .ts/.tsx ont changé), puis `npm test`
 2. Si l'interface change : preview `fayjang` (port 3126), sans créer ni modifier de données réelles sans accord
 3. Avant un push : `NEXT_DIST_DIR=.next-build npm run build` (ne jamais écrire dans le `.next` du `npm run dev`)
 
-Skills du projet (`.claude/skills/`) : `/migration-schema`, `/verifier`. Agents (`.claude/agents/`) : `architect`, `database-reviewer`, `security-reviewer`.
+Les skills du projet (`.claude/skills/`) décrivent les tâches courantes : `/migration-schema`, `/verifier`.
+Les skills `regles-*` (architect, database-reviewer, security-reviewer, dev-encaissement) sont chargés par les agents de `.claude/agents/`
+(`architect`, `database-reviewer`, `security-reviewer` permanents ; `dev-encaissement` pour le flow d'encaissement).
+Les autres tranches (classes, inscriptions, paramètres, page parent, export) sont codées par la session principale, avec les règles d'un agent dev (`.claude/WORKFLOW.md`).
