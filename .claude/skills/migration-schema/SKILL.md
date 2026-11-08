@@ -69,7 +69,12 @@ obligatoires de `Insert` si besoin.
 Ajouter la colonne aux `.select(...)` des pages (`src/app/ecole/page.tsx`, `src/app/p/[token]/page.tsx`),
 aux types de vue (`src/app/ecole/types.ts`) et aux actions concernées (`src/app/ecole/actions.ts`).
 
-## 4. Prévenir l'utilisateur
+## 4. Régénérer l'index du schéma
+
+`bash scripts/schema-index.sh` met à jour `.claude/SCHEMA-INDEX.md`, que `database-reviewer` lit avant
+toute revue. Un index périmé envoie le reviewer sur les mauvaises lignes.
+
+## 5. Prévenir l'utilisateur
 
 Terminer en rappelant : « Relancez `supabase/schema.sql` dans l'éditeur SQL Supabase avant de déployer »,
 sinon le code déployé lirait une colonne qui n'existe pas encore. Puis lancer `/verifier`.
