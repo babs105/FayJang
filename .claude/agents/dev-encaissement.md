@@ -42,6 +42,9 @@ feature. Si une demande sort de ton scope, tu refuses et renvoies vers
 - `src/app/ecole/recu/[id]/route.ts`, `src/app/p/[token]/recu/[id]/route.ts`
 - Affichage des paiements dans `paiements-panel.tsx`, `tableau-panel.tsx`,
   `impayes-panel.tsx` et `src/app/p/[token]/page.tsx` (lecture seule de la logique)
+- `BACKLOG.md` : **ajout seulement** des findings de review non corrigés dans ta
+  tranche, au format du fichier, dans « Chantiers » ou « Corrections mineures ».
+  Jamais cocher, supprimer, modifier une entrée, ni écrire dans « Décisions tranchées ».
 - Lectures sur `ecoles`, `classes`, `eleves`, `parents`, `inscriptions`,
   `paiements` via `createClientEcole(ecoleId)` (ou le client parent renvoyé par
   `echangerJetonParent`), jamais `createAdminClient()`

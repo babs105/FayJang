@@ -59,12 +59,16 @@
   au backlog. On ne relance pas d'audit après.
 - **Si un audit produit 3 findings ou plus, on gèle `schema.sql` pendant
   2 semaines.** On livre une feature utilisateur avant de rouvrir.
-- **Mise à jour du backlog** : après chaque review, l'humain ajoute les
-  findings non corrigés à `BACKLOG.md` **avant** de fermer la PR. Un
+- **Mise à jour du backlog** : après chaque review, l'agent dev (ou l'humain)
+  ajoute les findings non corrigés à `BACKLOG.md` **avant** de fermer la PR. Un
   finding non corrigé et non consigné est un finding oublié.
 - **Lecture du backlog** : `architect` lit `BACKLOG.md` avant chaque plan
   et intègre les findings que la feature croise comme tranches.
-- **Aucun agent n'écrit dans `BACKLOG.md`.** Seul l'humain.
+- **Seul l'agent dev écrit dans `BACKLOG.md`, et seulement pour ajouter** des
+  findings non corrigés de sa tranche (format du fichier : titre, problème,
+  correctif, estimation, « Croise »). Il ne coche, ne supprime et ne modifie
+  aucune entrée, et n'écrit jamais dans « Décisions tranchées » : c'est l'humain.
+  Les autres agents (architect, reviewers) n'y écrivent pas.
 
 ### Sur les reviews
 

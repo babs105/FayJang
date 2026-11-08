@@ -8,7 +8,8 @@
 > - Ne rien corriger depuis ce fichier sans passer par `architect`.
 > - Ne rien supprimer sans avoir la preuve que c'est fait (commit, PR, numéro de ligne).
 > - Une décision tranchée ne se rouvre pas sans raison nouvelle.
-> - Aucun agent n'écrit dans ce fichier : seul l'humain.
+> - L'agent dev (`dev-encaissement`) peut **ajouter** des findings non corrigés de sa tranche.
+>   Seul l'humain coche, supprime, modifie une entrée ou écrit dans « Décisions tranchées ».
 
 ---
 
@@ -27,6 +28,22 @@
   Correctif : clé d'idempotence générée à l'ouverture du formulaire et contrainte
   UNIQUE `(ecole_id, lot_id)` sur la première ligne du lot. *Estimé : 4 h. Croise :
   toute évolution de l'encaissement.*
+
+- [ ] **Encaissement atomique (paiements simultanés)** — `encaisserPaiement` et
+  `inscrireEleve` (`src/app/ecole/actions.ts`) recalculent le reste dû puis insèrent
+  sans verrou : deux encaissements simultanés sur la même inscription (deux onglets,
+  double clic) peuvent surpayer. Correctif : fonction SQL `encaisser(...)`
+  SECURITY DEFINER (`search_path` fixé, REVOKE, contrôle `role_app = 'ecole'`) qui
+  verrouille l'inscription (`FOR UPDATE`), recalcule et insère le lot. Complète
+  l'entrée « Double encaissement sur double envoi » (voir ci-dessus).
+  *Estimé : 0,5 jour. Croise : prochaine évolution de l'encaissement.*
+
+- [ ] **Opérations multi-étapes non atomiques** — `enregistrerClasse` (classe puis
+  catalogue ligne par ligne), `inscrireEleve` (parent, élève, inscription, articles,
+  paiement) et la copie d'année de `enregistrerParametres` : en cas d'échec au milieu,
+  l'état reste partiel ; les rollbacks côté code ne couvrent pas tout. Correctif : une
+  RPC SQL transactionnelle par opération. *Estimé : 1 jour. Croise : « Inscription
+  d'élève atomique », import Excel.*
 
 ---
 
@@ -53,6 +70,23 @@
   `ECOLE_SESSION_SECRET` du `.env.local` ont été affichés en clair dans un terminal
   le 2026-11-07. Ne pas les réutiliser en production. *Estimé : 15 min. Croise :
   configuration de la production Vercel.*
+
+- [ ] **Invariants des articles tenus seulement par le code** — la base ne vérifie pas
+  que `articles_inscription.article_classe_id` appartient à la classe de l'inscription,
+  ni que `mois_fin` reste ≥ au dernier mois payé (trigger `proteger_article_inscription`,
+  `supabase/schema.sql`). Correctif : contrôles dans `verifier_meme_ecole` et
+  `proteger_article_inscription`. *Estimé : 2 h. Croise : tout import de données.*
+
+- [ ] **Frais d'inscription d'un élève en abandon** — `situationInscription`
+  (`src/lib/scolarite.ts`) plafonne mensualités et articles à ce qui est payé en cas
+  d'abandon, mais pas les frais d'inscription : l'arriéré et la relance WhatsApp
+  réclament encore des frais non payés. Décision métier à prendre (plafonner ou garder
+  la dette). *Estimé : 15 min. Croise : règles de gestion des abandons.*
+
+- [ ] **Paiement libre sur inscription non active** — `encaisserPaiement` accepte un
+  paiement libre (hors catalogue) sur une inscription en abandon ou transférée.
+  Décision métier, puis refuser si `statut !== 'active'`. *Estimé : 10 min. Croise :
+  règles de gestion des abandons.*
 
 ---
 
