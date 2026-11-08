@@ -88,6 +88,31 @@
   Décision métier, puis refuser si `statut !== 'active'`. *Estimé : 10 min. Croise :
   règles de gestion des abandons.*
 
+- [ ] **Dates saisies : 31 février accepté** — `isDateValide` (`src/lib/dates.ts`) accepte une date
+  inexistante (ex. 2026-02-31) ; corrigé pour la date de départ (contrôle par aller-retour dans
+  `modifierInscription`), mais pas pour la date de naissance (`inscrireEleve`, `modifierEleve`).
+  Correctif : renforcer `isDateValide` par l'aller-retour ISO. *Estimé : 15 min. Croise : prochaine
+  tranche sur la fiche élève.* (review tranche 2 « départ d'un élève », 2026-11-08)
+
+- [ ] **Paiement libre sur élève parti contrôlé seulement par le code** — la base accepte un paiement
+  `autre` sur une inscription en abandon ou transfert (policy `ecole_encaisse` sans contrôle de
+  statut). Correctif : contrôle dans `verifier_meme_ecole` ou trigger dédié. *Estimé : 30 min.
+  Croise : clôture d'année / réinscription.* (review tranche 2, 2026-11-08)
+
+- [ ] **Erreur 23514 de `modifierInscription` reconnue par sous-chaîne** — la contrainte de la date
+  de départ est repérée par « date_depart » dans le message ; toute autre contrainte CHECK future
+  afficherait le message de la réduction. Correctif : tester les noms complets des contraintes.
+  *Estimé : 10 min. Croise : prochaine modification de `modifierInscription`.* (review tranche 2, 2026-11-08)
+
+- [ ] **Plafond de lignes sur le calcul du matricule** — corrigé par tri décroissant + `limit(1)` ;
+  au-delà de 9 999 élèves sur une année (matricule à 7 caractères), l'ordre texte ne suivrait plus
+  l'ordre numérique. *Estimé : 15 min. Croise : très grosses écoles.* (review du hotfix matricule, 2026-11-08)
+
+- [ ] **Formules Excel non neutralisées dans l'export** — les noms d'élève et de parent saisis
+  librement peuvent commencer par `=`, `+`, `-` ou `@` et être interprétés comme formules à
+  l'ouverture (`src/app/ecole/export/route.ts`). Correctif : préfixer d'une apostrophe ces chaînes
+  avant `addRow`. *Estimé : 20 min. Croise : toute évolution de l'export.* (review tranche 3 « départ d'un élève », 2026-11-08)
+
 ---
 
 ## Décisions tranchées (ne plus rouvrir)
@@ -101,3 +126,14 @@
   n'est pas reliée au compte, Vercel refusait le déploiement). (2026-11-08)
 - [x] **Nom de l'application : FayJàng** (identifiants techniques sans accent :
   `fayjang`). (2026-11-08)
+- [x] **Réglages d'encaissement fixés par l'école en début d'année** (1er / dernier mois à
+  l'inscription, mois payé par tranches) : ils restent au niveau de l'école, pas figés sur
+  chaque inscription. (2026-11-08)
+- [x] **Départ d'un élève (abandon, transfert)** : une date de départ est enregistrée ; les mois
+  jusqu'au mois du départ inclus (mois entamé = dû) restent dus, ceux d'après ne le sont plus
+  (ce qui est déjà payé est gardé, pas de remboursement). Restent dus : frais d'inscription,
+  frais uniques (tenues…), 1er mois payé à l'inscription. Anciens abandons sans date : ancien
+  calcul + bandeau « date de départ manquante ». Le parent voit « Départ enregistré le … ». (2026-11-08)
+- [x] **Paiement libre refusé pour un élève parti** (abandon ou transfert). (2026-11-08)
+- [x] **Exception au gel du schéma** pour la seule colonne `inscriptions.date_depart` (ajout pur,
+  feature « départ d'un élève »). (2026-11-08)

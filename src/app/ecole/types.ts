@@ -66,6 +66,8 @@ export interface EleveVue {
     classe_id: string;
     classe_nom: string;
     statut: StatutInscription;
+    /** Date de départ (YYYY-MM-DD) d'un abandon / transfert, null sinon */
+    date_depart: string | null;
     frais_inscription: number;
     mensualite: number;
     mensualite_dernier_mois: number | null;

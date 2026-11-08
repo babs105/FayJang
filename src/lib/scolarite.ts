@@ -1,5 +1,5 @@
 import { echeanceDuMois, formatMois, moisScolaires } from "@/lib/dates";
-import type { ArticleInscription, Ecole, Inscription, Paiement, TypePaiement } from "@/types/database";
+import type { ArticleInscription, Ecole, Inscription, Paiement, StatutInscription, TypePaiement } from "@/types/database";
 
 export type StatutMois = "paye" | "partiel" | "retard" | "a_venir" | "non_du";
 
@@ -83,7 +83,10 @@ export type CalendrierEcole = Pick<Ecole, "mois_debut" | "nb_mensualites" | "jou
     >
   >;
 type InscriptionTarifs = Pick<Inscription, "annee_scolaire" | "frais_inscription" | "mensualite" | "reduction_mensuelle" | "statut"> &
-  Partial<Pick<Inscription, "mensualite_dernier_mois">>;
+  Partial<Pick<Inscription, "mensualite_dernier_mois">> & {
+    /** Date de départ (YYYY-MM-DD) d'un élève en abandon / transfert ; ignorée si l'inscription est active */
+    date_depart?: string | null;
+  };
 type PaiementCalcul = Pick<Paiement, "type" | "mois" | "montant" | "annule"> & Partial<Pick<Paiement, "article_id">>;
 export type ArticleCalcul = Pick<
   ArticleInscription,
@@ -177,8 +180,12 @@ export function libelleArticle(article: Pick<ArticleCalcul, "libelle" | "quantit
 
 /**
  * Situation financière d'une inscription à une date donnée (todayDakar()).
- * Les paiements annulés sont ignorés. Un élève en abandon ne doit plus ce qui suit son départ :
- * seul ce qui est déjà payé compte alors (pas d'arriéré fictif).
+ * Les paiements annulés sont ignorés. Un élève en abandon ou transféré :
+ * - sans date de départ (anciens abandons) : seul ce qui est déjà payé compte (pas d'arriéré fictif) ;
+ * - avec une date de départ : les mois jusqu'au mois du départ inclus (« mois entamé = dû ») restent dus, les
+ *   suivants valent min(tarif, payé) ; un mois par tranches doit les tranches échues à la fin du mois de départ ;
+ *   frais d'inscription et frais uniques restent dus ; tout ce qui reste dû est échu immédiatement
+ *   (arriéré = reste de l'année).
  * - le 1er et/ou le dernier mois peuvent être exigibles dès l'inscription (réglage de l'école) ;
  * - avec l'option « tranches », le mois ciblé devient exigible par parts, à l'échéance de chaque mois de tranche ;
  * - les frais uniques (tenue, blouson…) sont exigibles dès l'inscription, les services mensuels (transport,
@@ -196,6 +203,8 @@ export function situationInscription(
   const net = mensualiteNette(ins);
   const netDernier = mensualiteDernierMois(ins);
   const actif = ins.statut === "active";
+  const moisDepart = !actif && ins.date_depart ? ins.date_depart.slice(0, 7) : null;
+  const parti = moisDepart !== null;
   const tous = moisScolaires(ins.annee_scolaire, ecole.mois_debut, ecole.nb_mensualites);
   const premier = tous[0];
   const dernier = tous[tous.length - 1];
@@ -208,14 +217,28 @@ export function situationInscription(
       .reduce((s, p) => s + p.montant, 0);
     const echeance = echeanceDuMois(m, ecole.jour_echeance);
     const tarif = m === dernier ? netDernier : net;
-    const du = actif ? tarif : Math.min(tarif, paye);
-    const reste = Math.max(0, du - paye);
     const aLinscription =
       (m === premier && !!ecole.premier_mois_a_linscription) || (m === dernier && !!ecole.dernier_mois_a_linscription);
+    let du: number;
+    if (actif) du = tarif;
+    else if (!parti) du = Math.min(tarif, paye);
+    else if (m.slice(0, 7) <= moisDepart! || (m === premier && aLinscription)) du = tarif;
+    else {
+      // Après le départ : le payé est gardé ; un mois par tranches doit les tranches échues à la fin du mois de départ
+      let partDepart = 0;
+      if (m === cible && !aLinscription) {
+        const finDepart = `${moisDepart}-31`;
+        const echues = moisDesTranches(ins.annee_scolaire, ecole).filter((t) => echeanceDuMois(t, ecole.jour_echeance) <= finDepart).length;
+        partDepart = partEchue(tarif, echues, moisTranches.length);
+      }
+      du = Math.max(Math.min(tarif, paye), partDepart);
+    }
+    const reste = Math.max(0, du - paye);
 
     let tranches: InfoTranches | undefined;
-    let duEchu = aLinscription || echeance <= aujourdhui ? du : 0;
-    if (m === cible && !aLinscription && du > 0) {
+    let duEchu = parti || aLinscription || echeance <= aujourdhui ? du : 0;
+    // Un élève parti n'a plus de tranches : le mois est dû pour la part arrêtée au départ
+    if (m === cible && !aLinscription && !parti && du > 0) {
       const total = moisTranches.length;
       const echeances = moisTranches.map((t) => echeanceDuMois(t, ecole.jour_echeance));
       const echues = echeances.filter((e) => e <= aujourdhui).length;
@@ -244,9 +267,10 @@ export function situationInscription(
     const ajouter = (m: string | null, echeance: string | null) => {
       const paye = payesArticle.filter((p) => (m ? p.mois?.slice(0, 7) === m.slice(0, 7) : true)).reduce((s, p) => s + p.montant, 0);
       const tarif = a.prix_unitaire * (a.nature === "unique" ? a.quantite : 1);
-      const du = actif ? tarif : Math.min(tarif, paye);
+      // Frais unique : dû en entier ; service mensuel : mois entamé = dû, ensuite min(tarif, payé)
+      const du = actif || (parti && (m === null || m.slice(0, 7) <= moisDepart!)) ? tarif : Math.min(tarif, paye);
       const reste = Math.max(0, du - paye);
-      const duEchu = echeance === null || echeance <= aujourdhui ? du : 0;
+      const duEchu = parti || echeance === null || echeance <= aujourdhui ? du : 0;
       const resteEchu = Math.max(0, duEchu - paye);
       lignesArticles.push({
         cle: m ? `${a.id}:${m}` : a.id,
@@ -419,4 +443,9 @@ export function choixALinscription(situation: Situation): ChoixEncaissement {
     articles: situation.articles.filter((a) => a.nature === "unique" && a.reste > 0).map((a) => a.cle),
     inclure_tranche: false,
   };
+}
+
+/** Le paiement libre (hors catalogue) n'est permis que pour un élève encore inscrit : un élève parti ne règle que son solde dû */
+export function paiementLibreAutorise(statut: StatutInscription): boolean {
+  return statut === "active";
 }

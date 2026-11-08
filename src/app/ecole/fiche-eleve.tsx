@@ -7,7 +7,7 @@ import { formatDate, formatMois, formatMoisCourt } from "@/lib/dates";
 import { LIBELLE_MODE, LIBELLE_STATUT_INSCRIPTION, MODES_PAIEMENT, libellePaiement } from "@/lib/libelles";
 import { lienWhatsApp, messageLienParent, messageRelance } from "@/lib/whatsapp";
 import { Badge, Bouton, Label, Message, Modal, champ } from "@/components/ui";
-import { choixALinscription, lignesAEncaisser, type LigneArticle, type StatutMois } from "@/lib/scolarite";
+import { choixALinscription, lignesAEncaisser, paiementLibreAutorise, type LigneArticle, type StatutMois } from "@/lib/scolarite";
 import type { StatutInscription } from "@/types/database";
 import {
   ajouterArticleInscription,
@@ -53,13 +53,17 @@ export function FicheEleve({
   const [montant, setMontant] = useState("");
   const [mode, setMode] = useState("especes");
   const [reference, setReference] = useState("");
-  const [libre, setLibre] = useState(false);
+  const [libreCoche, setLibre] = useState(false);
   const [libelle, setLibelle] = useState("");
   const [inclureTranche, setInclureTranche] = useState(true);
   const [edition, setEdition] = useState(false);
   const [reinscription, setReinscription] = useState(false);
+  const [statutChoisi, setStatutChoisi] = useState<StatutInscription>(eleve.inscription?.statut ?? "active");
+  const [dateDepart, setDateDepart] = useState(eleve.inscription?.date_depart ?? aujourdhui);
   const s = eleve.situation;
   const ins = eleve.inscription;
+  // Élève parti : pas de paiement libre, même si la case était cochée avant le changement de statut
+  const libre = libreCoche && (ins ? paiementLibreAutorise(ins.statut) : false);
   const classe = classes.find((c) => c.id === ins?.classe_id);
 
   function executer(action: () => Promise<{ success: boolean; message?: string }>, apres?: () => void) {
@@ -176,6 +180,20 @@ export function FicheEleve({
 
         {ins && s && (
           <>
+            {ins.statut !== "active" && (
+              <div
+                className={cn(
+                  "rounded-xl border p-2.5 text-[11px]",
+                  ins.date_depart ? "bg-neutral-50 border-neutral-200 text-neutral-700" : "bg-amber-50 border-amber-200 text-amber-800"
+                )}
+              >
+                {ins.date_depart ? (
+                  <>Parti le <b>{formatDate(ins.date_depart)}</b> : les mensualités sont dues jusqu'à {formatMois(ins.date_depart)} inclus.</>
+                ) : (
+                  <><b>Date de départ manquante</b> : indiquez-la ci-dessous pour calculer ce que doit cet élève.</>
+                )}
+              </div>
+            )}
             <div className="grid grid-cols-3 gap-2">
               <Resume label="Payé" valeur={formatFCFA(s.totalPaye)} ton="vert" />
               <Resume label="Arriéré" valeur={formatFCFA(s.arriere)} ton={s.arriere > 0 ? "rouge" : undefined} />
@@ -361,10 +379,11 @@ export function FicheEleve({
             <form onSubmit={encaisser} className="rounded-2xl bg-neutral-50 p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-extrabold text-neutral-900">Encaisser un paiement</p>
+                {paiementLibreAutorise(ins.statut) && (
                 <label className="flex items-center gap-1.5 text-[11px] font-bold text-neutral-600">
                   <input
                     type="checkbox"
-                    checked={libre}
+                    checked={libreCoche}
                     onChange={(e) => {
                       setLibre(e.target.checked);
                       if (e.target.checked) viderSelection();
@@ -372,6 +391,7 @@ export function FicheEleve({
                   />
                   Paiement libre (hors catalogue)
                 </label>
+                )}
               </div>
               {(() => {
                 const cible = s.mois.find((m) => m.tranches && m.reste > 0);
@@ -471,14 +491,41 @@ export function FicheEleve({
 
             <div className="flex flex-wrap gap-2 text-xs">
               <select
-                value={ins.statut}
-                onChange={(e) => executer(() => modifierInscription(ins.id, { statut: e.target.value as StatutInscription }))}
+                value={statutChoisi}
+                onChange={(e) => setStatutChoisi(e.target.value as StatutInscription)}
                 className={`${champ} w-auto`}
+                aria-label="Statut de l'inscription"
               >
                 <option value="active">Inscrit</option>
                 <option value="abandon">Abandon</option>
                 <option value="transfert">Transféré</option>
               </select>
+              {statutChoisi !== "active" && (
+                <input
+                  type="date"
+                  value={dateDepart}
+                  max={aujourdhui}
+                  onChange={(e) => setDateDepart(e.target.value)}
+                  className={`${champ} w-auto`}
+                  aria-label="Date de départ"
+                />
+              )}
+              {(statutChoisi !== ins.statut || (statutChoisi !== "active" && dateDepart !== (ins.date_depart ?? ""))) && (
+                <Bouton
+                  variante="secondaire"
+                  disabled={isPending || (statutChoisi !== "active" && !dateDepart)}
+                  onClick={() =>
+                    executer(() =>
+                      modifierInscription(ins.id, {
+                        statut: statutChoisi,
+                        date_depart: statutChoisi === "active" ? null : dateDepart,
+                      })
+                    )
+                  }
+                >
+                  Appliquer le statut
+                </Bouton>
+              )}
               <ReductionEditable valeur={ins.reduction_mensuelle} onSave={(v) => executer(() => modifierInscription(ins.id, { reduction_mensuelle: v }))} />
             </div>
           </>
@@ -500,7 +547,7 @@ export function FicheEleve({
                 <a
                   href={lienWhatsApp(
                     eleve.parent.telephone,
-                    messageRelance({ ecole: ecole.nom, parent: eleve.parent.nom, eleve: eleve.prenom, arriere: s.arriere, moisEnRetard: s.moisEnRetard, lienParent: eleve.parent.lien })
+                    messageRelance({ ecole: ecole.nom, parent: eleve.parent.nom, eleve: eleve.prenom, arriere: s.arriere, moisEnRetard: s.moisEnRetard, lienParent: eleve.parent.lien, dateDepart: ins?.statut !== "active" ? ins?.date_depart : null })
                   )}
                   target="_blank"
                   rel="noreferrer"

@@ -3,6 +3,7 @@ import {
   choixALinscription,
   libelleTranche,
   lignesAEncaisser,
+  paiementLibreAutorise,
   partEchue,
   situationInscription,
   trancheAvecMois,
@@ -450,4 +451,138 @@ describe("libelleTranche", () => {
     expect(libelleTranche(s.mois[0], 0, 1000)).toBeNull();
     expect(libelleTranche(mai, 0, 0)).toBeNull();
   });
+});
+
+// ---------- Départ d'un élève (abandon / transfert avec date_depart) ----------
+
+describe("départ d'un élève", () => {
+  // Exemple E : sans tranches, ni mois à l'inscription ; frais d'inscription et octobre payés
+  const ECOLE_E: CalendrierEcole = { ...ECOLE, tranches_dernier_mois: false, premier_mois_a_linscription: false, dernier_mois_a_linscription: false };
+  const fraisEtOctobre: P[] = [
+    { type: "inscription", mois: null, montant: 50000, annule: false },
+    { type: "mensualite", mois: "2026-10-01", montant: 20000, annule: false },
+  ];
+  const parti = (depart: string | null, paiements: P[] = fraisEtOctobre, extra: { ecole?: CalendrierEcole; articles?: ArticleCalcul[]; statut?: "abandon" | "transfert" | "active"; aujourdhui?: string } = {}) =>
+    sit(extra.aujourdhui ?? "2027-03-01", paiements, {
+      ecole: extra.ecole ?? ECOLE_E,
+      articles: extra.articles ?? [],
+      ins: { statut: extra.statut ?? "abandon", date_depart: depart } as Partial<typeof INS>,
+    });
+
+  it("E : novembre à janvier dus (60 000), février à juin non dus, arriéré = reste de l'année", () => {
+    const s = parti("2027-01-15");
+    expect(s.arriere).toBe(60000);
+    expect(s.mois.find((m) => m.mois === "2027-01-01")?.du).toBe(20000);
+    for (const m of ["2027-02-01", "2027-03-01", "2027-04-01", "2027-05-01", "2027-06-01"])
+      expect(s.mois.find((l) => l.mois === m)?.statut).toBe("non_du");
+    expect(s.resteAnnee).toBe(60000);
+    expect(s.arriere).toBe(s.resteAnnee);
+  });
+
+  it("E : encaisser novembre + décembre + janvier = 60 000, puis arriéré 0", () => {
+    const s = parti("2027-01-15");
+    const { lignes } = encaisser(s, { mois: ["2026-11-01", "2026-12-01", "2027-01-01"] });
+    expect(somme(lignes)).toBe(60000);
+    const apres = parti("2027-01-15", [...fraisEtOctobre, ...enPaiements(lignes)]);
+    expect(apres.arriere).toBe(0);
+    expect(apres.resteAnnee).toBe(0);
+  });
+
+  it("transfert : même règle que l'abandon", () => {
+    expect(parti("2027-01-15", fraisEtOctobre, { statut: "transfert" }).arriere).toBe(60000);
+  });
+
+  it("départ le 3 janvier (avant l'échéance du 5) : janvier est dû", () => {
+    const s = parti("2027-01-03");
+    expect(s.mois.find((m) => m.mois === "2027-01-01")?.reste).toBe(20000);
+    expect(s.arriere).toBe(60000);
+  });
+
+  it("calculé avant le départ : tout est déjà échu (duEchu = du)", () => {
+    const s = parti("2027-01-15", fraisEtOctobre, { aujourdhui: "2026-11-02" });
+    expect(s.arriere).toBe(60000);
+  });
+
+  it("mois payé après le départ : payé gardé, reste 0, arriéré inchangé", () => {
+    const s = parti("2027-01-15", [...fraisEtOctobre, { type: "mensualite", mois: "2027-04-01", montant: 20000, annule: false }]);
+    const avril = s.mois.find((m) => m.mois === "2027-04-01")!;
+    expect(avril.du).toBe(20000);
+    expect(avril.reste).toBe(0);
+    expect(avril.statut).toBe("paye");
+    expect(s.arriere).toBe(60000);
+  });
+
+  it("mois partiel après le départ : du = payé", () => {
+    const s = parti("2027-01-15", [...fraisEtOctobre, { type: "mensualite", mois: "2027-04-01", montant: 8000, annule: false }]);
+    const avril = s.mois.find((m) => m.mois === "2027-04-01")!;
+    expect(avril.du).toBe(8000);
+    expect(avril.reste).toBe(0);
+    expect(s.arriere).toBe(60000);
+  });
+
+  it("transport 5 000 de novembre à juin : arriéré 75 000 (mois jusqu'à janvier)", () => {
+    const transport: ArticleCalcul = { ...TRANSPORT, prix_unitaire: 5000, mois_debut: "2026-11-01", mois_fin: "2027-06-01" };
+    const s = parti("2027-01-15", fraisEtOctobre, { articles: [transport] });
+    expect(s.arriere).toBe(60000 + 3 * 5000);
+    expect(s.articles.find((a) => a.mois === "2027-02-01")?.statut).toBe("non_du");
+    expect(s.arriere).toBe(s.resteAnnee);
+  });
+
+  it("frais d'inscription non payés et tenue non payée : dus", () => {
+    const s = parti("2027-01-15", [{ type: "mensualite", mois: "2026-10-01", montant: 20000, annule: false }], { articles: [TENUE] });
+    expect(s.arriere).toBe(50000 + 15000 + 60000);
+  });
+
+  it("1er mois à l'inscription non payé, départ en octobre : dû", () => {
+    const s = parti("2026-10-20", [{ type: "inscription", mois: null, montant: 50000, annule: false }], {
+      ecole: { ...ECOLE_E, premier_mois_a_linscription: true },
+      aujourdhui: "2026-10-25",
+    });
+    expect(s.mois[0].reste).toBe(20000);
+    expect(s.arriere).toBe(20000);
+  });
+
+  it("dernier mois à l'inscription : règle générale (non dû après le départ)", () => {
+    const s = parti("2027-01-15", fraisEtOctobre, { ecole: { ...ECOLE_E, dernier_mois_a_linscription: true } });
+    expect(s.mois.find((m) => m.mois === "2027-06-01")?.statut).toBe("non_du");
+    expect(s.arriere).toBe(60000);
+  });
+
+  it("mois par tranches (mai en 3 tranches de février), départ le 10 mars : 2 parts dues", () => {
+    const e: CalendrierEcole = { ...ECOLE, premier_mois_a_linscription: false, dernier_mois_a_linscription: false };
+    const s = parti("2027-03-10", fraisEtOctobre, { ecole: e });
+    const mai = s.mois.find((m) => m.mois === "2027-05-01")!;
+    expect(mai.du).toBe(13332);
+    expect(mai.duEchu).toBe(13332);
+    expect(mai.tranches).toBeUndefined();
+    // novembre à mars (5 mois) + 2 parts de mai
+    expect(s.arriere).toBe(5 * 20000 + 13332);
+    expect(s.arriere).toBe(s.resteAnnee);
+  });
+
+  it("mois par tranches : départ après la tranche d'avril, mai dû en entier", () => {
+    const e: CalendrierEcole = { ...ECOLE, premier_mois_a_linscription: false, dernier_mois_a_linscription: false };
+    const s = parti("2027-04-10", fraisEtOctobre, { ecole: e });
+    expect(s.mois.find((m) => m.mois === "2027-05-01")?.du).toBe(20000);
+  });
+
+  it("abandon sans date : ancien comportement (seul le payé compte)", () => {
+    const s = parti(null);
+    expect(s.arriere).toBe(0);
+    expect(s.resteAnnee).toBe(0);
+    expect(s.mois.find((m) => m.mois === "2026-11-01")?.statut).toBe("non_du");
+  });
+
+  it("statut active avec une date : date ignorée", () => {
+    const avec = parti("2027-01-15", fraisEtOctobre, { statut: "active" });
+    const sans = parti(null, fraisEtOctobre, { statut: "active" });
+    expect(avec).toEqual(sans);
+    expect(avec.mois.find((m) => m.mois === "2027-04-01")?.duEchu).toBe(0);
+  });
+});
+
+describe("paiementLibreAutorise", () => {
+  it("autorise un élève inscrit", () => expect(paiementLibreAutorise("active")).toBe(true));
+  it("refuse un élève en abandon", () => expect(paiementLibreAutorise("abandon")).toBe(false));
+  it("refuse un élève transféré", () => expect(paiementLibreAutorise("transfert")).toBe(false));
 });

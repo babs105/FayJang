@@ -40,7 +40,7 @@ export default async function ParentPage({ params }: { params: Promise<{ token: 
   const { data: inscriptions } = idsEnfants.length
     ? await supabase
         .from("inscriptions")
-        .select("id, eleve_id, classe_id, annee_scolaire, frais_inscription, mensualite, mensualite_dernier_mois, reduction_mensuelle, statut")
+        .select("id, eleve_id, classe_id, annee_scolaire, frais_inscription, mensualite, mensualite_dernier_mois, reduction_mensuelle, statut, date_depart")
         .eq("ecole_id", ecoleId)
         .eq("annee_scolaire", ecole.annee_scolaire)
         .in("eleve_id", idsEnfants)
@@ -101,6 +101,9 @@ export default async function ParentPage({ params }: { params: Promise<{ token: 
                   <p className="text-[11px] text-neutral-500">
                     {ins ? classeNom.get(ins.classe_id) : `Pas encore inscrit en ${ecole.annee_scolaire}`} · Matricule {enfant.matricule}
                   </p>
+                  {ins && ins.statut !== "active" && ins.date_depart && (
+                    <p className="text-[11px] text-neutral-600">Départ enregistré le {formatDate(ins.date_depart)}</p>
+                  )}
                 </div>
                 {s && (s.arriere === 0 ? (
                   <span className="flex items-center gap-1 text-[11px] font-bold text-jang-700"><CheckCircle2 className="w-4 h-4" /> À jour</span>
@@ -115,7 +118,8 @@ export default async function ParentPage({ params }: { params: Promise<{ token: 
               {s && (
                 <>
                   <div className="grid grid-cols-5 gap-1.5">
-                    {s.mois.map((m) => (
+                    {/* Élève parti : les mois qui ne sont plus dus (après le départ, non payés) sont masqués */}
+                    {s.mois.filter((m) => !(ins?.date_depart && ins.statut !== "active" && m.statut === "non_du" && m.paye === 0)).map((m) => (
                       <div key={m.mois} className={cn("rounded-xl border py-1.5 text-center", STYLE[m.statut])}>
                         <p className="text-[10px] font-bold capitalize">{formatMoisCourt(m.mois)}</p>
                         <p className="text-[9px]">

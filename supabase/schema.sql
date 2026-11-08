@@ -276,6 +276,19 @@ BEGIN
     END IF;
 END $$;
 
+-- ---------------------------------------------------------------- v1.6 : départ d'un élève
+-- Date de départ (abandon, transfert) : les mois jusqu'au mois du départ restent dus, ceux d'après
+-- ne le sont plus (calcul dans src/lib/scolarite.ts). Interdite sur une inscription active.
+-- NOT VALID : les inscriptions existantes ne sont pas relues.
+ALTER TABLE public.inscriptions ADD COLUMN IF NOT EXISTS date_depart DATE;
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'inscriptions_date_depart_check') THEN
+        ALTER TABLE public.inscriptions ADD CONSTRAINT inscriptions_date_depart_check
+            CHECK (date_depart IS NULL OR statut <> 'active') NOT VALID;
+    END IF;
+END $$;
+
 -- 8. SÉCURITÉ : RLS ACTIVÉE SUR TOUTES LES TABLES
 ALTER TABLE public.schema_migrations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ecoles ENABLE ROW LEVEL SECURITY;
