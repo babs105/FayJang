@@ -101,3 +101,14 @@
   n'est pas reliée au compte, Vercel refusait le déploiement). (2026-11-08)
 - [x] **Nom de l'application : FayJàng** (identifiants techniques sans accent :
   `fayjang`). (2026-11-08)
+- [x] **Réglages d'encaissement fixés par l'école en début d'année** (1er / dernier mois à
+  l'inscription, mois payé par tranches) : ils restent au niveau de l'école, pas figés sur
+  chaque inscription. (2026-11-08)
+- [x] **Départ d'un élève (abandon, transfert)** : une date de départ est enregistrée ; les mois
+  jusqu'au mois du départ inclus (mois entamé = dû) restent dus, ceux d'après ne le sont plus
+  (ce qui est déjà payé est gardé, pas de remboursement). Restent dus : frais d'inscription,
+  frais uniques (tenues…), 1er mois payé à l'inscription. Anciens abandons sans date : ancien
+  calcul + bandeau « date de départ manquante ». Le parent voit « Départ enregistré le … ». (2026-11-08)
+- [x] **Paiement libre refusé pour un élève parti** (abandon ou transfert). (2026-11-08)
+- [x] **Exception au gel du schéma** pour la seule colonne `inscriptions.date_depart` (ajout pur,
+  feature « départ d'un élève »). (2026-11-08)
