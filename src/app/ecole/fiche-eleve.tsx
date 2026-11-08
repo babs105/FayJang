@@ -547,7 +547,7 @@ export function FicheEleve({
                 <a
                   href={lienWhatsApp(
                     eleve.parent.telephone,
-                    messageRelance({ ecole: ecole.nom, parent: eleve.parent.nom, eleve: eleve.prenom, arriere: s.arriere, moisEnRetard: s.moisEnRetard, lienParent: eleve.parent.lien })
+                    messageRelance({ ecole: ecole.nom, parent: eleve.parent.nom, eleve: eleve.prenom, arriere: s.arriere, moisEnRetard: s.moisEnRetard, lienParent: eleve.parent.lien, dateDepart: ins?.statut !== "active" ? ins?.date_depart : null })
                   )}
                   target="_blank"
                   rel="noreferrer"

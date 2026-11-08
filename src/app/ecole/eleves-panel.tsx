@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { Plus, Search } from "lucide-react";
 import { formatFCFA } from "@/lib/utils";
+import { formatDate } from "@/lib/dates";
 import { LIBELLE_MODE, LIBELLE_STATUT_INSCRIPTION, MODES_PAIEMENT } from "@/lib/libelles";
 import { Badge, Bouton, Carte, Label, Message, Modal, champ } from "@/components/ui";
 import { inscrireEleve } from "./actions";
@@ -76,7 +77,12 @@ export function ElevesPanel({ eleves, classes, ecole, ouvrirEleve }: DonneesEcol
                     {e.inscription ? (
                       <span className="flex items-center gap-1.5">
                         {e.inscription.classe_nom}
-                        {e.inscription.statut !== "active" && <Badge ton="gris">{LIBELLE_STATUT_INSCRIPTION[e.inscription.statut]}</Badge>}
+                        {e.inscription.statut !== "active" && (
+                          <Badge ton="gris">
+                            {LIBELLE_STATUT_INSCRIPTION[e.inscription.statut]}
+                            {e.inscription.date_depart ? ` le ${formatDate(e.inscription.date_depart)}` : ""}
+                          </Badge>
+                        )}
                       </span>
                     ) : (
                       <Badge ton="orange">Non réinscrit</Badge>
