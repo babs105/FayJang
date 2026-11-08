@@ -1,5 +1,5 @@
 import { echeanceDuMois, formatMois, moisScolaires } from "@/lib/dates";
-import type { ArticleInscription, Ecole, Inscription, Paiement, TypePaiement } from "@/types/database";
+import type { ArticleInscription, Ecole, Inscription, Paiement, StatutInscription, TypePaiement } from "@/types/database";
 
 export type StatutMois = "paye" | "partiel" | "retard" | "a_venir" | "non_du";
 
@@ -443,4 +443,9 @@ export function choixALinscription(situation: Situation): ChoixEncaissement {
     articles: situation.articles.filter((a) => a.nature === "unique" && a.reste > 0).map((a) => a.cle),
     inclure_tranche: false,
   };
+}
+
+/** Le paiement libre (hors catalogue) n'est permis que pour un élève encore inscrit : un élève parti ne règle que son solde dû */
+export function paiementLibreAutorise(statut: StatutInscription): boolean {
+  return statut === "active";
 }

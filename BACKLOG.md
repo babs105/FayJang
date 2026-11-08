@@ -88,6 +88,26 @@
   Décision métier, puis refuser si `statut !== 'active'`. *Estimé : 10 min. Croise :
   règles de gestion des abandons.*
 
+- [ ] **Dates saisies : 31 février accepté** — `isDateValide` (`src/lib/dates.ts`) accepte une date
+  inexistante (ex. 2026-02-31) ; corrigé pour la date de départ (contrôle par aller-retour dans
+  `modifierInscription`), mais pas pour la date de naissance (`inscrireEleve`, `modifierEleve`).
+  Correctif : renforcer `isDateValide` par l'aller-retour ISO. *Estimé : 15 min. Croise : prochaine
+  tranche sur la fiche élève.* (review tranche 2 « départ d'un élève », 2026-11-08)
+
+- [ ] **Paiement libre sur élève parti contrôlé seulement par le code** — la base accepte un paiement
+  `autre` sur une inscription en abandon ou transfert (policy `ecole_encaisse` sans contrôle de
+  statut). Correctif : contrôle dans `verifier_meme_ecole` ou trigger dédié. *Estimé : 30 min.
+  Croise : clôture d'année / réinscription.* (review tranche 2, 2026-11-08)
+
+- [ ] **Erreur 23514 de `modifierInscription` reconnue par sous-chaîne** — la contrainte de la date
+  de départ est repérée par « date_depart » dans le message ; toute autre contrainte CHECK future
+  afficherait le message de la réduction. Correctif : tester les noms complets des contraintes.
+  *Estimé : 10 min. Croise : prochaine modification de `modifierInscription`.* (review tranche 2, 2026-11-08)
+
+- [ ] **Plafond de lignes sur le calcul du matricule** — corrigé par tri décroissant + `limit(1)` ;
+  au-delà de 9 999 élèves sur une année (matricule à 7 caractères), l'ordre texte ne suivrait plus
+  l'ordre numérique. *Estimé : 15 min. Croise : très grosses écoles.* (review du hotfix matricule, 2026-11-08)
+
 ---
 
 ## Décisions tranchées (ne plus rouvrir)
