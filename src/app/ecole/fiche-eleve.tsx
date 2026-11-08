@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { Ban, Copy, FileText, MessageCircle, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { useMemo, useState, useTransition } from "react";
+import { Ban, ChevronDown, ChevronRight, Copy, FileText, MessageCircle, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { cn, formatFCFA } from "@/lib/utils";
 import { formatDate, formatMois, formatMoisCourt } from "@/lib/dates";
 import { LIBELLE_MODE, LIBELLE_STATUT_INSCRIPTION, MODES_PAIEMENT, libellePaiement } from "@/lib/libelles";
+import { regrouperParRecu, resumeRecu } from "@/lib/regrouper-recus";
 import { lienWhatsApp, messageLienParent, messageRelance } from "@/lib/whatsapp";
 import { Badge, Bouton, Label, Message, Modal, champ } from "@/components/ui";
 import { choixALinscription, lignesAEncaisser, paiementLibreAutorise, type LigneArticle, type StatutMois } from "@/lib/scolarite";
@@ -60,6 +61,16 @@ export function FicheEleve({
   const [reinscription, setReinscription] = useState(false);
   const [statutChoisi, setStatutChoisi] = useState<StatutInscription>(eleve.inscription?.statut ?? "active");
   const [dateDepart, setDateDepart] = useState(eleve.inscription?.date_depart ?? aujourdhui);
+  const [recusOuverts, setRecusOuverts] = useState<Set<string>>(new Set());
+  const recus = useMemo(() => regrouperParRecu(paiements), [paiements]);
+  function basculerRecu(cle: string) {
+    setRecusOuverts((prec) => {
+      const suivant = new Set(prec);
+      if (suivant.has(cle)) suivant.delete(cle);
+      else suivant.add(cle);
+      return suivant;
+    });
+  }
   const s = eleve.situation;
   const ins = eleve.inscription;
   // Élève parti : pas de paiement libre, même si la case était cochée avant le changement de statut
@@ -575,37 +586,63 @@ export function FicheEleve({
             <p className="text-xs text-neutral-500">Aucun paiement.</p>
           ) : (
             <ul className="divide-y divide-neutral-100 border border-neutral-100 rounded-2xl">
-              {paiements.map((p) => (
-                <li key={p.id} className={cn("px-3 py-2.5 flex items-center gap-3", p.annule && "opacity-60")}>
-                  <div className="flex-1 min-w-0">
-                    <p className={cn("text-xs font-bold", p.annule && "line-through")}>
-                      {libellePaiement(p)}
-                      {" · "}
-                      {formatFCFA(p.montant)}
-                    </p>
-                    <p className="text-[11px] text-neutral-500">
-                      {p.numero_recu} · {formatDate(p.paye_le)} · {LIBELLE_MODE[p.mode]}
-                      {p.reference ? ` (${p.reference})` : ""}
-                      {p.annule && ` · annulé : ${p.motif_annulation}`}
-                    </p>
-                  </div>
-                  <a href={`/ecole/recu/${p.id}`} target="_blank" className="p-1.5 rounded-lg hover:bg-neutral-100" title="Reçu PDF">
-                    <FileText className="w-4 h-4 text-neutral-600" />
-                  </a>
-                  {!p.annule && (
-                    <button
-                      title="Annuler ce paiement"
-                      className="p-1.5 rounded-lg hover:bg-red-50"
-                      onClick={() => {
-                        const motif = prompt("Motif de l'annulation (erreur de saisie, chèque rejeté...) :");
-                        if (motif) executer(() => annulerPaiement(p.id, motif));
-                      }}
-                    >
-                      <Ban className="w-4 h-4 text-red-500" />
-                    </button>
-                  )}
-                </li>
-              ))}
+              {recus.map((r) => {
+                const p = r.premiere;
+                const detail = r.lignes.length > 1;
+                const ouvert = recusOuverts.has(r.cle);
+                return (
+                  <li key={r.cle} className={cn(r.annule && "opacity-60")}>
+                    <div className="px-3 py-2.5 flex items-center gap-3">
+                      <div
+                        className={cn("flex-1 min-w-0", detail && "cursor-pointer")}
+                        onClick={detail ? () => basculerRecu(r.cle) : undefined}
+                      >
+                        <p className={cn("text-xs font-bold flex items-center gap-1", r.annule && "line-through")}>
+                          {detail && (ouvert ? <ChevronDown className="w-3.5 h-3.5 text-neutral-400 shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 text-neutral-400 shrink-0" />)}
+                          <span>
+                            {resumeRecu(r.lignes)}
+                            {" · "}
+                            {formatFCFA(r.annule ? r.totalBrut : r.total)}
+                          </span>
+                        </p>
+                        <p className="text-[11px] text-neutral-500">
+                          {p.numero_recu} · {formatDate(p.paye_le)} · {LIBELLE_MODE[p.mode]}
+                          {p.reference ? ` (${p.reference})` : ""}
+                          {r.annule && <> · <Badge ton="rouge">Annulé</Badge>{r.motif_annulation ? ` ${r.motif_annulation}` : ""}</>}
+                        </p>
+                      </div>
+                      <a href={`/ecole/recu/${p.id}`} target="_blank" className="p-1.5 rounded-lg hover:bg-neutral-100" title="Reçu PDF">
+                        <FileText className="w-4 h-4 text-neutral-600" />
+                      </a>
+                      {!r.annule && (
+                        <button
+                          title="Annuler ce reçu"
+                          className="p-1.5 rounded-lg hover:bg-red-50"
+                          onClick={() => {
+                            const nb = r.lignes.filter((l) => !l.annule).length;
+                            const motif = prompt(
+                              `Annuler le reçu ${p.numero_recu} ? Total annulé : ${formatFCFA(r.total)} (${nb} ligne${nb > 1 ? "s" : ""}). Le reçu entier sera annulé.\n\nMotif de l'annulation (obligatoire : erreur de saisie, chèque rejeté...) :`
+                            );
+                            if (motif?.trim()) executer(() => annulerPaiement(p.id, motif.trim()));
+                          }}
+                        >
+                          <Ban className="w-4 h-4 text-red-500" />
+                        </button>
+                      )}
+                    </div>
+                    {detail && ouvert && (
+                      <ul className="bg-neutral-50/60 px-3 pb-2 space-y-0.5">
+                        {r.lignes.map((l) => (
+                          <li key={l.id} className={cn("flex justify-between text-[11px] text-neutral-600 pl-5", l.annule && "opacity-60 line-through")}>
+                            <span>{libellePaiement(l)}</span>
+                            <span>{formatFCFA(l.montant)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>
