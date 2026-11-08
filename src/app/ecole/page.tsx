@@ -53,7 +53,7 @@ export default async function EcolePage({ searchParams }: PageProps) {
     supabase.from("parents").select("id, nom, telephone, token").eq("ecole_id", ecoleId),
     supabase
       .from("inscriptions")
-      .select("id, eleve_id, classe_id, annee_scolaire, frais_inscription, mensualite, mensualite_dernier_mois, reduction_mensuelle, statut")
+      .select("id, eleve_id, classe_id, annee_scolaire, frais_inscription, mensualite, mensualite_dernier_mois, reduction_mensuelle, statut, date_depart")
       .eq("ecole_id", ecoleId)
       .eq("annee_scolaire", annee),
     supabase
@@ -115,6 +115,7 @@ export default async function EcolePage({ searchParams }: PageProps) {
             classe_id: ins.classe_id,
             classe_nom: classeNom,
             statut: ins.statut,
+            date_depart: ins.date_depart,
             frais_inscription: ins.frais_inscription,
             mensualite: ins.mensualite,
             mensualite_dernier_mois: ins.mensualite_dernier_mois,
