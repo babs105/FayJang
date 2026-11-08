@@ -5,7 +5,7 @@ description: Vérifier un changement dans FayJàng avant de le considérer comme
 
 # Vérifier un changement
 
-1. **Types** : `npx tsc --noEmit`. Corriger toute erreur avant de continuer.
+1. **Types et tests** : `npx tsc --noEmit`, puis `npm test` (Vitest). Corriger toute erreur avant de continuer.
 2. **Règles du projet** sur le diff (`git diff`) :
    - chaque requête d'une action École passe par `createClientEcole(ecoleId)` et est filtrée par `ecole_id` ; `createAdminClient()` n'apparaît que dans `/admin`, `/inscription` et `/api/diagnostic` ;
    - toute nouvelle page, action ou route privée vérifie sa session en tête (il n'y a pas de middleware) ;

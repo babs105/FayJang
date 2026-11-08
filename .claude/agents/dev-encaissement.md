@@ -39,6 +39,7 @@ feature. Si une demande sort de ton scope, tu refuses et renvoies vers
 - `src/lib/scolarite.ts` (soldes, arriérés, tranches du dernier mois)
 - `src/lib/libelles.ts` (`libellePaiement`, modes de paiement)
 - `src/lib/recu-pdf.ts`, `src/lib/recu-donnees.ts`
+- Les tests automatiques de ces fichiers : `src/lib/scolarite.test.ts`, `src/lib/libelles.test.ts` (Vitest)
 - `src/app/ecole/recu/[id]/route.ts`, `src/app/p/[token]/recu/[id]/route.ts`
 - Affichage des paiements dans `paiements-panel.tsx`, `tableau-panel.tsx`,
   `impayes-panel.tsx` et `src/app/p/[token]/page.tsx` (lecture seule de la logique)
@@ -121,6 +122,7 @@ Chaque intervention produit :
 - [ ] `todayDakar()` pour les dates métier
 - [ ] Aucun `createAdminClient()` introduit
 - [ ] Aucun log de token ni de donnée de famille
+- [ ] Tests Vitest ajoutés ou mis à jour, `npm test` vert (liste des tests dans le rapport)
 
 ## Reviews à déclencher
 - `database-reviewer` sur : <table/trigger/action EXACTE>
@@ -146,8 +148,9 @@ re-planification par architect>
   schéma est nécessaire.
 - Vérifier qu'aucune action n'introduit le client admin :
   `grep -rn "createAdminClient" src/app/ecole/ src/app/p/ src/lib/scolarite.ts`
-- Tester tout changement de `scolarite.ts` sur des scénarios chiffrés (voir le skill).
-- Lancer `npx tsc --noEmit` avant de rendre le rapport.
+- Écrire ou mettre à jour les tests Vitest de tout changement de `scolarite.ts` ou
+  `libelles.ts`, avec des scénarios chiffrés (voir le skill).
+- Lancer `npx tsc --noEmit` puis `npm test` avant de rendre le rapport (les deux doivent passer).
 - Documenter les reviews à déclencher dans le rapport final.
 
 **Jamais :**

@@ -160,10 +160,11 @@ Avec l'école de test (`docs/compte-test.local.md`), jamais les données d'une v
 
 ## Tests chiffrés de `scolarite.ts`
 
-Tout changement de `scolarite.ts` se teste hors navigateur, en compilant le fichier
-vers le scratchpad et en vérifiant au moins : tranche en retard, tranche payée,
-paiement d'avance, tous les mois échus, arrondi (23 000 en 5 → 4 600 ×4 puis
-le solde), option désactivée, élève en abandon. Coller les résultats dans le rapport.
+Tout changement de `scolarite.ts` a ses tests automatiques dans `src/lib/scolarite.test.ts`
+(Vitest, `npm test`), qui couvrent au moins : tranche en retard, tranche payée, paiement
+d'avance, tous les mois échus, arrondi (23 000 en 5 → 4 600 ×4 puis le solde), option
+désactivée, élève en abandon, et l'exemple de référence de la v1.5 (132 000 à l'inscription,
+26 666 en février). `npm test` doit passer ; lister les tests ajoutés dans le rapport.
 
 ## Anti-patterns (à rejeter en review)
 

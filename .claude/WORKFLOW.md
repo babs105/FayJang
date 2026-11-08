@@ -38,6 +38,11 @@
   autre tranche** (classes, inscriptions, paramètres, page parent, export,
   tableau de bord, impayés) est codée par la **session principale** (Claude),
   avec les mêmes règles qu'un agent dev ci-dessous.
+- **Le dev qui code écrit les tests automatiques de sa tranche** (Vitest,
+  `src/**/*.test.ts`) : toute logique pure touchée (`src/lib`, calculs, libellés)
+  a ses tests, avec les chiffres de l'exemple du plan. `npm test` doit passer
+  avant de rendre le rapport ; le rapport liste les tests ajoutés. Les écrans
+  restent vérifiés à la main dans la preview.
 - Le dev reçoit **une seule tranche** à la fois. Le texte exact copié depuis
   le plan.
 - Le dev **ne touche jamais** `supabase/schema.sql` (il propose l'`ALTER`,

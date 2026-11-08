@@ -19,7 +19,7 @@ Répondre et écrire en **français** : messages, commentaires de code, libellé
 - `npm run dev` : serveur de dev (ou preview `fayjang`, port 3126). L'app exige les clés Supabase de `.env.local`.
 - `npx tsc --noEmit` : vérification des types
 - `npm run build` : à lancer avant tout push, c'est ce que Vercel exécute
-- Pas de tests automatisés dans le projet.
+- `npm test` : tests automatiques (Vitest) de la logique pure de `src/lib` (fichiers `*.test.ts` à côté du code). À lancer avant tout push.
 
 ## Carte du code
 
@@ -100,7 +100,7 @@ Année scolaire « 2026-2027 », mois des mensualités au format `YYYY-MM-01` (`
 
 ## Vérifier un changement
 
-1. `npx tsc --noEmit` (un hook le lance automatiquement en fin de tour si des fichiers .ts/.tsx ont changé)
+1. `npx tsc --noEmit` (un hook le lance automatiquement en fin de tour si des fichiers .ts/.tsx ont changé), puis `npm test`
 2. Si l'interface change : preview `fayjang` (port 3126), sans créer ni modifier de données réelles sans accord
 3. Avant un push : `NEXT_DIST_DIR=.next-build npm run build` (ne jamais écrire dans le `.next` du `npm run dev`)
 
