@@ -107,6 +107,14 @@ describe("resumeRecu", () => {
         ligne({ type: "autre", mois: null, libelle: "Fournitures" }),
         ligne({ type: "autre", mois: null, libelle: "Badge" }),
       ])
-    ).toBe("Tenue + Blouson + 2 autre(s) frais");
+    ).toBe("Badge + Blouson + 2 autre(s) frais");
+  });
+
+  it("ordre stable quel que soit l'ordre des lignes : inscription d'abord, puis alphabétique", () => {
+    const a = ligne({ type: "autre", mois: null, libelle: "Jacket" });
+    const b = ligne({ type: "inscription", mois: null });
+    const c = ligne({ type: "autre", mois: null, libelle: "Ensemble blouson" });
+    expect(resumeRecu([a, b, c])).toBe("Frais d'inscription + Ensemble blouson + 1 autre(s) frais");
+    expect(resumeRecu([c, a, b])).toBe("Frais d'inscription + Ensemble blouson + 1 autre(s) frais");
   });
 });

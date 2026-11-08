@@ -64,7 +64,11 @@ export function resumeRecu(lignes: Pick<LigneRecu, "type" | "mois" | "libelle">[
         ? `${mensualites.length} mensualité${mensualites.length > 1 ? "s" : ""} (${formatMoisCourt(mois[0])})`
         : `${mensualites.length} mensualités (${formatMoisCourt(mois[0])}–${formatMoisCourt(mois[mois.length - 1])})`;
 
-  const autres = [...new Set(lignes.filter((l) => !mensualites.includes(l)).map((l) => libellePaiement(l)))];
+  // Ordre stable (les lignes d'un même lot n'ont pas d'ordre garanti en base) : inscription d'abord, puis alphabétique
+  const autresLignes = lignes
+    .filter((l) => !mensualites.includes(l))
+    .sort((a, b) => Number(b.type === "inscription") - Number(a.type === "inscription") || libellePaiement(a).localeCompare(libellePaiement(b), "fr"));
+  const autres = [...new Set(autresLignes.map((l) => libellePaiement(l)))];
   const parts = autres.length > 2 ? [...autres.slice(0, 2), `${autres.length - 2} autre(s) frais`] : autres;
   if (partMensualites) parts.push(partMensualites);
   return parts.join(" + ");
