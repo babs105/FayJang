@@ -7,7 +7,7 @@
 export class ErreurAffichable extends Error {}
 
 /** Codes levés par nos fonctions et triggers SQL, au message écrit en français pour l'utilisateur */
-const CODES_METIER = new Set(["JP403", "JP404", "JP412", "JP422", "JP429"]);
+const CODES_METIER = new Set(["FJ403", "FJ404", "FJ412", "FJ422", "FJ429"]);
 
 /** Traduit une erreur en message lisible. `doublon` : message pour une valeur déjà utilisée (23505) */
 export function messageErreur(

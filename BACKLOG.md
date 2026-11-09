@@ -8,8 +8,14 @@
 > - Ne rien corriger depuis ce fichier sans passer par `architect`.
 > - Ne rien supprimer sans avoir la preuve que c'est fait (commit, PR, numéro de ligne).
 > - Une décision tranchée ne se rouvre pas sans raison nouvelle.
-> - Le dev (`dev-encaissement` ou la session principale) peut **ajouter** des findings non corrigés de sa tranche.
->   Seul l'humain coche, supprime, modifie une entrée ou écrit dans « Décisions tranchées ».
+> - Le dev (`dev-encaissement` ou la session principale) gère ce fichier avec l'autorisation de l'humain :
+>   il **ajoute** sans demander les findings non corrigés de sa tranche ; il **coche, supprime, modifie**
+>   une entrée ou écrit dans « Décisions tranchées » seulement après l'accord explicite de l'humain.
+> - Classement (détail dans `.claude/WORKFLOW.md`, section « Le backlog ») :
+>   - **Chantier** dès qu'un de ces points est vrai : plus d'1 h de travail, touche `schema.sql`,
+>     l'auth ou l'argent (encaissement, reçus, soldes), plus de 2 fichiers, ou décision métier à prendre ;
+>   - **Correction mineure** sinon : correctif court et localisé.
+>   - Une nouvelle entrée s'ajoute à la fin de sa section, avec son origine (review, tranche, date).
 
 ---
 
@@ -22,21 +28,21 @@
   SQL `inscrire_eleve(...)` (SECURITY DEFINER, contrôle `role_app = 'ecole'`) qui fait
   tout dans une transaction. *Estimé : 1 jour. Croise : import Excel des élèves.*
 
-- [ ] **Double encaissement sur double envoi** — chaque appel de `encaisserPaiement`
-  crée un nouveau `lot_id` : deux envois rapprochés (réseau lent, double-clic avant
-  désactivation du bouton) créent deux reçus. Le bouton est désactivé pendant l'envoi.
-  Correctif : clé d'idempotence générée à l'ouverture du formulaire et contrainte
-  UNIQUE `(ecole_id, lot_id)` sur la première ligne du lot. *Estimé : 4 h. Croise :
-  toute évolution de l'encaissement.*
+- [ ] **Double-clic sur Encaisser (idempotence UI)** — le bouton est désactivé
+  pendant l'envoi, mais un double-clic rapide ou un réseau lent peut créer deux
+  reçus. Correctif : clé d'idempotence générée à l'ouverture du formulaire et
+  contrainte UNIQUE `(ecole_id, lot_id)` sur la première ligne du lot.
+  *Estimé : 4 h. Croise : toute évolution de l'encaissement.*
 
 - [ ] **Encaissement atomique (paiements simultanés)** — `encaisserPaiement` et
-  `inscrireEleve` (`src/app/ecole/actions.ts`) recalculent le reste dû puis insèrent
-  sans verrou : deux encaissements simultanés sur la même inscription (deux onglets,
-  double clic) peuvent surpayer. Correctif : fonction SQL `encaisser(...)`
-  SECURITY DEFINER (`search_path` fixé, REVOKE, contrôle `role_app = 'ecole'`) qui
-  verrouille l'inscription (`FOR UPDATE`), recalcule et insère le lot. Complète
-  l'entrée « Double encaissement sur double envoi » (voir ci-dessus).
-  *Estimé : 0,5 jour. Croise : prochaine évolution de l'encaissement.*
+  `inscrireEleve` recalculent le reste dû puis insèrent sans verrou : deux
+  encaissements simultanés sur la même inscription (deux onglets, deux
+  comptables) peuvent surpayer. Correctif : fonction SQL `encaisser(...)`
+  SECURITY DEFINER (`search_path` fixé, REVOKE, contrôle `role_app = 'ecole'`)
+  qui verrouille l'inscription (`FOR UPDATE`), recalcule et insère le lot.
+  **À traiter avec « Inscription d'élève atomique »** : même pattern de
+  fonction SQL transactionnelle. *Estimé : 0,5 jour. Croise : prochaine
+  évolution de l'encaissement.*
 
 - [ ] **Opérations multi-étapes non atomiques** — `enregistrerClasse` (classe puis
   catalogue ligne par ligne), `inscrireEleve` (parent, élève, inscription, articles,
@@ -45,23 +51,38 @@
   RPC SQL transactionnelle par opération. *Estimé : 1 jour. Croise : « Inscription
   d'élève atomique », import Excel.*
 
+
+- [ ] **`updated_at` absent hors `acces_ecole`** (M1) — aucune trace de la dernière
+  modification d'un élève, d'une classe ou d'une inscription. *Estimé : 2 h. Croise :
+  journal des modifications.*
+
+- [ ] **Invariants des articles tenus seulement par le code** — la base ne vérifie pas
+  que `articles_inscription.article_classe_id` appartient à la classe de l'inscription,
+  ni que `mois_fin` reste ≥ au dernier mois payé (trigger `proteger_article_inscription`,
+  `supabase/schema.sql`). Correctif : contrôles dans `verifier_meme_ecole` et
+  `proteger_article_inscription`. *Estimé : 2 h. Croise : tout import de données.*
+
+- [ ] **Paiement libre sur élève parti contrôlé seulement par le code** — la base accepte un paiement
+  `autre` sur une inscription en abandon ou transfert (policy `ecole_encaisse` sans contrôle de
+  statut). Correctif : contrôle dans `verifier_meme_ecole` ou trigger dédié. *Estimé : 30 min.
+  Croise : clôture d'année / réinscription.* (review tranche 2, 2026-11-08)
+
 ---
 
 ## Corrections mineures (à appliquer quand une feature croise le sujet)
+
+- [ ] **Suppression accidentelle d'un paiement en éditeur SQL** — aucune policy
+  `FOR DELETE`, aucun trigger `BEFORE DELETE` sur `paiements`. La RLS protège
+  l'application (JWT), mais l'éditeur SQL (rôle postgres) bypass la RLS. Un
+  humain peut supprimer un vrai reçu par accident. Correctif : trigger
+  `BEFORE DELETE` + flag `SET LOCAL fayjang.allow_paiement_delete = 'on'` pour
+  le nettoyage de tests. *Estimé : 1 h. Croise : mise en production avec de
+  vrais reçus.*
 
 - [ ] **Headers de sécurité absents** (S9) — aucun `X-Frame-Options`,
   `X-Content-Type-Options`, `Referrer-Policy`, CSP dans `next.config.ts`. Le
   `Referrer-Policy` compte : l'URL de la page parent contient le token. Correctif :
   `headers()` dans `next.config.ts`. *Estimé : 1 h. Croise : prochaine tranche sur /p/[token].*
-
-- [ ] **Préfixe des reçus encore « JP- »** — vient de l'ancien nom JàngPay. Passer à
-  « FJ- » demande un bloc final qui remplace `numeroter_recu` ; les reçus déjà émis
-  gardent « JP- ». *Estimé : 30 min. Croise : première mise en service réelle (à faire
-  avant les premiers vrais reçus).*
-
-- [ ] **`updated_at` absent hors `acces_ecole`** (M1) — aucune trace de la dernière
-  modification d'un élève, d'une classe ou d'une inscription. *Estimé : 2 h. Croise :
-  journal des modifications.*
 
 - [ ] **Node.js 20 en local** — `@supabase/supabase-js` annonce la fin du support de
   Node 20. Vercel est déjà en 26.x. *Estimé : 15 min. Croise : prochaine mise à jour des dépendances.*
@@ -71,33 +92,11 @@
   le 2026-11-07. Ne pas les réutiliser en production. *Estimé : 15 min. Croise :
   configuration de la production Vercel.*
 
-- [ ] **Invariants des articles tenus seulement par le code** — la base ne vérifie pas
-  que `articles_inscription.article_classe_id` appartient à la classe de l'inscription,
-  ni que `mois_fin` reste ≥ au dernier mois payé (trigger `proteger_article_inscription`,
-  `supabase/schema.sql`). Correctif : contrôles dans `verifier_meme_ecole` et
-  `proteger_article_inscription`. *Estimé : 2 h. Croise : tout import de données.*
-
-- [ ] **Frais d'inscription d'un élève en abandon** — `situationInscription`
-  (`src/lib/scolarite.ts`) plafonne mensualités et articles à ce qui est payé en cas
-  d'abandon, mais pas les frais d'inscription : l'arriéré et la relance WhatsApp
-  réclament encore des frais non payés. Décision métier à prendre (plafonner ou garder
-  la dette). *Estimé : 15 min. Croise : règles de gestion des abandons.*
-
-- [ ] **Paiement libre sur inscription non active** — `encaisserPaiement` accepte un
-  paiement libre (hors catalogue) sur une inscription en abandon ou transférée.
-  Décision métier, puis refuser si `statut !== 'active'`. *Estimé : 10 min. Croise :
-  règles de gestion des abandons.*
-
 - [ ] **Dates saisies : 31 février accepté** — `isDateValide` (`src/lib/dates.ts`) accepte une date
   inexistante (ex. 2026-02-31) ; corrigé pour la date de départ (contrôle par aller-retour dans
   `modifierInscription`), mais pas pour la date de naissance (`inscrireEleve`, `modifierEleve`).
   Correctif : renforcer `isDateValide` par l'aller-retour ISO. *Estimé : 15 min. Croise : prochaine
   tranche sur la fiche élève.* (review tranche 2 « départ d'un élève », 2026-11-08)
-
-- [ ] **Paiement libre sur élève parti contrôlé seulement par le code** — la base accepte un paiement
-  `autre` sur une inscription en abandon ou transfert (policy `ecole_encaisse` sans contrôle de
-  statut). Correctif : contrôle dans `verifier_meme_ecole` ou trigger dédié. *Estimé : 30 min.
-  Croise : clôture d'année / réinscription.* (review tranche 2, 2026-11-08)
 
 - [ ] **Erreur 23514 de `modifierInscription` reconnue par sous-chaîne** — la contrainte de la date
   de départ est repérée par « date_depart » dans le message ; toute autre contrainte CHECK future
@@ -134,6 +133,9 @@
   (ce qui est déjà payé est gardé, pas de remboursement). Restent dus : frais d'inscription,
   frais uniques (tenues…), 1er mois payé à l'inscription. Anciens abandons sans date : ancien
   calcul + bandeau « date de départ manquante ». Le parent voit « Départ enregistré le … ». (2026-11-08)
-- [x] **Paiement libre refusé pour un élève parti** (abandon ou transfert). (2026-11-08)
+- [x] **Paiement libre refusé pour un élève parti** (abandon ou transfert). Appliqué dans
+  `encaisserPaiement` et l'interface (commit `3e3c4bb`). (2026-11-08)
 - [x] **Exception au gel du schéma** pour la seule colonne `inscriptions.date_depart` (ajout pur,
   feature « départ d'un élève »). (2026-11-08)
+- [x] **Préfixe des reçus encore « JP- »** — vient de l'ancien nom JàngPay. Passer à
+  « FJ- » demande un bloc final qui remplace `numeroter_recu` .(2026-11-09)

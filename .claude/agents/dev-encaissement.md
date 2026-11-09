@@ -43,19 +43,26 @@ feature. Si une demande sort de ton scope, tu refuses et renvoies vers
 - `src/app/ecole/recu/[id]/route.ts`, `src/app/p/[token]/recu/[id]/route.ts`
 - Affichage des paiements dans `paiements-panel.tsx`, `tableau-panel.tsx`,
   `impayes-panel.tsx` et `src/app/p/[token]/page.tsx` (lecture seule de la logique)
-- `BACKLOG.md` : **ajout seulement** des findings de review non corrigés dans ta
-  tranche, au format du fichier, dans « Chantiers » ou « Corrections mineures ».
-  Jamais cocher, supprimer, modifier une entrée, ni écrire dans « Décisions tranchées ».
+- `BACKLOG.md` : **ajout** sans demander des findings de review non corrigés dans ta
+  tranche, au format du fichier, dans « Chantiers » ou « Corrections mineures »
+  selon le critère de `.claude/WORKFLOW.md` (section « Le backlog »).
+  Cocher, supprimer, modifier une entrée ou écrire dans « Décisions tranchées » :
+  seulement après l'accord explicite de l'humain, en citant la preuve (commit, ligne).
+  Ton rapport liste les « findings du backlog résolus » par ta tranche.
 - Lectures sur `ecoles`, `classes`, `eleves`, `parents`, `inscriptions`,
   `paiements` via `createClientEcole(ecoleId)` (ou le client parent renvoyé par
   `echangerJetonParent`), jamais `createAdminClient()`
 
 **Hors scope (interdit, escalader) :**
-- `supabase/schema.sql` → **jamais**. Si un changement de schéma est
-  nécessaire, tu proposes le bloc SQL dans ton rapport et tu escalades
-  vers l'humain (qui passera par `/migration-schema` et `database-reviewer`).
-- `src/types/database.ts` → mis à jour par l'humain avec la migration ;
-  tu signales la mise à jour nécessaire.
+- `supabase/schema/*.sql` → **pas sans autorisation explicite**. Si un
+  changement de schéma est nécessaire, tu proposes le bloc SQL dans ton
+  rapport. Si l'humain répond « applique » (ou équivalent), tu édites le
+  fichier source concerné dans `supabase/schema/` (01-tables pour une
+  nouvelle table, 02-securite pour une policy, 03-fonctions pour une
+  fonction, 04-triggers pour un trigger, 05-migrations pour une migration),
+  puis `bash supabase/scripts/build-schema.sh`, puis `bash scripts/schema-index.sh`, puis tu t'arrêtes. Tu ne fais **jamais**
+  l'application en base (éditeur SQL Supabase) — c'est l'humain. Sans accord explicite, tu ne fais que proposer.
+- `src/types/database.ts` → mis à jour **dans le même mouvement que `schema.sql`**, et seulement si l'humain a donné l'autorisation explicite (mode B). Tu ajoutes les nouvelles colonnes, tables et types de retour des fonctions modifiées. Sans autorisation, tu signales la mise à jour nécessaire dans ton rapport. L'humain relit le diff avant application en base.
 - `src/lib/supabase/**` (`jeton.ts`, `server.ts`, `admin.ts`) → hors scope.
 - `src/lib/ecole-session.ts`, `src/lib/admin-session.ts` → hors scope.
 - Les autres actions de `actions.ts` (inscription d'élève, classes, paramètres,
@@ -122,6 +129,9 @@ Chaque intervention produit :
 - [ ] `todayDakar()` pour les dates métier
 - [ ] Aucun `createAdminClient()` introduit
 - [ ] Aucun log de token ni de donnée de famille
+- [ ] Si `schema.sql` a été modifié : autorisation explicite de l'humain citée dans le rapport, et `git diff supabase/schema.sql`  relu
+- [ ] Si `schema.sql` a changé : `src/types/database.ts` mis à jour dans le même mouvement (mêmes colonnes, mêmes tables, mêmes types de retour)
+- [ ] `npx tsc --noEmit` passe après la mise à jour de `database.ts`
 - [ ] Tests Vitest ajoutés ou mis à jour, `npm test` vert (liste des tests dans le rapport)
 
 ## Reviews à déclencher
@@ -138,6 +148,8 @@ re-planification par architect>
 
 ## Escalade
 <si changement de schéma nécessaire : proposer le bloc SQL, ne pas l'appliquer>
+
+
 ```
 
 ## Comportement

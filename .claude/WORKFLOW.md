@@ -45,10 +45,22 @@
   restent vérifiés à la main dans la preview.
 - Le dev reçoit **une seule tranche** à la fois. Le texte exact copié depuis
   le plan.
-- Le dev **ne touche jamais** `supabase/schema.sql` (il propose l'`ALTER`,
-  l'humain l'applique via `/migration-schema`).
-- Le dev **ne touche jamais** `src/types/database.ts` à la main (il signale
-  qu'il faut le mettre à jour, l'humain le fait).
+- Le dev **ne touche jamais** `supabase/schema/*.sql` **sans autorisation
+  explicite de l'humain**. Il propose le bloc SQL dans son rapport. Si
+  l'humain répond « applique » (ou équivalent), le dev édite le **fichier
+  source concerné** dans `supabase/schema/` (01-tables, 02-securite,
+  03-fonctions, 04-triggers, ou 05-migrations), puis lance
+  `bash supabase/scripts/build-schema.sh` (régénère `schema.sql`), puis
+  `bash scripts/schema-index.sh` (régénère l'index), puis il s'arrête.
+  C'est l'humain qui relit le diff (`git diff supabase/schema/ supabase/schema.sql`)
+  et applique en base. Sans accord explicite, le dev ne fait que proposer.
+- Le dev **met à jour `src/types/database.ts` dans le même mouvement que
+  la modification du schéma**, et seulement s'il a l'autorisation explicite
+  de l'humain(mode B). Il ajoute les nouvelles colonnes, les nouvelles tables, les
+  nouveaux types de retour des fonctions SQL modifiées. Il s'arrête là.
+  Sans autorisation, il signale la mise à jour nécessaire dans son rapport.
+  L'humain relit le diff (`git diff src/types/database.ts`) avant d'appliquer
+  le schéma en base.
 - Le dev **ne déclenche pas** les reviews lui-même. Il les liste dans son
   rapport. C'est l'humain qui les invoque.
 
@@ -56,8 +68,11 @@
 
 - **`supabase/schema.sql` ne bouge que dans le cadre d'une feature planifiée
   par `architect`.** Pas de patch direct. Pas de « tant qu'on y est ».
-- **Après chaque modification du schéma**, régénérer l'index lu par les reviewers :
-  `bash scripts/schema-index.sh` (met à jour `.claude/SCHEMA-INDEX.md`).
+- **Après chaque modification du schéma**, deux commandes dans cet ordre :
+  1. `bash supabase/scripts/build-schema.sh` (régénère `supabase/schema.sql` à partir des 5 fichiers sources)
+  2. `bash scripts/schema-index.sh` (régénère `.claude/SCHEMA-INDEX.md`)
+- **`supabase/schema.sql` est un fichier généré.** Ne jamais l'éditer à la main.
+  Éditer les sources dans `supabase/schema/*.sql`, puis lancer le build.
 - **Un finding d'audit ne se corrige pas immédiatement.** Il va dans
   `BACKLOG.md`. Il devient une feature (« correction X ») qui sera planifiée,
   découpée, et suivie du workflow normal.
@@ -69,16 +84,29 @@
   au backlog. On ne relance pas d'audit après.
 - **Si un audit produit 3 findings ou plus, on gèle `schema.sql` pendant
   2 semaines.** On livre une feature utilisateur avant de rouvrir.
+- **Qui décide du 🟡 à corriger** : c'est **l'humain**, après lecture du
+  rapport. Le reviewer **recommande** (il écrit sur chaque 🟡 soit
+  `impact: business`, soit `impact: cosmétique`). Le dev **applique** la
+  décision de l'humain. Si l'humain n'est pas disponible dans l'heure :
+  **aucun 🟡 n'est appliqué**, tous vont au `BACKLOG.md`. On ne re-audite pas.
+
+  Rappel : un 🟡 `impact: business` est en fait un 🟠 déguisé. Il faut
+  le reclasser en 🟠 et l'appliquer. Un 🟡 `impact: cosmétique` va au
+  backlog. Il n'y a pas de 🟡 « moyen ».
 - **Mise à jour du backlog** : après chaque review, le dev (agent dev ou session principale, ou l'humain)
   ajoute les findings non corrigés à `BACKLOG.md` **avant** de fermer la PR. Un
   finding non corrigé et non consigné est un finding oublié.
 - **Lecture du backlog** : `architect` lit `BACKLOG.md` avant chaque plan
   et intègre les findings que la feature croise comme tranches.
-- **Seul le dev (agent dev ou session principale) écrit dans `BACKLOG.md`, et seulement pour ajouter** des
-  findings non corrigés de sa tranche (format du fichier : titre, problème,
-  correctif, estimation, « Croise »). Il ne coche, ne supprime et ne modifie
-  aucune entrée, et n'écrit jamais dans « Décisions tranchées » : c'est l'humain.
-  Les autres agents (architect, reviewers) n'y écrivent pas.
+- **Le dev (agent dev ou session principale) gère `BACKLOG.md`, avec l'autorisation de l'humain** :
+  - il **ajoute** sans demander les findings non corrigés de sa tranche (format du fichier : titre,
+    problème, correctif, estimation, « Croise ») ;
+  - il **coche, supprime ou modifie** une entrée, et **écrit dans « Décisions tranchées »**, seulement
+    après l'accord explicite de l'humain dans la conversation, et en citant la preuve (commit, PR,
+    ligne de code) ou la décision de l'humain ;
+  - les autres agents (architect, reviewers) n'y écrivent pas.
+- **Retrait des findings résolus** : le rapport du dev liste les « findings du backlog résolus » par
+  sa tranche, avec le commit. Après accord de l'humain, le dev les retire de `BACKLOG.md` avant le merge.
 
 ### Sur les reviews
 
@@ -117,6 +145,57 @@ diagnostic), une page de login ou d'inscription, `/p/[token]`, ou un nouveau
 flow d'auth.
 
 **Une tranche UI pure (couleur, libellé, icône) ne déclenche aucune review.**
+
+#### Grille de reviews pour tout agent dev
+
+**Règle générale** : tout agent dev (présent ou futur : `dev-encaissement`,
+`dev-relances`, `dev-espace-parent`, `dev-menu-du-jour`…) applique la
+**grille proportionnelle**. Pas de « 2 reviews systématiques ». Chaque
+tranche déclenche les reviews selon **ce qu'elle touche**, pas selon
+l'agent qui la code.
+
+**Grille** :
+
+| Ce que la tranche touche | Reviews |
+|---|---|
+| `supabase/schema/*.sql` (policy, trigger, fonction) | **2** (database + security) |
+| Un calcul métier sensible (`scolarite.ts` à FayJàng, équivalent ailleurs) | **1** (database) |
+| Une Server Action avec inputs (`actions.ts`) | **1** (security) |
+| Une route de téléchargement (`/ecole/recu/[id]`, `/p/[token]/recu/[id]`, `/export`) | **1** (security) |
+| Un cookie, un JWT, une session | **1** (security) |
+| L'UI seule (composant, JSX, CSS) | **0** (juste `tsc` + `npm test`) |
+| Un libellé, une couleur, une icône | **0** (UI pure) |
+
+**Règles de priorité** :
+
+1. Si la tranche touche **`schema.sql` ET `actions.ts`** → 2 reviews
+   (les deux domaines sont concernés).
+2. Si la tranche touche **un calcul métier ET une route** → 2 reviews
+   (database pour le calcul, security pour la route).
+3. Si la tranche touche **uniquement l'UI** → 0 review. C'est le cas le
+   plus fréquent : ajouter un bouton, changer un libellé, réorganiser un
+   formulaire. Le code de l'action est déjà reviewé **quand il a été créé**,
+   pas à chaque fois qu'on l'appelle.
+4. Si la tranche **ajoute une nouvelle action** dans `actions.ts` (même
+   une action apparemment « UI ») → 1 review (security). C'est le seul cas
+   où une tranche UI déclenche une review.
+
+**Critère de décision rapide** : est-ce que la tranche **ajoute ou modifie**
+une action, une policy, un trigger, une fonction, un calcul métier, une
+route ou une session ? Si oui → review du domaine concerné. Si non (juste
+du JSX, du CSS, un libellé) → 0 review.
+
+**Exemples concrets** (valables pour tout agent dev) :
+
+| Tranche | Reviews |
+|---|---|
+| Ajouter un bouton qui appelle une action **déjà existante et reviewée** | **0** (le bouton est du JSX) |
+| Ajouter un champ obligatoire dans une action existante | **1** (security, l'action change) |
+| Corriger un calcul métier dans `scolarite.ts` (ou équivalent) | **1** (database) |
+| Ajouter une policy + l'action qui l'utilise | **2** (policy + action) |
+| Ajouter une nouvelle route de téléchargement | **1** (security) |
+| Changer un libellé, une couleur, une icône | **0** (UI pure) |
+| Ajouter une **nouvelle** action dans `actions.ts` | **1** (security) |
 
 Un verdict `BLOQUANT` renvoie au dev sur la même tranche. On ne passe pas à
 T(n+1).
@@ -160,14 +239,23 @@ Tout finding d'audit qui n'est pas corrigé dans la PR courante va dans
 # Backlog
 
 ## Chantiers (feature-scale, à planifier avec architect)
-- [ ] <description> — <estimation>
+- [ ] **<titre>** (<code checklist, ex. S9, si applicable>) — <description>. Correctif : <…>. *Estimé : <durée>. Croise : <feature>.*
 
 ## Corrections mineures (à appliquer quand une feature croise le sujet)
-- [ ] <description> — <estimation>
+- [ ] **<titre>** (<code checklist, ex. S9, si applicable>) — <description>. Correctif : <…>. *Estimé : <durée>. Croise : <feature>.*
 
 ## Décisions tranchées (ne plus rouvrir)
 - [x] <décision>
 ```
+
+**Où placer un finding** (le dev applique ce critère, le reviewer peut le suggérer) :
+- **Chantier** dès qu'un de ces points est vrai : plus d'1 h de travail, touche `schema.sql`,
+  l'auth ou l'argent (encaissement, reçus, soldes), plus de 2 fichiers, ou demande une décision
+  métier avant de coder. Ce sont les cas où `architect` est obligatoire.
+- **Correction mineure** sinon : correctif court et localisé, appliqué quand une feature passe
+  par le fichier.
+- Une nouvelle entrée s'ajoute **à la fin** de sa section, avec son origine (review, tranche, date)
+  et son code de checklist s'il y en a un (S9, H6…).
 
 ## Agents permanents vs agents jetables
 
@@ -242,6 +330,7 @@ En cas de conflit, `CLAUDE.md` gagne. Si le `WORKFLOW.md` contredit
 - [ ] Tests manuels listés dans le rapport du dev : tous passent
 - [ ] `.claude/SCHEMA-INDEX.md` régénéré si `schema.sql` a changé
 - [ ] Findings non corrigés ajoutés à `BACKLOG.md`
+- [ ] Findings du backlog résolus par la tranche retirés (après accord de l'humain)
 - [ ] Aucune donnée réelle modifiée sans accord de l'utilisateur
 - [ ] Commit au format `type: description en français`
 - [ ] Merge `feat/<feature>-tN` → `feat/<feature>`
