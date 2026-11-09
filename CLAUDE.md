@@ -32,7 +32,7 @@ Répondre et écrire en **français** : messages, commentaires de code, libellé
 - `supabase/schema.sql` : schéma complet et **idempotent** (relancé en entier dans l'éditeur SQL Supabase)
 - `.claude/SCHEMA-INDEX.md` : index du schéma (tables, fonctions, policies, triggers avec leurs lignes), **généré** par
   `bash scripts/schema-index.sh` : à régénérer après chaque modification de `schema.sql`, jamais édité à la main
-- `BACKLOG.md` : findings d'audit en attente d'une feature (l'humain et le dev, agent ou session principale, y ajoutent des findings ; seul l'humain coche, supprime ou tranche) ; `docs/mise-en-prod.md` : checklist de mise en production
+- `BACKLOG.md` : findings d'audit en attente d'une feature (géré par le dev, agent ou session principale : il ajoute librement ses findings non corrigés, mais ne coche, supprime, modifie ou tranche qu'avec l'accord explicite de l'humain) ; `docs/mise-en-prod.md` : checklist de mise en production
 
 Espaces : `/ecole` (Espace École, 6 onglets dans `ecole-dashboard-client.tsx` + `fiche-eleve.tsx`), `/p/[token]`
 (parent, page serveur sans JS client), `/admin` (SuperAdmin), `/inscription` (ouverture d'un compte école).
@@ -70,13 +70,24 @@ Toute action École suit ce modèle, dans cet ordre :
 ### Argent
 - Montants en FCFA, entiers (`INTEGER`). Formatage : `formatFCFA()`.
 - Un paiement **ne se supprime ni ne se modifie** : on l'annule avec un motif (trigger `proteger_paiement`). Le reçu reste, barré « ANNULÉ ».
-- Le numéro de reçu (`JP-2026-00001`) est attribué par la base (trigger `numeroter_recu`), jamais par le code.
+- Le numéro de reçu (`FJ-2026-00001`) est attribué par la base (trigger `numeroter_recu`), jamais par le code.
 - Les soldes se calculent avec `situationInscription()` (`src/lib/scolarite.ts`) ; le serveur recalcule toujours avant d'encaisser, il ne croit pas le client.
 - Les tarifs sont figés sur l'inscription (`inscriptions.frais_inscription`, `mensualite`) : changer le tarif d'une classe ne touche pas les élèves déjà inscrits.
 
 ### Base de données
-- Nouvelle colonne ou table : bloc `ADD COLUMN IF NOT EXISTS` / `CREATE TABLE IF NOT EXISTS` dans `supabase/schema.sql`, avant la section 8 ; jamais modifier les blocs existants (skill `/migration-schema`). Puis mettre à jour `src/types/database.ts` et régénérer `.claude/SCHEMA-INDEX.md`.
-- Nouvelle table : `ecole_id`, RLS activée et politiques (section 9). Codes d'erreur métier : `JP403`, `JP404`, `JP412`, `JP422`, `JP429` (`src/lib/erreurs.ts`).
+- `supabase/schema.sql` est **généré** par `bash supabase/scripts/build-schema.sh`.
+  Ne jamais l'éditer à la main. Éditer les fichiers sources dans
+  `supabase/schema/*.sql` (01-tables, 02-securite, 03-fonctions, 04-triggers,
+  05-migrations), puis lancer le build, puis `bash scripts/schema-index.sh`
+  pour régénérer l'index.
+- Nouvelle colonne ou table : ajouter le bloc `ADD COLUMN IF NOT EXISTS` /
+  `CREATE TABLE IF NOT EXISTS` dans le fichier source concerné (01 pour une
+  nouvelle table, 05 pour une migration), **jamais modifier les blocs existants**.
+  Puis `bash supabase/scripts/build-schema.sh` pour régénérer `schema.sql`,
+  puis `bash scripts/schema-index.sh` pour l'index, puis mettre à jour
+  `src/types/database.ts` **dans le même commit** (cohérence obligatoire).
+- L'édition de `supabase/schema.sql` par un agent dev n'est autorisée qu'après accord explicite de l'humain dans la conversation.   L'agent édite (nouveau bloc en fin de fichier), régénère l'index(`bash scripts/schema-index.sh`), puis s'arrête. L'humain relit le diff (`git diff supabase/schema.sql`) et applique en base. Sans accord,l'agent ne fait que proposer.
+- Nouvelle table : `ecole_id`, RLS activée et politiques (section 9). Codes d'erreur métier : `FJ403`, `FJ404`, `FJ412`, `FJ422`, `FJ429` (`src/lib/erreurs.ts`).
 - Le schéma est appliqué à la main par l'utilisateur dans Supabase : lui rappeler de le relancer.
 
 ### Dates

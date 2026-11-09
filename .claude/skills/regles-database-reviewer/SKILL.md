@@ -216,7 +216,7 @@ Toute fonction qui valide un identifiant doit implémenter le pattern :
 -- ✅ Modèle à suivre (echanger_acces_ecole)
 BEGIN
     PERFORM pg_advisory_xact_lock(hashtextextended(v_cle, 0));  -- sérialise les tentatives
-    PERFORM public.controler_tentatives(v_cle);                  -- lève JP429 si bloqué
+    PERFORM public.controler_tentatives(v_cle);                  -- lève FJ429 si bloqué
     PERFORM public.controler_tentatives(v_cle_ip);
 
     SELECT e.id, a.code_hash INTO v_id, v_stocke FROM ... WHERE ...;   -- la ligne d'abord
@@ -254,11 +254,11 @@ REVOKE ALL ON public.compteurs_recus FROM PUBLIC, anon, authenticated;
 
 ### C13 — Numéro de reçu attribué par la base
 
-- Le numéro `JP-<année>-<00001>` vient du trigger `numeroter_recu` (version active :
+- Le numéro `FJ-<année>-<00001>` vient du trigger `numeroter_recu` (version active :
   bloc final v1.4), compteur `compteurs_recus` par école et par année civile de `paye_le`.
 - Les lignes d'un même encaissement partagent `lot_id` et donc le numéro. Un
   `lot_id` n'est réutilisable que **dans la même transaction**
-  (`created_at = now()`) et pour **la même inscription** ; sinon `JP412` / `JP422`.
+  (`created_at = now()`) et pour **la même inscription** ; sinon `FJ412` / `FJ422`.
 - Le code ne doit jamais écrire `numero_recu` (le trigger l'écrase de toute façon)
   ni réutiliser un `lot_id` reçu du client.
 
@@ -269,18 +269,18 @@ grep -n "lot_id" src/app/ecole/actions.ts   # randomUUID() créé dans l'action
 
 ### C14 — Codes d'erreur custom documentés
 
-Les `RAISE EXCEPTION ... USING ERRCODE = 'JPxxx'` sont réservés aux erreurs métier
-au message écrit pour l'utilisateur. Liste actuelle : `JP403` (colonnes réservées
-au SuperAdmin), `JP404` (référence d'une autre école), `JP412` (paiement ou
-inscription verrouillé, reçu déjà émis), `JP422` (motif d'annulation manquant,
-reçu multi-élèves), `JP429` (trop de tentatives). Chaque code doit être :
+Les `RAISE EXCEPTION ... USING ERRCODE = 'FJxxx'` sont réservés aux erreurs métier
+au message écrit pour l'utilisateur. Liste actuelle : `FJ403` (colonnes réservées
+au SuperAdmin), `FJ404` (référence d'une autre école), `FJ412` (paiement ou
+inscription verrouillé, reçu déjà émis), `FJ422` (motif d'annulation manquant,
+reçu multi-élèves), `FJ429` (trop de tentatives). Chaque code doit être :
 
 1. Documenté dans un commentaire SQL au-dessus de la fonction
 2. Listé dans `CODES_METIER` de `src/lib/erreurs.ts` (sinon le message est masqué)
 3. Testé en dev
 
 ```bash
-grep -n "ERRCODE = 'JP" supabase/schema.sql
+grep -n "ERRCODE = 'FJ" supabase/schema.sql
 grep -n "CODES_METIER" src/lib/erreurs.ts
 ```
 
@@ -441,7 +441,7 @@ grep -nE "(token|hash|secret|code_|password|key)" supabase/schema.sql | grep -iE
 grep -n "controler_tentatives\|noter_echec_plafonne\|effacer_tentatives" supabase/schema.sql
 
 # Codes d'erreur custom (C14)
-grep -n "ERRCODE = 'JP" supabase/schema.sql
+grep -n "ERRCODE = 'FJ" supabase/schema.sql
 
 # Triggers de protection (H8) et cohérence multi-écoles (C7)
 grep -n "CREATE OR REPLACE FUNCTION public.proteger_\|verifier_meme_ecole\|CREATE TRIGGER" supabase/schema.sql

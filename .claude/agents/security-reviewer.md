@@ -127,6 +127,6 @@ Pour chaque finding que tu recommandes de NE PAS corriger dans la PR courante,
 termine ton rapport par un bloc `## À mettre au backlog` avec ce format exact :
 
 ```markdown
-- [ ] **<titre court>** — <1 phrase de description>. Correctif : <1 phrase>.
+- [ ] **<titre court>** (<code checklist, ex. S9, si applicable>) — <1 phrase de description>. Correctif : <1 phrase>.
   *Estimé : <durée>. Croise : <quelle feature future>.*
 ```

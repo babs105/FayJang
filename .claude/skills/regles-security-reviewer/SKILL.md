@@ -239,7 +239,7 @@ grep -rn "console\.\(log\|error\).*\(token\|code\|jeton\|cookie\|telephone\|pren
 
 Ne jamais renvoyer `error.message` de Supabase brut au client : passer par
 `messageErreur()` (`src/lib/erreurs.ts`), qui ne laisse passer que les codes
-métier `JP4xx` écrits pour l'utilisateur. En local, le code d'erreur est ajouté
+métier `FJ4xx` écrits pour l'utilisateur. En local, le code d'erreur est ajouté
 au message ; jamais en production.
 
 ---

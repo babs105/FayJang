@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Régénère .claude/SCHEMA-INDEX.md depuis supabase/schema.sql (repris de Cantine Pro)
-# v6 : fix extraction des triggers (nom en fin de ligne).
+# Régénère .claude/SCHEMA-INDEX.md depuis supabase/schema.sql
+# v7 : triggers et policies groupés par (nom, table) au lieu du nom seul.
+#      Corrige l'affichage des accents (UTF-8).
 
 set -e
 
@@ -14,45 +15,69 @@ fi
 
 mkdir -p .claude
 
-extract() {
-  local label="$1"
-  local grep_re="$2"
-  local sed_clean="$3"
-
-  echo "## $label"
-  echo ""
-
+# Extrait sans regroupement (Tables, Vues, Fonctions)
+extract_simple() {
+  local label="$1" grep_re="$2" sed_clean="$3"
+  echo "## $label"; echo ""
   local entries
   entries=$(grep -nE "$grep_re" "$SCHEMA" 2>/dev/null | while IFS= read -r l; do
-    local ligne="${l%%:*}"
-    local rest="${l#*:}"
-    local nom
+    local ligne="${l%%:*}"; local rest="${l#*:}"; local nom
     nom=$(printf '%s' "$rest" | sed -E "$sed_clean")
     if [ -n "$nom" ] && [ "$nom" != "$rest" ]; then
       printf '%s\t%s\n' "$nom" "$ligne"
     fi
   done)
-
   local noms
   noms=$(printf '%s' "$entries" | cut -f1 | sort -u | grep -v '^$' || true)
-
   for nom in $noms; do
     local lignes
     lignes=$(printf '%s' "$entries" | awk -F'\t' -v n="$nom" '$1 == n {print $2}' | sort -n)
     [ -z "$lignes" ] && continue
-
     local total
     total=$(echo "$lignes" | wc -l | tr -d ' ')
-
     local derniere
     derniere=$(echo "$lignes" | tail -1)
-
     if [ "$total" -le 1 ]; then
       echo "- \`$nom\` — L$derniere"
     else
       local mortes
       mortes=$(echo "$lignes" | sed '$d' | tr '\n' ' ' | sed 's/ $//')
       echo "- \`$nom\` — L$derniere **(active)** · remplace L${mortes// /, L}"
+    fi
+  done
+  echo ""
+}
+
+# Extrait avec regroupement par (nom, table) : Policies, Triggers
+extract_by_table() {
+  local label="$1" grep_re="$2" sed_clean="$3"
+  echo "## $label"; echo ""
+  local entries
+  entries=$(grep -nE "$grep_re" "$SCHEMA" 2>/dev/null | while IFS= read -r l; do
+    local ligne="${l%%:*}"; local rest="${l#*:}"; local cle
+    cle=$(printf '%s' "$rest" | sed -E "$sed_clean")
+    if [ -n "$cle" ] && printf '%s' "$cle" | grep -q '|'; then
+      printf '%s\t%s\n' "$cle" "$ligne"
+    fi
+  done)
+  local cles
+  cles=$(printf '%s' "$entries" | cut -f1 | sort -u | grep -v '^$' || true)
+  for cle in $cles; do
+    local nom="${cle%%|*}"
+    local table="${cle#*|}"
+    local lignes
+    lignes=$(printf '%s' "$entries" | awk -F'\t' -v n="$cle" '$1 == n {print $2}' | sort -n)
+    [ -z "$lignes" ] && continue
+    local total
+    total=$(echo "$lignes" | wc -l | tr -d ' ')
+    local derniere
+    derniere=$(echo "$lignes" | tail -1)
+    if [ "$total" -le 1 ]; then
+      echo "- \`$nom\` sur \`$table\` — L$derniere"
+    else
+      local mortes
+      mortes=$(echo "$lignes" | sed '$d' | tr '\n' ' ' | sed 's/ $//')
+      echo "- \`$nom\` sur \`$table\` — L$derniere **(active)** · remplace L${mortes// /, L}"
     fi
   done
   echo ""
@@ -67,26 +92,27 @@ extract() {
   echo "**Total : $(wc -l < "$SCHEMA" | tr -d ' ') lignes.**"
   echo ""
 
-  extract "Tables" \
+  extract_simple "Tables" \
     '^CREATE TABLE IF NOT EXISTS public\.' \
     's/^CREATE TABLE IF NOT EXISTS public\.([a-z_]+).*/\1/'
 
-  extract "Vues" \
+  extract_simple "Vues" \
     '^CREATE OR REPLACE VIEW public\.' \
     's/^CREATE OR REPLACE VIEW public\.([a-z_]+).*/\1/'
 
-  extract "Fonctions" \
+  extract_simple "Fonctions" \
     '^CREATE OR REPLACE FUNCTION public\.' \
     's/^CREATE OR REPLACE FUNCTION public\.([a-z_]+)\(.*/\1/'
 
-  extract "Policies" \
+  # Policies : nom|table
+  extract_by_table "Policies" \
     '^CREATE POLICY ' \
-    's/^CREATE POLICY ([a-z_]+) ON.*/\1/'
+    's/^CREATE POLICY ([a-z_]+) ON public\.([a-z_]+).*/\1|\2/'
 
-  # ✅ FIX v6 : retire l'espace obligatoire après le nom
-  extract "Triggers" \
+  # Triggers : nom|table (extrait la table après ON public.)
+  extract_by_table "Triggers" \
     '^[[:space:]]*CREATE TRIGGER ' \
-    's/^[[:space:]]*CREATE TRIGGER ([a-z_]+).*/\1/'
+    's/^[[:space:]]*CREATE TRIGGER ([a-z_]+) .* ON public\.([a-z_]+).*/\1|\2/'
 
   echo "## Index nommés"
   echo ""
@@ -109,20 +135,12 @@ extract() {
   echo "## Notes pour l'agent"
   echo ""
   echo "- Les blocs v1.x sont en fin de fichier et **remplacent** les"
-  echo "  définitions antérieures. La ligne active est la **dernière**"
-  echo "  occurrence."
-  echo "- Les patterns \`DROP ... IF EXISTS ; CREATE ...\` sont idempotents :"
-  echo "  l'objet est **actif** après le CREATE."
-  echo "- **Attention** : une policy droppée **sans** \`CREATE\` après n'est"
-  echo "  plus active (aucun cas dans le schéma de FayJàng à ce jour)."
-  echo "- Fonctions remplacées dans les blocs finaux : \`verifier_meme_ecole\` (v1.1),"
-  echo "  \`numeroter_recu\` et \`proteger_paiement\` (v1.4). Auditer la version active."
-  echo "- \`trg_meme_ecole\` n'a pas de version morte : c'est le même nom de trigger posé sur"
-  echo "  trois tables (eleves, inscriptions, paiements). Les trois lignes sont actives."
-  echo "- Les contraintes CHECK ajoutées dans un bloc \`DO \$\$\` sur plusieurs lignes"
-  echo "  n'apparaissent pas ci-dessus : chercher \`ADD CONSTRAINT\` dans le schéma."
-  echo "- Quand tu lis une fonction ou une policy, **lis la version active**"
-  echo "  (la ligne avec \`(active)\` ou la seule ligne)."
+  echo "  définitions antérieures. La ligne active est la **dernière**."
+  echo "- Pour les **triggers** et **policies**, le regroupement est par"
+  echo "  \`(nom, table)\`. Un même nom de trigger posé sur 5 tables donne"
+  echo "  5 lignes distinctes, toutes actives."
+  echo "- Quand tu lis une fonction, un trigger ou une policy, **lis la"
+  echo "  version active** (la ligne avec \`(active)\` ou la seule ligne)."
 } > "$OUT"
 
 echo "✅ Index généré : $OUT"

@@ -33,7 +33,7 @@ export async function createClientEcoleSession(): Promise<{ ecoleId: string; sup
 }
 
 /** Code SQLSTATE levé par controler_tentatives */
-const CODE_TROP_DE_TENTATIVES = "JP429";
+const CODE_TROP_DE_TENTATIVES = "FJ429";
 
 /** Connexion refusée parce que l'identifiant est temporairement bloqué ; message lisible par l'utilisateur */
 export class TropDeTentativesError extends Error {}
