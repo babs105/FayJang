@@ -12,6 +12,10 @@ import type { ClasseVue } from "./types";
 export function ClassesPanel({ classes, ecole }: DonneesEcole) {
   const [edition, setEdition] = useState<ClasseVue | "nouvelle" | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [classeFiltre, setClasseFiltre] = useState("");
+  // Si la classe filtrée n'est plus dans les props (données rafraîchies), on revient à « Toutes les classes »
+  const filtre = classes.some((c) => c.id === classeFiltre) ? classeFiltre : "";
+  const affichees = filtre ? classes.filter((c) => c.id === filtre) : classes;
 
   return (
     <div className="space-y-4">
@@ -22,13 +26,30 @@ export function ClassesPanel({ classes, ecole }: DonneesEcole) {
         </Bouton>
       </div>
 
+      {classes.length > 0 && (
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+          <select
+            value={filtre}
+            onChange={(e) => setClasseFiltre(e.target.value)}
+            className={`${champ} sm:w-48`}
+            aria-label="Filtrer par classe"
+          >
+            <option value="">Toutes les classes</option>
+            {classes.map((c) => (
+              <option key={c.id} value={c.id}>{c.nom}{c.is_active ? "" : " (archivée)"}</option>
+            ))}
+          </select>
+          <p className="text-[11px] text-neutral-500">{affichees.length} classe(s) affichée(s)</p>
+        </div>
+      )}
+
       {classes.length === 0 ? (
         <Carte className="text-center py-10 text-xs text-neutral-500">
           Créez vos classes (ex : CI, CP, CE1... 6e, 5e...) avec leurs frais d'inscription et mensualités.
         </Carte>
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {classes.map((c) => (
+          {affichees.map((c) => (
             <Carte key={c.id} className={c.is_active ? "" : "opacity-60"}>
               <div className="flex items-start justify-between">
                 <div>
