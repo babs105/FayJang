@@ -186,11 +186,11 @@
   créés en une seule transaction ; un échec n'en laisse aucun et ne consomme pas de numéro de reçu.
   SECURITY INVOKER (et non DEFINER comme prévu au départ) : la RLS École reste appliquée, `ecole_id`
   vient du JWT. Le dû reste calculé en TypeScript (`situationInscription`), la base vérifie seulement
-  les plafonds. Tranche 1 : commit `561ff6d` ; tranche 2 : branche `feat/inscription-atomique-t2`. (2026-11-10)
+  les plafonds. Tranche 1 : commit `561ff6d` ; tranche 2 : commit `865f9d2`. (2026-11-10)
 - [x] **Plafond de lignes sur le calcul du matricule** — le matricule est calculé par `inscrire_eleve`
   (plus grand suffixe numérique + 1, sous verrou), sans lecture plafonnée ni ordre texte ; testé : après
   269999 vient 2610000. Commit `561ff6d`. (2026-11-10)
 - [x] **Signature de `inscrire_eleve` gardée en tranche 2** — mêmes 14 paramètres, refus de l'encaissement
-  retiré, lignes de paiement validées avant tout cast. Branche `feat/inscription-atomique-t2`. (2026-11-10)
+  retiré, lignes de paiement validées avant tout cast. Commit `865f9d2`. (2026-11-10)
 - [x] **Parent existant à l'inscription** : même téléphone dans l'école = même parent ; son nom et son lien
   ne changent pas (un parent désactivé est réutilisé sans être réactivé). (2026-11-10)
