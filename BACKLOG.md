@@ -21,21 +21,6 @@
 
 ## Chantiers (feature-scale, à planifier avec architect)
 
-- [ ] **Double-clic sur Encaisser (idempotence UI)** — le bouton est désactivé
-  pendant l'envoi, mais un double-clic rapide ou un réseau lent peut créer deux
-  reçus. Correctif : clé d'idempotence générée à l'ouverture du formulaire et
-  contrainte UNIQUE `(ecole_id, lot_id)` sur la première ligne du lot.
-  *Estimé : 4 h. Croise : toute évolution de l'encaissement.*
-
-- [ ] **Encaissement atomique (paiements simultanés)** — `encaisserPaiement`
-  recalcule le reste dû puis insère sans verrou : deux encaissements simultanés sur
-  la même inscription (deux onglets, deux comptables) peuvent surpayer. Correctif :
-  fonction SQL `encaisser(...)` (`search_path` fixé, REVOKE, contrôle
-  `role_app = 'ecole'`) qui verrouille l'inscription (`FOR UPDATE`), vérifie et insère
-  le lot, sur le modèle de la branche paiement de `inscrire_eleve` (bloc v1.7).
-  `inscrireEleve` n'est plus concerné (encaissement dans la transaction de
-  l'inscription). *Estimé : 0,5 jour. Croise : prochaine évolution de l'encaissement.*
-
 - [ ] **Opérations multi-étapes non atomiques** — `enregistrerClasse` (classe puis
   catalogue ligne par ligne) et la copie d'année de `enregistrerParametres` : en cas
   d'échec au milieu, l'état reste partiel ; les rollbacks côté code ne couvrent pas tout.
@@ -52,11 +37,6 @@
   ni que `mois_fin` reste ≥ au dernier mois payé (trigger `proteger_article_inscription`,
   `supabase/schema.sql`). Correctif : contrôles dans `verifier_meme_ecole` et
   `proteger_article_inscription`. *Estimé : 2 h. Croise : tout import de données.*
-
-- [ ] **Paiement libre sur élève parti contrôlé seulement par le code** — la base accepte un paiement
-  `autre` sur une inscription en abandon ou transfert (policy `ecole_encaisse` sans contrôle de
-  statut). Correctif : contrôle dans `verifier_meme_ecole` ou trigger dédié. *Estimé : 30 min.
-  Croise : clôture d'année / réinscription.* (review tranche 2, 2026-11-08)
 
 ---
 
