@@ -2247,3 +2247,44 @@ $$;
 REVOKE EXECUTE ON FUNCTION public.verifier_meme_ecole() FROM PUBLIC, anon, authenticated;
 CREATE INDEX IF NOT EXISTS idx_articles_inscription_article_classe
     ON public.articles_inscription (article_classe_id) WHERE article_classe_id IS NOT NULL;
+
+-- ==============================================================================
+-- v1.15 : date de dernière modification (updated_at) sur eleves, classes, inscriptions, parents et
+-- articles_inscription (finding M1). Pas de journal : seulement la date de la dernière modification réelle.
+--  - Lignes existantes : updated_at = created_at (« aucune modification connue ») ; l'interface n'affiche la date
+--    que si updated_at > created_at. Le rattrapage ne touche que les lignes encore NULL : relancer le schéma ne
+--    change rien.
+--  - Trigger set_updated_at (BEFORE UPDATE) : une valeur envoyée par le client est ignorée ; un UPDATE qui ne change
+--    rien (modifierEleve qui réécrit le parent, ON CONFLICT DO UPDATE de inscrire_eleve) ne bouge pas la date.
+--  - Le trigger est créé après le rattrapage. Son nom (trg_updated_at) le fait passer après trg_meme_ecole et
+--    trg_proteger_* (ordre alphabétique) : un UPDATE refusé par un contrôle ne fait rien.
+-- Hors champ : paiements (immuables, annule_at), ecoles, articles_classe (réécrit en bloc par enregistrer_classe).
+-- Le code de l'Espace École lit la colonne : appliquer ce bloc AVANT de déployer. Bloc final : garder en dernier.
+-- ==============================================================================
+CREATE OR REPLACE FUNCTION public.set_updated_at()
+RETURNS TRIGGER LANGUAGE plpgsql SET search_path = public AS $$
+BEGIN
+    -- La valeur du client ne compte pas : on compare la ligne sans updated_at.
+    -- Comparaison de la ligne entière : toute colonne ajoutée à ces tables doit avoir une égalité (jsonb, pas json).
+    NEW.updated_at := OLD.updated_at;
+    IF NEW IS DISTINCT FROM OLD THEN
+        NEW.updated_at := now();
+    END IF;
+    RETURN NEW;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.set_updated_at() FROM PUBLIC, anon, authenticated;
+
+DO $$
+DECLARE
+    t TEXT;
+BEGIN
+    FOREACH t IN ARRAY ARRAY['eleves', 'classes', 'inscriptions', 'parents', 'articles_inscription'] LOOP
+        EXECUTE format('ALTER TABLE public.%I ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ', t);
+        EXECUTE format('ALTER TABLE public.%I ALTER COLUMN updated_at SET DEFAULT now()', t);
+        EXECUTE format('UPDATE public.%I SET updated_at = created_at WHERE updated_at IS NULL', t);
+        EXECUTE format('ALTER TABLE public.%I ALTER COLUMN updated_at SET NOT NULL', t);
+        EXECUTE format('DROP TRIGGER IF EXISTS trg_updated_at ON public.%I', t);
+        EXECUTE format('CREATE TRIGGER trg_updated_at BEFORE UPDATE ON public.%I FOR EACH ROW EXECUTE FUNCTION public.set_updated_at()', t);
+    END LOOP;
+END $$;

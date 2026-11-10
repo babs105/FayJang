@@ -3,7 +3,7 @@
 > **Fichier généré automatiquement.** Ne pas éditer à la main.
 > Régénérer : `bash scripts/schema-index.sh`
 
-**Total : 2249 lignes.**
+**Total : 2290 lignes.**
 
 ## Tables
 
@@ -47,6 +47,7 @@
 - `proteger_inscription` — L465
 - `proteger_paiement` — L925 **(active)** · remplace L436, L826
 - `session_ecole_valide` — L318
+- `set_updated_at` — L2264
 - `verifier_meme_ecole` — L2176 **(active)** · remplace L394, L756, L876
 
 ## Policies
@@ -120,6 +121,7 @@
 - L1961 : v1.11 : paramètres de l'école et passage à l'année suivante en une seule transaction (fonction
 - L2103 : v1.13 : un service mensuel ne s'arrête pas avant son dernier mois payé (remplace proteger_article_inscription, v1.5).
 - L2159 : v1.14 : un article d'élève vient du catalogue de SA classe (remplace verifier_meme_ecole, v1.5).
+- L2252 : v1.15 : date de dernière modification (updated_at) sur eleves, classes, inscriptions, parents et
 
 ## Notes pour l'agent
 

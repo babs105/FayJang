@@ -184,6 +184,9 @@ export function FicheEleve({
           ) : (
             <Badge ton="orange">Pas inscrit en {ecole.annee_scolaire}</Badge>
           )}
+          {eleve.derniere_modification && (
+            <span className="text-neutral-500">Dernière modification : {formatDate(eleve.derniere_modification)}</span>
+          )}
           <button onClick={() => setEdition(true)} className="ml-auto flex items-center gap-1 font-bold text-neutral-600 hover:text-neutral-900">
             <Pencil className="w-3.5 h-3.5" /> Modifier la fiche
           </button>
