@@ -213,6 +213,20 @@ export type Database = {
         };
         Returns: Json;
       };
+      /** Classe + catalogue en une transaction (supabase/schema/05-migrations.sql, bloc v1.9) ;
+       * retour : { classe_id, creee, nb_articles }. p_articles null = catalogue non touché */
+      enregistrer_classe: {
+        Args: {
+          p_classe_id?: string | null;
+          p_nom?: string | null;
+          p_niveau?: string | null;
+          p_frais_inscription?: number | null;
+          p_mensualite?: number | null;
+          p_mensualite_dernier_mois?: number | null;
+          p_articles?: Json | null;
+        };
+        Returns: Json;
+      };
     };
     Enums: { [_ in never]: never };
     CompositeTypes: { [_ in never]: never };
