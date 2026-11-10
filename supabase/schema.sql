@@ -2154,3 +2154,96 @@ REVOKE EXECUTE ON FUNCTION public.proteger_article_inscription() FROM PUBLIC, an
 DROP TRIGGER IF EXISTS trg_proteger_article_inscription ON public.articles_inscription;
 CREATE TRIGGER trg_proteger_article_inscription BEFORE UPDATE OR DELETE ON public.articles_inscription
     FOR EACH ROW EXECUTE FUNCTION public.proteger_article_inscription();
+
+-- ==============================================================================
+-- v1.14 : un article d'élève vient du catalogue de SA classe (remplace verifier_meme_ecole, v1.5).
+-- L'invariant était tenu seulement par le code (inscrire_eleve, ajouterArticleInscription) ; la base le tient
+-- désormais, quel que soit le chemin (éditeur SQL, import) :
+--  - articles_inscription : un article_classe_id renseigné doit appartenir à la classe de l'inscription (FJ422).
+--    Article sans lien (NULL, retiré du catalogue) : exempté.
+--  - inscriptions : changer classe_id est refusé tant que l'inscription porte des articles liés au catalogue d'une
+--    autre classe (FJ412) ; le futur « changement de classe » devra les retirer ou les remplacer explicitement.
+--  - articles_classe : déplacer une ligne du catalogue vers une autre classe est refusé si des élèves l'ont déjà
+--    (FJ412) ; enregistrer_classe ne déplace jamais une ligne, il la supprime (FK SET NULL) ou la recrée.
+-- Les contrôles « même école » (FJ404) et les branches eleves et paiements sont inchangés. SECURITY DEFINER (comme
+-- en v1.5) : chaque sous-requête filtre ecole_id. Les lignes anciennes ne sont relues que si elles sont modifiées
+-- sur une colonne surveillée par trg_meme_ecole (UPDATE OF … des triggers).
+-- Concurrence : à l'écriture d'un article, l'inscription est verrouillée (FOR NO KEY UPDATE) et la ligne du
+-- catalogue lue en FOR SHARE : un changement de classe ou un déplacement de catalogue simultané attend, puis voit
+-- l'article. Index partiel sur articles_inscription(article_classe_id) : contrôle du déplacement et FK SET NULL.
+-- Bloc final : garder en dernier.
+-- ==============================================================================
+CREATE OR REPLACE FUNCTION public.verifier_meme_ecole()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+    v_classe UUID;
+    v_classe_article UUID;
+BEGIN
+    IF TG_TABLE_NAME = 'eleves' THEN
+        IF NEW.parent_id IS NOT NULL
+           AND NOT EXISTS (SELECT 1 FROM public.parents WHERE id = NEW.parent_id AND ecole_id = NEW.ecole_id) THEN
+            RAISE EXCEPTION 'Parent introuvable dans cette école.' USING ERRCODE = 'FJ404';
+        END IF;
+    ELSIF TG_TABLE_NAME = 'inscriptions' THEN
+        IF NOT EXISTS (SELECT 1 FROM public.eleves WHERE id = NEW.eleve_id AND ecole_id = NEW.ecole_id)
+           OR NOT EXISTS (SELECT 1 FROM public.classes WHERE id = NEW.classe_id AND ecole_id = NEW.ecole_id) THEN
+            RAISE EXCEPTION 'Élève ou classe introuvable dans cette école.' USING ERRCODE = 'FJ404';
+        END IF;
+        -- Changement de classe : pas d'article resté lié au catalogue d'une autre classe
+        IF TG_OP = 'UPDATE' AND NEW.classe_id IS DISTINCT FROM OLD.classe_id
+           AND EXISTS (SELECT 1 FROM public.articles_inscription ai
+                       JOIN public.articles_classe ac ON ac.id = ai.article_classe_id AND ac.ecole_id = NEW.ecole_id
+                       WHERE ai.inscription_id = NEW.id AND ai.ecole_id = NEW.ecole_id
+                         AND ac.classe_id <> NEW.classe_id) THEN
+            RAISE EXCEPTION 'Cet élève a des articles de son ancienne classe : retirez-les avant de changer de classe.'
+                USING ERRCODE = 'FJ412';
+        END IF;
+    ELSIF TG_TABLE_NAME = 'articles_classe' THEN
+        IF NOT EXISTS (SELECT 1 FROM public.classes WHERE id = NEW.classe_id AND ecole_id = NEW.ecole_id) THEN
+            RAISE EXCEPTION 'Classe introuvable dans cette école.' USING ERRCODE = 'FJ404';
+        END IF;
+        -- Ligne du catalogue déplacée vers une autre classe : refusée si des élèves l'ont déjà
+        IF TG_OP = 'UPDATE' AND NEW.classe_id IS DISTINCT FROM OLD.classe_id
+           AND EXISTS (SELECT 1 FROM public.articles_inscription
+                       WHERE article_classe_id = NEW.id AND ecole_id = NEW.ecole_id) THEN
+            RAISE EXCEPTION 'Cet article est déjà attribué à des élèves : il ne change pas de classe.' USING ERRCODE = 'FJ412';
+        END IF;
+    ELSIF TG_TABLE_NAME = 'articles_inscription' THEN
+        -- Inscription verrouillée (même mode que encaisser_paiement et proteger_article_inscription, pas de montée
+        -- de verrou) : un changement de classe concurrent attend, ou est vu.
+        SELECT classe_id INTO v_classe FROM public.inscriptions
+        WHERE id = NEW.inscription_id AND ecole_id = NEW.ecole_id
+        FOR NO KEY UPDATE;
+        IF NOT FOUND THEN
+            RAISE EXCEPTION 'Inscription ou article introuvable dans cette école.' USING ERRCODE = 'FJ404';
+        END IF;
+        IF NEW.article_classe_id IS NOT NULL THEN
+            -- Ligne du catalogue verrouillée en partage : un déplacement concurrent vers une autre classe attend
+            SELECT classe_id INTO v_classe_article FROM public.articles_classe
+            WHERE id = NEW.article_classe_id AND ecole_id = NEW.ecole_id
+            FOR SHARE;
+            IF NOT FOUND THEN
+                RAISE EXCEPTION 'Inscription ou article introuvable dans cette école.' USING ERRCODE = 'FJ404';
+            END IF;
+            -- L'article vient du catalogue de la classe de l'inscription
+            IF v_classe_article IS DISTINCT FROM v_classe THEN
+                RAISE EXCEPTION 'Cet article n''appartient pas au catalogue de la classe de l''élève.' USING ERRCODE = 'FJ422';
+            END IF;
+        END IF;
+    ELSIF TG_TABLE_NAME = 'paiements' THEN
+        IF NOT EXISTS (SELECT 1 FROM public.inscriptions WHERE id = NEW.inscription_id AND ecole_id = NEW.ecole_id) THEN
+            RAISE EXCEPTION 'Inscription introuvable dans cette école.' USING ERRCODE = 'FJ404';
+        END IF;
+        -- Un paiement d'article vise un article de la même inscription
+        IF NEW.article_id IS NOT NULL
+           AND NOT EXISTS (SELECT 1 FROM public.articles_inscription
+                           WHERE id = NEW.article_id AND inscription_id = NEW.inscription_id AND ecole_id = NEW.ecole_id) THEN
+            RAISE EXCEPTION 'Article introuvable pour cet élève.' USING ERRCODE = 'FJ404';
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.verifier_meme_ecole() FROM PUBLIC, anon, authenticated;
+CREATE INDEX IF NOT EXISTS idx_articles_inscription_article_classe
+    ON public.articles_inscription (article_classe_id) WHERE article_classe_id IS NOT NULL;
