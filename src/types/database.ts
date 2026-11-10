@@ -66,6 +66,8 @@ export type Classe = {
   mensualite_dernier_mois: number | null;
   is_active: boolean;
   created_at: string;
+  /** Dernière modification réelle (trigger set_updated_at) ; = created_at si jamais modifiée */
+  updated_at: string;
 }
 
 export type Parent = {
@@ -76,6 +78,8 @@ export type Parent = {
   token: string;
   is_active: boolean;
   created_at: string;
+  /** Dernière modification réelle (trigger set_updated_at) ; = created_at si jamais modifiée */
+  updated_at: string;
 }
 
 export type Eleve = {
@@ -89,6 +93,8 @@ export type Eleve = {
   date_naissance: string | null;
   is_active: boolean;
   created_at: string;
+  /** Dernière modification réelle (trigger set_updated_at) ; = created_at si jamais modifiée */
+  updated_at: string;
 }
 
 export type Inscription = {
@@ -105,6 +111,8 @@ export type Inscription = {
   /** Date de départ (abandon, transfert) ; null pour une inscription active */
   date_depart: string | null;
   created_at: string;
+  /** Dernière modification réelle (trigger set_updated_at) ; = created_at si jamais modifiée */
+  updated_at: string;
 }
 
 export type Paiement = {
@@ -160,6 +168,8 @@ export type ArticleInscription = {
   mois_debut: string | null;
   mois_fin: string | null;
   created_at: string;
+  /** Dernière modification réelle (trigger set_updated_at) ; = created_at si jamais modifiée */
+  updated_at: string;
 }
 
 export type Database = {

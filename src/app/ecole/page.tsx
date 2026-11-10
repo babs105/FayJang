@@ -3,6 +3,7 @@ import { createClientEcole } from "@/lib/supabase/server";
 import { getEcoleId } from "@/lib/ecole-session";
 import { getAppBaseUrl, todayDakar } from "@/lib/config";
 import { situationInscription } from "@/lib/scolarite";
+import { derniereModification } from "@/lib/modifications";
 import { EcoleDashboardClient } from "./ecole-dashboard-client";
 import type { ClasseVue, EcoleVue, EleveVue, PaiementVue } from "./types";
 
@@ -37,7 +38,7 @@ export default async function EcolePage({ searchParams }: PageProps) {
   if (!ecole) redirect("/ecole/login");
 
   const annee = ecole.annee_scolaire;
-  const [{ data: classes }, { data: eleves }, { data: parents }, { data: inscriptions }, { data: catalogue }] = await Promise.all([
+  const lectures = await Promise.all([
     supabase
       .from("classes")
       .select("id, nom, niveau, frais_inscription, mensualite, mensualite_dernier_mois, is_active")
@@ -46,14 +47,14 @@ export default async function EcolePage({ searchParams }: PageProps) {
       .order("nom"),
     supabase
       .from("eleves")
-      .select("id, matricule, prenom, nom, sexe, date_naissance, parent_id")
+      .select("id, matricule, prenom, nom, sexe, date_naissance, parent_id, created_at, updated_at")
       .eq("ecole_id", ecoleId)
       .eq("is_active", true)
       .order("nom"),
-    supabase.from("parents").select("id, nom, telephone, token").eq("ecole_id", ecoleId),
+    supabase.from("parents").select("id, nom, telephone, token, created_at, updated_at").eq("ecole_id", ecoleId),
     supabase
       .from("inscriptions")
-      .select("id, eleve_id, classe_id, annee_scolaire, frais_inscription, mensualite, mensualite_dernier_mois, reduction_mensuelle, statut, date_depart")
+      .select("id, eleve_id, classe_id, annee_scolaire, frais_inscription, mensualite, mensualite_dernier_mois, reduction_mensuelle, statut, date_depart, created_at, updated_at")
       .eq("ecole_id", ecoleId)
       .eq("annee_scolaire", annee),
     supabase
@@ -62,9 +63,16 @@ export default async function EcolePage({ searchParams }: PageProps) {
       .eq("ecole_id", ecoleId)
       .order("ordre"),
   ]);
+  // Une lecture en échec (colonne absente : schéma pas encore relancé) ne doit pas afficher une école vide
+  const erreurLecture = lectures.find((r) => r.error)?.error;
+  if (erreurLecture) {
+    console.error("[ecole/page] lecture des données :", erreurLecture.code ?? "erreur");
+    return <ErreurBase migrationManquante={["42703", "42P01", "PGRST204", "PGRST202"].includes(erreurLecture.code ?? "")} />;
+  }
+  const [{ data: classes }, { data: eleves }, { data: parents }, { data: inscriptions }, { data: catalogue }] = lectures;
 
   const idsInscriptions = (inscriptions ?? []).map((i) => i.id);
-  const [{ data: paiements }, { data: articlesEleves }] = idsInscriptions.length
+  const lecturesSuivi = idsInscriptions.length
     ? await Promise.all([
         supabase
           .from("paiements")
@@ -74,12 +82,20 @@ export default async function EcolePage({ searchParams }: PageProps) {
           .order("created_at", { ascending: false }),
         supabase
           .from("articles_inscription")
-          .select("id, inscription_id, libelle, nature, prix_unitaire, quantite, obligatoire, mois_debut, mois_fin")
+          .select("id, inscription_id, libelle, nature, prix_unitaire, quantite, obligatoire, mois_debut, mois_fin, created_at, updated_at")
           .eq("ecole_id", ecoleId)
           .in("inscription_id", idsInscriptions)
           .order("created_at"),
       ])
-    : [{ data: [] }, { data: [] }];
+    : null;
+  // Paiements ou articles illisibles : des soldes faux seraient affichés, on s'arrête
+  const erreurSuivi = lecturesSuivi?.find((r) => r.error)?.error;
+  if (erreurSuivi) {
+    console.error("[ecole/page] lecture des paiements et articles :", erreurSuivi.code ?? "erreur");
+    return <ErreurBase migrationManquante={["42703", "42P01", "PGRST204", "PGRST202"].includes(erreurSuivi.code ?? "")} />;
+  }
+  const paiements = lecturesSuivi?.[0].data ?? [];
+  const articlesEleves = lecturesSuivi?.[1].data ?? [];
   const articlesParInscription = new Map<string, Array<NonNullable<typeof articlesEleves>[number]>>();
   for (const a of articlesEleves ?? []) {
     articlesParInscription.set(a.inscription_id, [...(articlesParInscription.get(a.inscription_id) ?? []), a]);
@@ -122,6 +138,7 @@ export default async function EcolePage({ searchParams }: PageProps) {
             reduction_mensuelle: ins.reduction_mensuelle,
           }
         : null,
+      derniere_modification: derniereModification([e, ins, parent, ...(ins ? (articlesParInscription.get(ins.id) ?? []) : [])]),
       situation: ins ? situationInscription(ins, paiementsParInscription.get(ins.id) ?? [], ecole, aujourdhui, articlesParInscription.get(ins.id) ?? []) : null,
     };
   });
