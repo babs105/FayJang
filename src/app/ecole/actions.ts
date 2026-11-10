@@ -8,8 +8,8 @@ import { generateToken, todayDakar } from "@/lib/config";
 import { isAnneeScolaireValide, isDateValide, moisScolaires } from "@/lib/dates";
 import { messageErreur } from "@/lib/erreurs";
 import { MODES_PAIEMENT, NIVEAUX } from "@/lib/libelles";
-import { choixALinscription, lignesAEncaisser, paiementLibreAutorise, situationInscription, verifierReglages } from "@/lib/scolarite";
-import { matriculeSuivant } from "@/lib/matricule";
+import { lignesAEncaisser, paiementLibreAutorise, situationInscription, verifierReglages } from "@/lib/scolarite";
+import { lignesPaiementInscription, selectionnerArticles, type LignePaiementInscription } from "@/lib/inscription-initiale";
 import { normaliserTelephone } from "@/lib/telephone";
 import type { ModePaiement, NatureArticle, Niveau, StatutInscription } from "@/types/database";
 
@@ -241,7 +241,7 @@ export interface SaisieInscription {
   reference?: string;
 }
 
-/** Parent existant (même téléphone dans l'école) ou nouveau parent avec son lien magique */
+/** Parent existant (même téléphone dans l'école) ou nouveau parent avec son lien magique (modification d'un élève) */
 async function trouverOuCreerParent(
   supabase: ReturnType<typeof createClientEcole>,
   ecoleId: string,
@@ -266,167 +266,131 @@ async function trouverOuCreerParent(
   return data.id;
 }
 
-/** Matricule suivant de l'année (plus grand matricule existant + 1, voir matriculeSuivant) */
-async function prochainMatricule(supabase: ReturnType<typeof createClientEcole>, ecoleId: string, annee: string): Promise<string> {
-  const prefixe = annee.slice(2, 4);
-  const { data, error } = await supabase
-    .from("eleves")
-    .select("matricule")
-    .eq("ecole_id", ecoleId)
-    .like("matricule", `${prefixe}%`)
-    // Matricules de longueur fixe (6 caractères) : l'ordre texte suit l'ordre numérique.
-    // Le plus grand suffit, et la lecture reste sous le plafond de lignes de PostgREST.
-    .order("matricule", { ascending: false })
-    .limit(1);
-  if (error) throw error;
-  return matriculeSuivant(prefixe, (data ?? []).map((e) => e.matricule));
-}
+/** Retour de la fonction SQL inscrire_eleve (supabase/schema/05-migrations.sql, bloc v1.7) */
+type ResultatInscription = {
+  eleve_id: string;
+  inscription_id: string;
+  parent_id: string | null;
+  parent_cree: boolean;
+  matricule: string | null;
+  numero_recu: string | null;
+  montant_encaisse: number;
+};
 
+/**
+ * Inscrit un élève (nouveau ou réinscrit) : parent, élève, inscription, articles et reçu (si demandé) sont créés par la fonction SQL
+ * inscrire_eleve en une seule transaction, donc jamais à moitié. Les champs sont validés ici pour les messages,
+ * puis revérifiés par la base, qui recopie elle-même tarifs et articles depuis la classe.
+ */
 export async function inscrireEleve(saisie: SaisieInscription): Promise<Resultat<{ eleveId: string }>> {
   const s = await session();
   if (!s) return { success: false, message: SESSION_EXPIREE };
 
+  const classeId = texte(saisie.classe_id, 40);
+  if (!classeId) return { success: false, message: "Choisissez une classe." };
+  // Réinscription : un identifiant mal formé est refusé ici plutôt que par une erreur Postgres générique
+  if (saisie.eleve_id && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(saisie.eleve_id)) {
+    return { success: false, message: "Élève introuvable." };
+  }
   const reduction = montant(saisie.reduction_mensuelle || 0);
   if (reduction === null) return { success: false, message: "Réduction invalide." };
   const reglement = saisie.payer_inscription ? lireMode(saisie.mode, saisie.reference) : null;
   if (typeof reglement === "string") return { success: false, message: reglement };
+  // Une liste d'articles mal formée est refusée, pas réduite en silence aux obligatoires
+  if (saisie.articles !== undefined && (!Array.isArray(saisie.articles) || saisie.articles.length > 50)) {
+    return { success: false, message: "Articles invalides." };
+  }
 
-  // Pas de transaction côté Supabase JS : ce qui a été créé ici est supprimé si une étape suivante échoue,
-  // pour ne pas laisser d'élève sans inscription (ni d'inscription sans ses frais encaissés)
-  let eleveCree: string | null = null;
-  let inscriptionCreee: string | null = null;
+  // Nouvel élève : identité et parent ; le téléphone est normalisé ici (E.164), la base n'en vérifie que la forme
+  let identite = {};
+  if (!saisie.eleve_id) {
+    const prenom = texte(saisie.prenom, 60);
+    const nom = texte(saisie.nom, 60);
+    const parentNom = texte(saisie.parent_nom, 80);
+    const telephone = normaliserTelephone(saisie.parent_telephone);
+    if (!prenom || !nom) return { success: false, message: "Prénom et nom de l'élève obligatoires." };
+    if (!parentNom || !telephone || !/^\+\d{9,15}$/.test(telephone)) {
+      return { success: false, message: "Nom et téléphone du parent obligatoires (ex : 77 123 45 67)." };
+    }
+    identite = {
+      p_prenom: prenom,
+      p_nom: nom,
+      p_sexe: saisie.sexe === "M" || saisie.sexe === "F" ? saisie.sexe : null,
+      p_date_naissance: isDateValide(saisie.date_naissance) ? saisie.date_naissance : null,
+      p_parent_nom: parentNom,
+      p_parent_telephone: telephone,
+    };
+  }
+
+  let inscrit: ResultatInscription;
   try {
     const ecole = await lireEcole(s.supabase, s.ecoleId);
-    const { data: classe, error: erreurClasse } = await s.supabase
-      .from("classes")
-      .select("id, frais_inscription, mensualite, mensualite_dernier_mois, annee_scolaire, is_active")
-      .eq("id", saisie.classe_id)
-      .eq("ecole_id", s.ecoleId)
-      .maybeSingle();
-    if (erreurClasse) throw erreurClasse;
-    if (!classe || !classe.is_active) return { success: false, message: "Choisissez une classe." };
-    if (classe.annee_scolaire !== ecole.annee_scolaire) {
-      return { success: false, message: `Cette classe appartient à l'année ${classe.annee_scolaire}.` };
-    }
-    if (reduction > classe.mensualite) return { success: false, message: "La réduction dépasse la mensualité." };
-
-    // Articles retenus : obligatoires toujours, optionnels s'ils sont cochés ; quantité saisie pour les frais uniques
     const { data: catalogue, error: erreurCatalogue } = await s.supabase
       .from("articles_classe")
-      .select("id, libelle, nature, prix_unitaire, quantite_defaut, obligatoire")
-      .eq("classe_id", classe.id)
+      .select("id, libelle, nature, quantite_defaut, obligatoire, prix_unitaire")
+      .eq("classe_id", classeId)
       .eq("ecole_id", s.ecoleId)
       .order("ordre");
     if (erreurCatalogue) throw erreurCatalogue;
-    const choisis = new Map((Array.isArray(saisie.articles) ? saisie.articles.slice(0, 50) : []).map((a) => [a?.article_classe_id, a?.quantite]));
-    const moisAnnee = moisScolaires(ecole.annee_scolaire, ecole.mois_debut, ecole.nb_mensualites);
-    const articlesEleve = [];
-    for (const a of catalogue ?? []) {
-      if (!a.obligatoire && !choisis.has(a.id)) continue;
-      const q = a.nature === "unique" && choisis.get(a.id) !== undefined ? Number(choisis.get(a.id)) : a.quantite_defaut;
-      if (!Number.isInteger(q) || q < 0 || q > 99) return { success: false, message: `Quantité invalide pour « ${a.libelle} ».` };
-      if (a.obligatoire && a.nature === "unique" && q < 1 && a.quantite_defaut > 0) return { success: false, message: `« ${a.libelle} » est obligatoire pour cette classe.` };
-      if (a.nature === "unique" && q === 0) continue;
-      articlesEleve.push({
-        article_classe_id: a.id,
-        libelle: a.libelle,
-        nature: a.nature,
-        prix_unitaire: a.prix_unitaire,
-        quantite: a.nature === "mensuel" ? 1 : q,
-        obligatoire: a.obligatoire,
-        mois_debut: a.nature === "mensuel" ? debutService(moisAnnee) : null,
-      });
-    }
+    const selection = selectionnerArticles(catalogue ?? [], saisie.articles);
+    if ("erreur" in selection) return { success: false, message: selection.erreur };
+    // Un service mensuel pris en cours d'année est dû à partir du mois courant
+    const moisDebutServices = debutService(moisScolaires(ecole.annee_scolaire, ecole.mois_debut, ecole.nb_mensualites));
 
-    let eleveId = saisie.eleve_id;
-    if (eleveId) {
-      const { data: eleve, error } = await s.supabase.from("eleves").select("id").eq("id", eleveId).eq("ecole_id", s.ecoleId).maybeSingle();
-      if (error) throw error;
-      if (!eleve) return { success: false, message: "Élève introuvable." };
-    } else {
-      const prenom = texte(saisie.prenom, 60);
-      const nom = texte(saisie.nom, 60);
-      const parentNom = texte(saisie.parent_nom, 80);
-      const telephone = normaliserTelephone(saisie.parent_telephone);
-      const sexe = saisie.sexe === "M" || saisie.sexe === "F" ? saisie.sexe : null;
-      const naissance = isDateValide(saisie.date_naissance) ? saisie.date_naissance : null;
-      if (!prenom || !nom) return { success: false, message: "Prénom et nom de l'élève obligatoires." };
-      if (!parentNom || !telephone || !/^\+\d{9,15}$/.test(telephone)) {
-        return { success: false, message: "Nom et téléphone du parent obligatoires (ex : 77 123 45 67)." };
-      }
-
-      const parentId = await trouverOuCreerParent(s.supabase, s.ecoleId, parentNom, telephone);
-      // Deux inscriptions simultanées peuvent viser le même matricule : on réessaie
-      for (let essai = 0; essai < 3 && !eleveId; essai++) {
-        const matricule = await prochainMatricule(s.supabase, s.ecoleId, ecole.annee_scolaire);
-        const { data, error } = await s.supabase
-          .from("eleves")
-          .insert({ ecole_id: s.ecoleId, parent_id: parentId, matricule, prenom, nom, sexe, date_naissance: naissance })
-          .select("id")
-          .single();
-        if (error && error.code !== "23505") throw error;
-        eleveId = data?.id;
-        eleveCree = data?.id ?? null;
-      }
-      if (!eleveId) return { success: false, message: "Attribution du matricule impossible, réessayez." };
-    }
-
-    const { data: inscription, error: erreurInscription } = await s.supabase
-      .from("inscriptions")
-      .insert({
-        ecole_id: s.ecoleId,
-        eleve_id: eleveId,
-        classe_id: classe.id,
-        annee_scolaire: ecole.annee_scolaire,
-        frais_inscription: classe.frais_inscription,
-        mensualite: classe.mensualite,
-        mensualite_dernier_mois: classe.mensualite_dernier_mois,
-        reduction_mensuelle: reduction,
-      })
-      .select("id")
-      .single();
-    if (erreurInscription) throw erreurInscription;
-    inscriptionCreee = inscription.id;
-
-    if (articlesEleve.length) {
-      const { error } = await s.supabase
-        .from("articles_inscription")
-        .insert(articlesEleve.map((a) => ({ ...a, ecole_id: s.ecoleId, inscription_id: inscription.id })));
-      if (error) throw error;
-    }
-
-    // Tout ce qui est dû à l'inscription, recalculé par le serveur, sur un seul reçu
-    let encaisse = 0;
-    let avertissement = "";
+    // Encaissement à l'inscription : lignes calculées ici (même code que la fiche), la base les vérifie
+    // et les insère dans la même transaction que l'inscription. Rien à encaisser : on inscrit sans reçu.
+    let lignes: LignePaiementInscription[] = [];
     if (reglement) {
-      const charge = await chargerSituation(s.supabase, s.ecoleId, inscription.id);
-      const calcul = charge ? lignesAEncaisser(charge.situation, choixALinscription(charge.situation)) : null;
-      if (calcul && "lignes" in calcul) {
-        const base = { ecole_id: s.ecoleId, inscription_id: inscription.id, ...reglement, paye_le: todayDakar(), lot_id: randomUUID() };
-        const { error } = await s.supabase.from("paiements").insert(calcul.lignes.map((l) => ({ ...base, ...l })));
-        if (error) throw error;
-        encaisse = calcul.lignes.reduce((t, l) => t + l.montant, 0);
-      } else if (calcul && "erreur" in calcul && !calcul.erreur.startsWith("Rien à encaisser")) {
-        avertissement = ` Encaissement non fait : ${calcul.erreur} Encaissez depuis la fiche.`;
-      }
+      const { data: classe, error: erreurClasse } = await s.supabase
+        .from("classes")
+        .select("frais_inscription, mensualite, mensualite_dernier_mois")
+        .eq("id", classeId)
+        .eq("ecole_id", s.ecoleId)
+        .maybeSingle();
+      if (erreurClasse) throw erreurClasse;
+      if (!classe) return { success: false, message: "Choisissez une classe." };
+      const calcul = lignesPaiementInscription({
+        classe,
+        reduction,
+        ecole,
+        aujourdhui: todayDakar(),
+        catalogue: catalogue ?? [],
+        articles: selection.articles,
+        moisDebutServices,
+      });
+      if ("lignes" in calcul) lignes = calcul.lignes;
+      else if (!calcul.erreur.startsWith("Rien à encaisser")) return { success: false, message: calcul.erreur };
     }
 
-    revalidatePath("/ecole");
-    return {
-      success: true,
-      message: encaisse ? `Élève inscrit. Reçu créé : ${fcfa(encaisse)} encaissés.` : `Élève inscrit.${avertissement}`,
-      data: { eleveId },
-    };
+    const { data, error } = await s.supabase.rpc("inscrire_eleve", {
+      p_classe_id: classeId,
+      p_eleve_id: saisie.eleve_id || null,
+      ...identite,
+      p_reduction: reduction,
+      p_articles: selection.articles,
+      p_mois_debut_services: moisDebutServices,
+      p_mode: reglement && lignes.length ? reglement.mode : null,
+      p_reference: reglement && lignes.length ? reglement.reference : null,
+      p_lignes_paiement: lignes,
+    });
+    if (error) throw error;
+    inscrit = data as ResultatInscription;
   } catch (err) {
-    // Nettoyage de ce qui a été créé ; un échec ici est signalé pour que l'école vérifie la liste
-    const r1 = inscriptionCreee ? await s.supabase.from("inscriptions").delete().eq("id", inscriptionCreee).eq("ecole_id", s.ecoleId) : null;
-    const r2 = eleveCree ? await s.supabase.from("eleves").delete().eq("id", eleveCree).eq("ecole_id", s.ecoleId) : null;
-    if (r1?.error || r2?.error) {
-      console.error("[inscription] nettoyage incomplet", r1?.error?.code ?? r2?.error?.code);
-      return { success: false, message: "Inscription interrompue : vérifiez la liste des élèves avant de réessayer." };
-    }
     return { success: false, message: messageErreur("inscription", err, undefined, "Cet élève est déjà inscrit cette année.") };
   }
+
+  const parentConnu = !saisie.eleve_id && !inscrit.parent_cree ? " Parent déjà enregistré avec ce téléphone : l'élève est rattaché à sa fiche." : "";
+  revalidatePath("/ecole");
+  return {
+    success: true,
+    message:
+      (inscrit.numero_recu
+        ? `Élève inscrit. Reçu ${inscrit.numero_recu} créé : ${fcfa(inscrit.montant_encaisse)} encaissés.`
+        : reglement
+          ? "Élève inscrit. Rien à encaisser à l'inscription : aucun reçu créé."
+          : "Élève inscrit.") + parentConnu,
+    data: { eleveId: inscrit.eleve_id },
+  };
 }
 
 /**

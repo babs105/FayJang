@@ -3,7 +3,7 @@
 > **Fichier généré automatiquement.** Ne pas éditer à la main.
 > Régénérer : `bash scripts/schema-index.sh`
 
-**Total : 979 lignes.**
+**Total : 1257 lignes.**
 
 ## Tables
 
@@ -32,6 +32,7 @@
 - `echanger_jeton_parent` — L332
 - `effacer_tentatives` — L227
 - `hacher_code_bcrypt` — L257
+- `inscrire_eleve` — L994
 - `ip_pour_cle` — L237
 - `jwt_ecole_id` — L179
 - `jwt_parent_id` — L182
@@ -108,6 +109,7 @@
 - L750 : v1.1 : correctif du trigger verifier_meme_ecole (erreur 42703 à chaque inscription).
 - L780 : v1.4 : reçus regroupés (lot_id). Remplace numeroter_recu et proteger_paiement (section 10).
 - L857 : v1.5 : politiques, cohérence multi-écoles et protections des articles.
+- L982 : v1.7 : inscription d'un élève en une seule transaction (fonction inscrire_eleve).
 
 ## Notes pour l'agent
 
