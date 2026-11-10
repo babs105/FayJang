@@ -5,7 +5,8 @@ import { Pencil, Plus, Trash2 } from "lucide-react";
 import { formatFCFA } from "@/lib/utils";
 import { LIBELLE_NIVEAU, NIVEAUX } from "@/lib/libelles";
 import { Badge, Bouton, Carte, Label, Message, Modal, champ } from "@/components/ui";
-import { archiverClasse, enregistrerClasse, type SaisieArticle } from "./actions";
+import { archiverClasse, enregistrerClasse } from "./actions";
+import type { SaisieArticle } from "@/lib/classe-catalogue";
 import type { DonneesEcole } from "./ecole-dashboard-client";
 import type { ClasseVue } from "./types";
 

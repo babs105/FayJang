@@ -12,7 +12,9 @@ import { empreintePaiements, lignesPourRpc, messageAnnulation, lireCleEncaisseme
 import { lignesAEncaisser, paiementLibreAutorise, situationInscription, verifierReglages, type LigneEncaissement } from "@/lib/scolarite";
 import { lignesPaiementInscription, selectionnerArticles, type LignePaiementInscription } from "@/lib/inscription-initiale";
 import { normaliserTelephone } from "@/lib/telephone";
-import type { ModePaiement, NatureArticle, Niveau, StatutInscription } from "@/types/database";
+import { lireArticles, type SaisieArticle } from "@/lib/classe-catalogue";
+import { estUuid, montant, texte } from "@/lib/saisie";
+import type { ModePaiement, Niveau, StatutInscription } from "@/types/database";
 
 export interface Resultat<T = undefined> {
   success: boolean;
@@ -21,16 +23,6 @@ export interface Resultat<T = undefined> {
 }
 
 const SESSION_EXPIREE = "Session expirée : reconnectez-vous à l'Espace École.";
-
-function texte(valeur: unknown, max = 120): string {
-  return String(valeur ?? "").trim().slice(0, max);
-}
-
-/** Montant FCFA saisi (« 25 000 », « 25000 ») ; null si invalide */
-function montant(valeur: unknown): number | null {
-  const n = Number(String(valeur ?? "").replace(/[\s  .]/g, ""));
-  return Number.isInteger(n) && n >= 0 && n <= 50_000_000 ? n : null;
-}
 
 async function session() {
   const ecoleId = await getEcoleId();
@@ -106,35 +98,6 @@ const fcfa = (n: number) => `${new Intl.NumberFormat("fr-FR").format(n)} FCFA`;
 
 // ------------------------------------------------------------------ Classes
 
-export interface SaisieArticle {
-  /** Ligne existante du catalogue (mise à jour sur place) ; absent = nouvelle ligne */
-  id?: string;
-  libelle: string;
-  nature: string;
-  prix_unitaire: string | number;
-  quantite_defaut?: string | number;
-  obligatoire: boolean;
-}
-
-/** Catalogue saisi pour une classe ; message d'erreur si une ligne est invalide */
-function lireArticles(saisis: SaisieArticle[] | undefined) {
-  if (saisis !== undefined && !Array.isArray(saisis)) return "Articles invalides.";
-  if ((saisis ?? []).length > 30) return "30 articles au plus par classe.";
-  const lignes: { id?: string; libelle: string; nature: NatureArticle; prix_unitaire: number; quantite_defaut: number; obligatoire: boolean; ordre: number }[] = [];
-  for (const [i, a] of (saisis ?? []).entries()) {
-    if (!a || typeof a !== "object") return "Articles invalides.";
-    const libelle = texte(a.libelle, 60);
-    if (!libelle) continue;
-    const nature: NatureArticle = a.nature === "mensuel" ? "mensuel" : "unique";
-    const prix = montant(a.prix_unitaire);
-    const quantite = nature === "mensuel" ? 1 : Number(a.quantite_defaut ?? 1);
-    if (prix === null) return `Prix invalide pour « ${libelle} ».`;
-    if (!Number.isInteger(quantite) || quantite < 0 || quantite > 99) return `Quantité invalide pour « ${libelle} ».`;
-    lignes.push({ id: a.id || undefined, libelle, nature, prix_unitaire: prix, quantite_defaut: quantite, obligatoire: a.obligatoire === true, ordre: i });
-  }
-  return lignes;
-}
-
 export interface SaisieClasse {
   id?: string;
   nom: string;
@@ -163,49 +126,22 @@ export async function enregistrerClasse(saisie: SaisieClasse): Promise<Resultat>
   const articles = lireArticles(saisie.articles);
   if (typeof articles === "string") return { success: false, message: articles };
 
+  if (saisie.id && !estUuid(saisie.id)) return { success: false, message: "Classe introuvable." };
+
+  // Classe et catalogue en une seule transaction (bloc v1.9) : un échec n'écrit rien. L'école vient du JWT ;
+  // une ligne gardée garde son id, donc le lien avec les élèves déjà inscrits (qui conservent leur copie et leur prix).
+  // Catalogue absent de la saisie : il n'est pas touché.
   try {
-    let classeId = saisie.id;
-    const champs = { nom, niveau, frais_inscription: frais, mensualite, mensualite_dernier_mois: dernier };
-    if (classeId) {
-      const { data, error } = await s.supabase.from("classes").update(champs).eq("id", classeId).eq("ecole_id", s.ecoleId).select("id");
-      if (error) throw error;
-      if (!data?.length) return { success: false, message: "Classe introuvable." };
-    } else {
-      const ecole = await lireEcole(s.supabase, s.ecoleId);
-      const { data, error } = await s.supabase
-        .from("classes")
-        .insert({ ...champs, ecole_id: s.ecoleId, annee_scolaire: ecole.annee_scolaire })
-        .select("id")
-        .single();
-      if (error) throw error;
-      classeId = data.id;
-    }
-    // Catalogue mis à jour ligne par ligne : une ligne gardée garde son id, donc le lien avec les élèves
-    // déjà inscrits (qui conservent leur copie et leur prix dans articles_inscription)
-    if (saisie.articles) {
-      const { data: existants, error: erreurLecture } = await s.supabase
-        .from("articles_classe")
-        .select("id")
-        .eq("classe_id", classeId!)
-        .eq("ecole_id", s.ecoleId);
-      if (erreurLecture) throw erreurLecture;
-      const ids = new Set((existants ?? []).map((a) => a.id));
-      for (const { id, ...a } of articles) {
-        if (id && ids.has(id)) {
-          const { error } = await s.supabase.from("articles_classe").update(a).eq("id", id).eq("ecole_id", s.ecoleId);
-          if (error) throw error;
-        } else {
-          const { error } = await s.supabase.from("articles_classe").insert({ ...a, ecole_id: s.ecoleId, classe_id: classeId! });
-          if (error) throw error;
-        }
-      }
-      const gardes = new Set(articles.map((a) => a.id).filter(Boolean));
-      const retires = [...ids].filter((id) => !gardes.has(id));
-      if (retires.length) {
-        const { error } = await s.supabase.from("articles_classe").delete().in("id", retires).eq("ecole_id", s.ecoleId);
-        if (error) throw error;
-      }
-    }
+    const { error } = await s.supabase.rpc("enregistrer_classe", {
+      p_classe_id: saisie.id ?? null,
+      p_nom: nom,
+      p_niveau: niveau,
+      p_frais_inscription: frais,
+      p_mensualite: mensualite,
+      p_mensualite_dernier_mois: dernier,
+      p_articles: saisie.articles ? articles : null,
+    });
+    if (error) throw error;
   } catch (err) {
     return { success: false, message: messageErreur("classes", err, undefined, "Une classe porte déjà ce nom cette année.") };
   }

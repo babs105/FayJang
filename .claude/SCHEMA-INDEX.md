@@ -3,7 +3,7 @@
 > **Fichier généré automatiquement.** Ne pas éditer à la main.
 > Régénérer : `bash scripts/schema-index.sh`
 
-**Total : 1506 lignes.**
+**Total : 1958 lignes.**
 
 ## Tables
 
@@ -32,8 +32,9 @@
 - `echanger_jeton_parent` — L332
 - `effacer_tentatives` — L227
 - `encaisser_paiement` — L1276
+- `enregistrer_classe` — L1538
 - `hacher_code_bcrypt` — L257
-- `inscrire_eleve` — L994
+- `inscrire_eleve` — L1693 **(active)** · remplace L994
 - `ip_pour_cle` — L237
 - `jwt_ecole_id` — L179
 - `jwt_parent_id` — L182
@@ -112,6 +113,8 @@
 - L857 : v1.5 : politiques, cohérence multi-écoles et protections des articles.
 - L982 : v1.7 : inscription d'un élève en une seule transaction (fonction inscrire_eleve).
 - L1260 : v1.8 : encaissement atomique (fonction encaisser_paiement).
+- L1509 : v1.9 : enregistrement d'une classe et de son catalogue en une seule transaction (fonction enregistrer_classe).
+- L1675 : v1.10 : prix d'article plafonné, produit prix × quantité en bigint (finding H4), classe verrouillée à l'inscription.
 
 ## Notes pour l'agent
 
