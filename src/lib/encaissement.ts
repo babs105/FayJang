@@ -104,3 +104,9 @@ export function cleAEnvoyer(cle: string, derniere: TentativeEncaissement | null,
       return cle;
   }
 }
+
+/** Résultat d'une annulation de reçu selon le nombre de lignes réellement passées à « annulé » (0 = déjà annulé par un autre poste) */
+export function messageAnnulation(nbLignes: number): { success: boolean; message: string } {
+  if (nbLignes <= 0) return { success: false, message: "Ce reçu est déjà annulé." };
+  return { success: true, message: "Reçu annulé (toutes ses lignes). Il reste visible, barré « ANNULÉ »." };
+}
