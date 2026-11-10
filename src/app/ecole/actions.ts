@@ -8,7 +8,8 @@ import { generateToken, todayDakar } from "@/lib/config";
 import { isAnneeScolaireValide, isDateValide, moisScolaires } from "@/lib/dates";
 import { messageErreur } from "@/lib/erreurs";
 import { MODES_PAIEMENT, NIVEAUX } from "@/lib/libelles";
-import { lignesAEncaisser, paiementLibreAutorise, situationInscription, verifierReglages } from "@/lib/scolarite";
+import { empreintePaiements, lignesPourRpc, lireCleEncaissement, lireResultatEncaissement } from "@/lib/encaissement";
+import { lignesAEncaisser, paiementLibreAutorise, situationInscription, verifierReglages, type LigneEncaissement } from "@/lib/scolarite";
 import { lignesPaiementInscription, selectionnerArticles, type LignePaiementInscription } from "@/lib/inscription-initiale";
 import { normaliserTelephone } from "@/lib/telephone";
 import type { ModePaiement, NatureArticle, Niveau, StatutInscription } from "@/types/database";
@@ -573,6 +574,8 @@ export interface SaisiePaiement {
   inclure_tranche?: boolean;
   /** Paiement libre hors catalogue (objet + montant), seul sur son reçu */
   libre?: { libelle: string; montant: string | number };
+  /** Clé d'idempotence (UUID) créée par le formulaire : le même envoi répété ne crée qu'un reçu. Absente ou invalide : générée par le serveur */
+  cle?: string;
 }
 
 export async function encaisserPaiement(saisie: SaisiePaiement): Promise<Resultat<{ ids: string[] }>> {
@@ -589,11 +592,11 @@ export async function encaisserPaiement(saisie: SaisiePaiement): Promise<Resulta
     const charge = await chargerSituation(s.supabase, s.ecoleId, saisie.inscription_id);
     if (!charge) return { success: false, message: "Inscription introuvable." };
     const { situation, ins } = charge;
-    const aujourdhui = todayDakar();
-    // Toutes les lignes de cet encaissement partagent un lot : la base leur donne le même numéro de reçu
-    const base = { ecole_id: s.ecoleId, inscription_id: ins.id, ...reglement, paye_le: aujourdhui, lot_id: randomUUID() };
+    // Clé d'idempotence : celle du navigateur (un renvoi réseau ou un double clic la réutilise), sinon générée ici.
+    // Toutes les lignes de cet encaissement partagent ce lot : la base leur donne le même numéro de reçu.
+    const cle = lireCleEncaissement(saisie.cle) ?? randomUUID();
 
-    let lignes;
+    let lignes: LigneEncaissement[];
     if (saisie.libre) {
       if (!paiementLibreAutorise(ins.statut)) return { success: false, message: "Élève parti : seul le solde dû peut être encaissé." };
       const libelle = texte(saisie.libre.libelle, 80);
@@ -622,18 +625,34 @@ export async function encaisserPaiement(saisie: SaisiePaiement): Promise<Resulta
       lignes = calcul.lignes;
     }
 
-    const { data, error } = await s.supabase
-      .from("paiements")
-      .insert(lignes.map((l) => ({ ...base, ...l })))
-      .select("id");
+    // Une seule fonction SQL, une seule transaction : sous verrou de l'inscription, la base vérifie que rien n'a
+    // bougé depuis la lecture (empreinte) et que chaque ligne reste dans le dû, puis crée toutes les lignes.
+    const empreinte = empreintePaiements(charge.paiements);
+    const { data, error } = await s.supabase.rpc("encaisser_paiement", {
+      p_inscription_id: ins.id,
+      p_lot_id: cle,
+      p_mode: reglement.mode,
+      p_reference: reglement.reference,
+      p_lignes: lignesPourRpc(lignes),
+      p_nb_paiements: empreinte.nb,
+      p_total_actif: empreinte.total,
+    });
     if (error) throw error;
+    const resultat = lireResultatEncaissement(data);
+    if (!resultat) throw new Error("Réponse inattendue de encaisser_paiement.");
     revalidatePath("/ecole");
-    const total = lignes.reduce((t, l) => t + l.montant, 0);
+    if (resultat.rejoue) {
+      return {
+        success: true,
+        message: `Cet encaissement était déjà enregistré${resultat.numero_recu ? ` (reçu ${resultat.numero_recu})` : ""} : ${fcfa(resultat.montant_encaisse)}, rien n'a été ajouté.`,
+        data: { ids: resultat.ids },
+      };
+    }
     const tranche = lignes.length > 1 ? lignes.find((l) => l.libelle?.startsWith("Tranche")) : undefined;
     return {
       success: true,
-      message: `Reçu créé : ${fcfa(total)} encaissés${tranche ? ` (dont ${(tranche.libelle ?? "").toLowerCase()} : ${fcfa(tranche.montant)})` : ""}.`,
-      data: { ids: (data ?? []).map((d) => d.id) },
+      message: `Reçu créé : ${fcfa(resultat.montant_encaisse)} encaissés${tranche ? ` (dont ${(tranche.libelle ?? "").toLowerCase()} : ${fcfa(tranche.montant)})` : ""}.`,
+      data: { ids: resultat.ids },
     };
   } catch (err) {
     return { success: false, message: messageErreur("paiements", err) };
