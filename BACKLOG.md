@@ -161,6 +161,13 @@
   sinon). *Estimé : 2 min. Croise : mise en production de « encaissement atomique ».*
   (plan architect « encaissement atomique », 2026-11-10)
 
+- [ ] **Annulation : messages « introuvable » / « déjà annulé » et lecture du lot hors verrou** (S7) — `annulerPaiement`
+  lit le reçu sans filtrer `annule=false` (un reçu déjà annulé donne « Ce reçu est déjà annulé. », un reçu inconnu
+  « Paiement introuvable. », sans fuite entre écoles) et lit `lot_id` avant l'UPDATE sans verrou (sans effet de
+  sécurité : l'UPDATE reste filtré par `ecole_id` et `annule=false`). Correctif éventuel : documenter, ou lire et
+  annuler en une requête. *Estimé : 15 min. Croise : prochaine évolution de l'annulation.*
+  (review security tranche 3 « encaissement atomique », 2026-11-10)
+
 ---
 
 ## Décisions tranchées (ne plus rouvrir)

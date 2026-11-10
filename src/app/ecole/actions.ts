@@ -8,7 +8,7 @@ import { generateToken, todayDakar } from "@/lib/config";
 import { isAnneeScolaireValide, isDateValide, moisScolaires } from "@/lib/dates";
 import { messageErreur } from "@/lib/erreurs";
 import { MODES_PAIEMENT, NIVEAUX } from "@/lib/libelles";
-import { empreintePaiements, lignesPourRpc, lireCleEncaissement, lireResultatEncaissement } from "@/lib/encaissement";
+import { empreintePaiements, lignesPourRpc, messageAnnulation, lireCleEncaissement, lireResultatEncaissement } from "@/lib/encaissement";
 import { lignesAEncaisser, paiementLibreAutorise, situationInscription, verifierReglages, type LigneEncaissement } from "@/lib/scolarite";
 import { lignesPaiementInscription, selectionnerArticles, type LignePaiementInscription } from "@/lib/inscription-initiale";
 import { normaliserTelephone } from "@/lib/telephone";
@@ -777,10 +777,12 @@ export async function annulerPaiement(id: string, motif: string): Promise<Result
   const { data: ligne } = await s.supabase.from("paiements").select("lot_id").eq("id", id).eq("ecole_id", s.ecoleId).maybeSingle();
   if (!ligne) return { success: false, message: "Paiement introuvable." };
   const requete = s.supabase.from("paiements").update({ annule: true, motif_annulation: m }).eq("ecole_id", s.ecoleId).eq("annule", false);
-  const { error } = await (ligne.lot_id ? requete.eq("lot_id", ligne.lot_id) : requete.eq("id", id));
+  // .select("id") : on compte les lignes réellement annulées (0 = un autre poste a annulé ce reçu avant nous)
+  const { data: annulees, error } = await (ligne.lot_id ? requete.eq("lot_id", ligne.lot_id) : requete.eq("id", id)).select("id");
   if (error) return { success: false, message: messageErreur("paiements", error) };
-  revalidatePath("/ecole");
-  return { success: true, message: "Reçu annulé (toutes ses lignes). Il reste visible, barré « ANNULÉ »." };
+  const resultat = messageAnnulation(annulees?.length ?? 0);
+  if (resultat.success) revalidatePath("/ecole");
+  return resultat;
 }
 
 // ------------------------------------------------------------------ Parents

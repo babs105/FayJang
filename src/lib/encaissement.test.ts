@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cleAEnvoyer, empreintePaiements, lignesPourRpc, lireCleEncaissement, lireResultatEncaissement, signatureEncaissement } from "./encaissement";
+import { cleAEnvoyer, empreintePaiements, lignesPourRpc, lireCleEncaissement, lireResultatEncaissement, messageAnnulation, signatureEncaissement } from "./encaissement";
 import { lignesAEncaisser, situationInscription, type CalendrierEcole } from "./scolarite";
 
 describe("empreintePaiements", () => {
@@ -141,5 +141,15 @@ describe("signatureEncaissement", () => {
   it("identique pour un même contenu, différente dès qu'un champ change", () => {
     expect(signatureEncaissement({ a: 1, b: "x" })).toBe(signatureEncaissement({ a: 1, b: "x" }));
     expect(signatureEncaissement({ a: 1, b: "x" })).not.toBe(signatureEncaissement({ a: 1, b: "y" }));
+  });
+});
+
+describe("messageAnnulation", () => {
+  it("0 ligne annulée : message honnête, pas un succès", () => {
+    expect(messageAnnulation(0)).toEqual({ success: false, message: "Ce reçu est déjà annulé." });
+  });
+  it("une ou plusieurs lignes annulées : succès", () => {
+    expect(messageAnnulation(1).success).toBe(true);
+    expect(messageAnnulation(3).success).toBe(true);
   });
 });
