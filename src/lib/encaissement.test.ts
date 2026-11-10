@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { empreintePaiements, lignesPourRpc, lireCleEncaissement, lireResultatEncaissement } from "./encaissement";
+import { cleAEnvoyer, empreintePaiements, lignesPourRpc, lireCleEncaissement, lireResultatEncaissement, signatureEncaissement } from "./encaissement";
 import { lignesAEncaisser, situationInscription, type CalendrierEcole } from "./scolarite";
 
 describe("empreintePaiements", () => {
@@ -98,5 +98,48 @@ describe("lireResultatEncaissement", () => {
   it("refuse une forme inattendue", () => {
     expect(lireResultatEncaissement(null)).toBeNull();
     expect(lireResultatEncaissement({ ids: "x" })).toBeNull();
+  });
+});
+
+describe("cleAEnvoyer", () => {
+  const generer = () => "nouvelle";
+  const sig = signatureEncaissement({ mois: ["2027-03-01"], mode: "especes" });
+
+  it("premier envoi : la clé du formulaire", () => {
+    expect(cleAEnvoyer("k1", null, sig, generer)).toBe("k1");
+  });
+  it("double clic après une erreur réseau : même clé, même contenu", () => {
+    expect(cleAEnvoyer("k1", { signature: sig, issue: "echec_reseau" }, sig, generer)).toBe("k1");
+  });
+  it("erreur réseau puis sélection modifiée : même clé conservée (le premier envoi a pu passer)", () => {
+    const autre = signatureEncaissement({ mois: ["2027-04-01"], mode: "especes" });
+    expect(cleAEnvoyer("k1", { signature: sig, issue: "echec_reseau" }, autre, generer)).toBe("k1");
+  });
+  it("succès : nouvelle clé pour l'encaissement suivant", () => {
+    expect(cleAEnvoyer("k1", { signature: sig, issue: "succes" }, sig, generer)).toBe("nouvelle");
+  });
+  it("succès (rejeu compris) puis autre sélection : nouvelle clé", () => {
+    const autre = signatureEncaissement({ mois: ["2027-04-01"], mode: "wave" });
+    expect(cleAEnvoyer("k1", { signature: sig, issue: "succes" }, autre, generer)).toBe("nouvelle");
+  });
+  it("refus métier, même contenu : même clé", () => {
+    expect(cleAEnvoyer("k1", { signature: sig, issue: "echec_metier" }, sig, generer)).toBe("k1");
+  });
+  it("refus métier puis changement de mois, mode, référence ou montant : nouvelle clé", () => {
+    for (const autre of [
+      { mois: ["2027-04-01"], mode: "especes" },
+      { mois: ["2027-03-01"], mode: "wave" },
+      { mois: ["2027-03-01"], mode: "especes", reference: "T123" },
+      { mois: ["2027-03-01"], mode: "especes", montant: "5000" },
+    ]) {
+      expect(cleAEnvoyer("k1", { signature: sig, issue: "echec_metier" }, signatureEncaissement(autre), generer)).toBe("nouvelle");
+    }
+  });
+});
+
+describe("signatureEncaissement", () => {
+  it("identique pour un même contenu, différente dès qu'un champ change", () => {
+    expect(signatureEncaissement({ a: 1, b: "x" })).toBe(signatureEncaissement({ a: 1, b: "x" }));
+    expect(signatureEncaissement({ a: 1, b: "x" })).not.toBe(signatureEncaissement({ a: 1, b: "y" }));
   });
 });
