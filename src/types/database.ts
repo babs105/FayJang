@@ -200,6 +200,19 @@ export type Database = {
         };
         Returns: Json;
       };
+      /** Encaissement atomique (supabase/schema/05-migrations.sql, bloc v1.8) ; retour : voir ResultatEncaissement (src/lib/encaissement.ts) */
+      encaisser_paiement: {
+        Args: {
+          p_inscription_id: string;
+          p_lot_id: string;
+          p_mode: string;
+          p_reference: string | null;
+          p_lignes: Json;
+          p_nb_paiements: number;
+          p_total_actif: number;
+        };
+        Returns: Json;
+      };
     };
     Enums: { [_ in never]: never };
     CompositeTypes: { [_ in never]: never };

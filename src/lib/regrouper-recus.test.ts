@@ -8,7 +8,7 @@ function ligne(p: Partial<LigneRecu> = {}): LigneRecu {
     id: `p${n}`,
     inscription_id: "ins-A",
     lot_id: "lot-1",
-    numero_recu: "JP-2026-00001",
+    numero_recu: "FJ-2026-00001",
     type: "mensualite",
     mois: "2026-10-01",
     libelle: null,

@@ -154,6 +154,33 @@
   `lignesPaiementInscription`. *Estimé : 15 min. Croise : prochaine évolution de `lignesAEncaisser`.*
   (review security tranche 2 « inscription atomique », 2026-11-10)
 
+- [ ] **Rejeu d'encaissement : mode et référence non comparés** (S7) — `encaisser_paiement` (bloc v1.8) accepte
+  un rejeu de la même clé avec un autre mode de paiement ou une autre référence et renvoie le reçu initial sans le
+  signaler. Sans risque (même école, même élève). Correctif : comparer aussi `mode` / `reference`, ou documenter le
+  comportement. *Estimé : 15 min. Croise : prochaine évolution de `encaisser_paiement`.*
+  (review security tranche 1 « encaissement atomique », 2026-11-10)
+
+- [ ] **`inscription_id` non validé en UUID dans `encaisserPaiement`** (S7) — un identifiant malformé part en
+  base et revient en erreur 22P02, interceptée par `messageErreur` (message générique, aucune fuite). Correctif :
+  valider le format UUID avant la requête. *Estimé : 10 min. Croise : durcissement des Server Actions.*
+  (review security tranche 1 « encaissement atomique », 2026-11-10)
+
+- [ ] **Verrou de lot absent de `inscrire_eleve`** (M4) — `encaisser_paiement` prend `pg_advisory_xact_lock` sur
+  `(école, lot_id)`, pas `inscrire_eleve` : un même `lot_id` partagé entre les deux fonctions en parallèle n'est pas
+  couvert (deux UUID identiques, improbable). Correctif : prendre le même verrou dans `inscrire_eleve`.
+  *Estimé : 10 min. Croise : prochaine migration touchant `inscrire_eleve`.*
+  (review database tranche 1 « encaissement atomique », 2026-11-10)
+
+- [ ] **Encaissements d'une école sérialisés par le compteur de reçus** (M5) — `numeroter_recu` met à jour la ligne
+  unique `compteurs_recus` (école, année) : tous les encaissements d'une école attendent le commit du précédent.
+  Acceptable à l'échelle d'une école ; ne pas allonger les transactions d'encaissement. *Estimé : à mesurer.
+  Croise : montée en charge.* (review database tranche 1 « encaissement atomique », 2026-11-10)
+
+- [ ] **Version unique de `encaisser_paiement` à vérifier en base** — après application du schéma :
+  `SELECT oid::regprocedure FROM pg_proc WHERE proname = 'encaisser_paiement';` doit renvoyer une ligne (PGRST203
+  sinon). *Estimé : 2 min. Croise : mise en production de « encaissement atomique ».*
+  (plan architect « encaissement atomique », 2026-11-10)
+
 ---
 
 ## Décisions tranchées (ne plus rouvrir)

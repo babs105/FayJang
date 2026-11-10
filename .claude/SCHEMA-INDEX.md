@@ -3,7 +3,7 @@
 > **Fichier généré automatiquement.** Ne pas éditer à la main.
 > Régénérer : `bash scripts/schema-index.sh`
 
-**Total : 1257 lignes.**
+**Total : 1506 lignes.**
 
 ## Tables
 
@@ -31,6 +31,7 @@
 - `echanger_acces_ecole` — L270
 - `echanger_jeton_parent` — L332
 - `effacer_tentatives` — L227
+- `encaisser_paiement` — L1276
 - `hacher_code_bcrypt` — L257
 - `inscrire_eleve` — L994
 - `ip_pour_cle` — L237
@@ -110,6 +111,7 @@
 - L780 : v1.4 : reçus regroupés (lot_id). Remplace numeroter_recu et proteger_paiement (section 10).
 - L857 : v1.5 : politiques, cohérence multi-écoles et protections des articles.
 - L982 : v1.7 : inscription d'un élève en une seule transaction (fonction inscrire_eleve).
+- L1260 : v1.8 : encaissement atomique (fonction encaisser_paiement).
 
 ## Notes pour l'agent
 
