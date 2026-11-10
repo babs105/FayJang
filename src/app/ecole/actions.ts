@@ -14,6 +14,7 @@ import { lignesPaiementInscription, selectionnerArticles, type LignePaiementInsc
 import { normaliserTelephone } from "@/lib/telephone";
 import { lireArticles, type SaisieArticle } from "@/lib/classe-catalogue";
 import { estUuid, montant, texte } from "@/lib/saisie";
+import { lireResultatParametres, messageParametres } from "@/lib/parametres";
 import type { ModePaiement, Niveau, StatutInscription } from "@/types/database";
 
 export interface Resultat<T = undefined> {
@@ -793,79 +794,30 @@ export async function enregistrerParametres(saisie: SaisieParametres): Promise<R
     if (probleme) return { success: false, message: probleme };
   }
 
+  // Réglages et, pour une nouvelle année sans classe, copie des classes actives et de leur catalogue :
+  // une seule transaction (bloc v1.11), l'école verrouillée. Un échec n'écrit rien. L'école vient du JWT.
   try {
-    const ecole = await lireEcole(s.supabase, s.ecoleId);
-    // Nouvelle année : reprendre les classes (et leurs tarifs) de l'année précédente si elle n'en a pas
-    let copie = 0;
-    if (annee !== ecole.annee_scolaire) {
-      const { count } = await s.supabase
-        .from("classes")
-        .select("id", { count: "exact", head: true })
-        .eq("ecole_id", s.ecoleId)
-        .eq("annee_scolaire", annee);
-      if (!count) {
-        const { data: anciennes } = await s.supabase
-          .from("classes")
-          .select("id, nom, niveau, frais_inscription, mensualite, mensualite_dernier_mois")
-          .eq("ecole_id", s.ecoleId)
-          .eq("annee_scolaire", ecole.annee_scolaire)
-          .eq("is_active", true);
-        if (anciennes?.length) {
-          const { data: nouvelles, error: erreurCopie } = await s.supabase
-            .from("classes")
-            .insert(anciennes.map(({ id: _id, ...c }) => ({ ...c, ecole_id: s.ecoleId, annee_scolaire: annee })))
-            .select("id, nom");
-          if (erreurCopie) throw erreurCopie;
-          copie = anciennes.length;
-          // Le catalogue d'articles (tenues, services) suit chaque classe
-          const parNom = new Map((nouvelles ?? []).map((c) => [c.nom, c.id]));
-          const { data: catalogue, error: erreurCatalogue } = await s.supabase
-            .from("articles_classe")
-            .select("classe_id, libelle, nature, prix_unitaire, quantite_defaut, obligatoire, ordre")
-            .eq("ecole_id", s.ecoleId)
-            .in("classe_id", anciennes.map((c) => c.id));
-          const nomDe = new Map(anciennes.map((c) => [c.id, c.nom]));
-          const copies = (catalogue ?? [])
-            .map(({ classe_id, ...a }) => ({ ...a, ecole_id: s.ecoleId, classe_id: parNom.get(nomDe.get(classe_id) ?? "") ?? "" }))
-            .filter((a) => a.classe_id);
-          const { error: erreurArticles } =
-            erreurCatalogue ? { error: erreurCatalogue } : copies.length ? await s.supabase.from("articles_classe").insert(copies) : { error: null };
-          if (erreurArticles) {
-            // Classes copiées sans leur catalogue : on les retire pour que l'école puisse réessayer
-            await s.supabase.from("classes").delete().eq("ecole_id", s.ecoleId).in("id", (nouvelles ?? []).map((c) => c.id));
-            throw erreurArticles;
-          }
-        }
-      }
-    }
-    // Après la copie : si elle échoue, l'année ne change pas et l'école peut réessayer
-    const { error } = await s.supabase
-      .from("ecoles")
-      .update({
-        nom,
-        ville: texte(saisie.ville, 60) || null,
-        adresse: texte(saisie.adresse, 120) || null,
-        responsable_nom: texte(saisie.responsable_nom, 80) || null,
-        telephone_contact: normaliserTelephone(saisie.telephone_contact),
-        annee_scolaire: annee,
-        mois_debut: moisDebut,
-        nb_mensualites: nb,
-        jour_echeance: jour,
-        tranches_dernier_mois: tranches,
-        mois_debut_tranches: tranches ? debutTranches : null,
-        nb_tranches: tranches ? nbTranchesSaisi : null,
-        rang_mois_tranches: tranches ? rang : 1,
-        premier_mois_a_linscription: premierALinscription,
-        dernier_mois_a_linscription: dernierALinscription,
-      })
-      .eq("id", s.ecoleId);
+    const { data, error } = await s.supabase.rpc("enregistrer_parametres", {
+      p_nom: nom,
+      p_ville: texte(saisie.ville, 60) || null,
+      p_adresse: texte(saisie.adresse, 120) || null,
+      p_responsable_nom: texte(saisie.responsable_nom, 80) || null,
+      p_telephone_contact: normaliserTelephone(texte(saisie.telephone_contact, 30)),
+      p_annee_scolaire: annee,
+      p_mois_debut: moisDebut,
+      p_nb_mensualites: nb,
+      p_jour_echeance: jour,
+      p_tranches_dernier_mois: tranches,
+      p_mois_debut_tranches: tranches ? debutTranches : null,
+      p_nb_tranches: tranches ? nbTranchesSaisi : null,
+      p_rang_mois_tranches: tranches ? rang : 1,
+      p_premier_mois_a_linscription: premierALinscription,
+      p_dernier_mois_a_linscription: dernierALinscription,
+    });
     if (error) throw error;
 
     revalidatePath("/ecole");
-    return {
-      success: true,
-      message: copie ? `Paramètres enregistrés. ${copie} classes reprises pour ${annee} : réinscrivez les élèves.` : "Paramètres enregistrés.",
-    };
+    return { success: true, message: messageParametres(lireResultatParametres(data), annee) };
   } catch (err) {
     return { success: false, message: messageErreur("parametres", err) };
   }

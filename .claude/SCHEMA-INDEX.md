@@ -3,7 +3,7 @@
 > **Fichier généré automatiquement.** Ne pas éditer à la main.
 > Régénérer : `bash scripts/schema-index.sh`
 
-**Total : 1958 lignes.**
+**Total : 2100 lignes.**
 
 ## Tables
 
@@ -33,6 +33,7 @@
 - `effacer_tentatives` — L227
 - `encaisser_paiement` — L1276
 - `enregistrer_classe` — L1538
+- `enregistrer_parametres` — L1973
 - `hacher_code_bcrypt` — L257
 - `inscrire_eleve` — L1693 **(active)** · remplace L994
 - `ip_pour_cle` — L237
@@ -115,6 +116,7 @@
 - L1260 : v1.8 : encaissement atomique (fonction encaisser_paiement).
 - L1509 : v1.9 : enregistrement d'une classe et de son catalogue en une seule transaction (fonction enregistrer_classe).
 - L1675 : v1.10 : prix d'article plafonné, produit prix × quantité en bigint (finding H4), classe verrouillée à l'inscription.
+- L1961 : v1.11 : paramètres de l'école et passage à l'année suivante en une seule transaction (fonction
 
 ## Notes pour l'agent
 
