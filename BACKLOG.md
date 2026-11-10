@@ -21,21 +21,6 @@
 
 ## Chantiers (feature-scale, à planifier avec architect)
 
-- [ ] **Double-clic sur Encaisser (idempotence UI)** — le bouton est désactivé
-  pendant l'envoi, mais un double-clic rapide ou un réseau lent peut créer deux
-  reçus. Correctif : clé d'idempotence générée à l'ouverture du formulaire et
-  contrainte UNIQUE `(ecole_id, lot_id)` sur la première ligne du lot.
-  *Estimé : 4 h. Croise : toute évolution de l'encaissement.*
-
-- [ ] **Encaissement atomique (paiements simultanés)** — `encaisserPaiement`
-  recalcule le reste dû puis insère sans verrou : deux encaissements simultanés sur
-  la même inscription (deux onglets, deux comptables) peuvent surpayer. Correctif :
-  fonction SQL `encaisser(...)` (`search_path` fixé, REVOKE, contrôle
-  `role_app = 'ecole'`) qui verrouille l'inscription (`FOR UPDATE`), vérifie et insère
-  le lot, sur le modèle de la branche paiement de `inscrire_eleve` (bloc v1.7).
-  `inscrireEleve` n'est plus concerné (encaissement dans la transaction de
-  l'inscription). *Estimé : 0,5 jour. Croise : prochaine évolution de l'encaissement.*
-
 - [ ] **Opérations multi-étapes non atomiques** — `enregistrerClasse` (classe puis
   catalogue ligne par ligne) et la copie d'année de `enregistrerParametres` : en cas
   d'échec au milieu, l'état reste partiel ; les rollbacks côté code ne couvrent pas tout.
@@ -52,11 +37,6 @@
   ni que `mois_fin` reste ≥ au dernier mois payé (trigger `proteger_article_inscription`,
   `supabase/schema.sql`). Correctif : contrôles dans `verifier_meme_ecole` et
   `proteger_article_inscription`. *Estimé : 2 h. Croise : tout import de données.*
-
-- [ ] **Paiement libre sur élève parti contrôlé seulement par le code** — la base accepte un paiement
-  `autre` sur une inscription en abandon ou transfert (policy `ecole_encaisse` sans contrôle de
-  statut). Correctif : contrôle dans `verifier_meme_ecole` ou trigger dédié. *Estimé : 30 min.
-  Croise : clôture d'année / réinscription.* (review tranche 2, 2026-11-08)
 
 ---
 
@@ -154,6 +134,40 @@
   `lignesPaiementInscription`. *Estimé : 15 min. Croise : prochaine évolution de `lignesAEncaisser`.*
   (review security tranche 2 « inscription atomique », 2026-11-10)
 
+- [ ] **Rejeu d'encaissement : mode et référence non comparés** (S7) — `encaisser_paiement` (bloc v1.8) accepte
+  un rejeu de la même clé avec un autre mode de paiement ou une autre référence et renvoie le reçu initial sans le
+  signaler. Sans risque (même école, même élève). Correctif : comparer aussi `mode` / `reference`, ou documenter le
+  comportement. *Estimé : 15 min. Croise : prochaine évolution de `encaisser_paiement`.*
+  (review security tranche 1 « encaissement atomique », 2026-11-10)
+
+- [ ] **`inscription_id` non validé en UUID dans `encaisserPaiement`** (S7) — un identifiant malformé part en
+  base et revient en erreur 22P02, interceptée par `messageErreur` (message générique, aucune fuite). Correctif :
+  valider le format UUID avant la requête. *Estimé : 10 min. Croise : durcissement des Server Actions.*
+  (review security tranche 1 « encaissement atomique », 2026-11-10)
+
+- [ ] **Verrou de lot absent de `inscrire_eleve`** (M4) — `encaisser_paiement` prend `pg_advisory_xact_lock` sur
+  `(école, lot_id)`, pas `inscrire_eleve` : un même `lot_id` partagé entre les deux fonctions en parallèle n'est pas
+  couvert (deux UUID identiques, improbable). Correctif : prendre le même verrou dans `inscrire_eleve`.
+  *Estimé : 10 min. Croise : prochaine migration touchant `inscrire_eleve`.*
+  (review database tranche 1 « encaissement atomique », 2026-11-10)
+
+- [ ] **Encaissements d'une école sérialisés par le compteur de reçus** (M5) — `numeroter_recu` met à jour la ligne
+  unique `compteurs_recus` (école, année) : tous les encaissements d'une école attendent le commit du précédent.
+  Acceptable à l'échelle d'une école ; ne pas allonger les transactions d'encaissement. *Estimé : à mesurer.
+  Croise : montée en charge.* (review database tranche 1 « encaissement atomique », 2026-11-10)
+
+- [ ] **Version unique de `encaisser_paiement` à vérifier en base** — après application du schéma :
+  `SELECT oid::regprocedure FROM pg_proc WHERE proname = 'encaisser_paiement';` doit renvoyer une ligne (PGRST203
+  sinon). *Estimé : 2 min. Croise : mise en production de « encaissement atomique ».*
+  (plan architect « encaissement atomique », 2026-11-10)
+
+- [ ] **Annulation : messages « introuvable » / « déjà annulé » et lecture du lot hors verrou** (S7) — `annulerPaiement`
+  lit le reçu sans filtrer `annule=false` (un reçu déjà annulé donne « Ce reçu est déjà annulé. », un reçu inconnu
+  « Paiement introuvable. », sans fuite entre écoles) et lit `lot_id` avant l'UPDATE sans verrou (sans effet de
+  sécurité : l'UPDATE reste filtré par `ecole_id` et `annule=false`). Correctif éventuel : documenter, ou lire et
+  annuler en une requête. *Estimé : 15 min. Croise : prochaine évolution de l'annulation.*
+  (review security tranche 3 « encaissement atomique », 2026-11-10)
+
 ---
 
 ## Décisions tranchées (ne plus rouvrir)
@@ -194,3 +208,16 @@
   retiré, lignes de paiement validées avant tout cast. Commit `865f9d2`. (2026-11-10)
 - [x] **Parent existant à l'inscription** : même téléphone dans l'école = même parent ; son nom et son lien
   ne changent pas (un parent désactivé est réutilisé sans être réactivé). (2026-11-10)
+- [x] **Encaissement atomique (paiements simultanés)** — fonction SQL `encaisser_paiement` (bloc v1.8 de
+  `supabase/schema/05-migrations.sql`), SECURITY INVOKER : verrou de l'inscription (`FOR NO KEY UPDATE`),
+  empreinte des paiements lus par le serveur (tout changement depuis la lecture → FJ412 « Un autre encaissement
+  ou une annulation vient d'être enregistré… »), plafonds d'après les tarifs figés de l'inscription, un seul
+  INSERT. Le calcul fin reste dans `situationInscription` ; conflit en FJ412 (pas de FJ409) ; pas d'index unique
+  sur `paiements`. Testé en preview : deux postes à la même milliseconde → un seul reçu. Commit `013056d`. (2026-11-10)
+- [x] **Double-clic sur Encaisser (idempotence)** — clé d'encaissement (`lot_id`) générée par la fiche élève et
+  rejouée par `encaisser_paiement` : même clé et même contenu (comparé ligne par ligne) → le reçu existant est
+  renvoyé sans rien ajouter ; même clé et autre contenu, ou reçu annulé → refus FJ412. Côté base : commit
+  `013056d` ; côté fiche élève : tranche 2 « encaissement atomique ». (2026-11-10)
+- [x] **Paiement libre refusé pour un élève parti, aussi en base** — `encaisser_paiement` refuse un paiement libre
+  si l'inscription n'est pas active (FJ412). Couvre le seul chemin d'encaissement ; la policy RLS `ecole_encaisse`
+  n'a pas changé. Commit `013056d`. (2026-11-10)

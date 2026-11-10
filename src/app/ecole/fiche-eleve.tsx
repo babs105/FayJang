@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { Ban, ChevronDown, ChevronRight, Copy, FileText, MessageCircle, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { cn, formatFCFA } from "@/lib/utils";
 import { formatDate, formatMois, formatMoisCourt } from "@/lib/dates";
@@ -8,6 +8,7 @@ import { LIBELLE_MODE, LIBELLE_STATUT_INSCRIPTION, MODES_PAIEMENT, libellePaieme
 import { regrouperParRecu, resumeRecu } from "@/lib/regrouper-recus";
 import { lienWhatsApp, messageLienParent, messageRelance } from "@/lib/whatsapp";
 import { Badge, Bouton, Label, Message, Modal, champ } from "@/components/ui";
+import { cleAEnvoyer, signatureEncaissement, type TentativeEncaissement } from "@/lib/encaissement";
 import { choixALinscription, lignesAEncaisser, paiementLibreAutorise, type LigneArticle, type StatutMois } from "@/lib/scolarite";
 import type { StatutInscription } from "@/types/database";
 import {
@@ -61,6 +62,11 @@ export function FicheEleve({
   const [reinscription, setReinscription] = useState(false);
   const [statutChoisi, setStatutChoisi] = useState<StatutInscription>(eleve.inscription?.statut ?? "active");
   const [dateDepart, setDateDepart] = useState(eleve.inscription?.date_depart ?? aujourdhui);
+  // Clé d'encaissement (idempotence) : une par formulaire, renouvelée selon cleAEnvoyer (succès, changement après refus)
+  const cleEncaissement = useRef<string>(crypto.randomUUID());
+  const derniereTentative = useRef<TentativeEncaissement | null>(null);
+  // Posé de façon synchrone : isPending n'est pas encore à jour au second clic d'un double clic
+  const envoiEnCours = useRef(false);
   const [recusOuverts, setRecusOuverts] = useState<Set<string>>(new Set());
   const recus = useMemo(() => regrouperParRecu(paiements), [paiements]);
   function basculerRecu(cle: string) {
@@ -121,24 +127,39 @@ export function FicheEleve({
 
   function encaisser(e: React.FormEvent) {
     e.preventDefault();
-    if (!ins) return;
-    executer(
-      () =>
-        encaisserPaiement({
-          inscription_id: ins.id,
-          mode,
-          reference,
-          ...(libre
-            ? { libre: { libelle, montant } }
-            : { inscription: inscriptionChoisie, mois: moisChoisis, articles: articlesChoisis, montant, inclure_tranche: inclureTranche }),
-        }),
-      () => {
-        viderSelection();
-        setReference("");
-        setLibelle("");
-        setLibre(false);
+    if (!ins || isPending || envoiEnCours.current) return;
+    envoiEnCours.current = true;
+    const contenu = libre
+      ? { inscription_id: ins.id, mode, reference, libre: { libelle, montant } }
+      : { inscription_id: ins.id, mode, reference, inscription: inscriptionChoisie, mois: moisChoisis, articles: articlesChoisis, montant, inclure_tranche: inclureTranche };
+    const signature = signatureEncaissement(contenu);
+    const cle = cleAEnvoyer(cleEncaissement.current, derniereTentative.current, signature, () => crypto.randomUUID());
+    cleEncaissement.current = cle;
+    setRetour(null);
+    startTransition(async () => {
+      try {
+        const r = await encaisserPaiement({ ...contenu, cle });
+        derniereTentative.current = { signature, issue: r.success ? "succes" : "echec_metier" };
+        setRetour({ ok: r.success, texte: r.message ?? (r.success ? "Enregistré." : "Opération impossible.") });
+        if (r.success) {
+          cleEncaissement.current = crypto.randomUUID();
+          derniereTentative.current = null;
+          viderSelection();
+          setReference("");
+          setLibelle("");
+          setLibre(false);
+        }
+      } catch {
+        // Réponse perdue : l'encaissement a pu être enregistré. Renvoyer avec la même clé renvoie le même reçu sans doublon.
+        derniereTentative.current = { signature, issue: "echec_reseau" };
+        setRetour({
+          ok: false,
+          texte: "Connexion interrompue : on ne sait pas si l'encaissement a été enregistré. Cliquez de nouveau sur Encaisser : s'il l'est déjà, le même reçu sera confirmé sans doublon.",
+        });
+      } finally {
+        envoiEnCours.current = false;
       }
-    );
+    });
   }
 
   // Articles regroupés : frais uniques, puis un bloc par service mensuel
