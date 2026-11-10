@@ -179,7 +179,28 @@ export type Database = {
       articles_inscription: Table<ArticleInscription, "ecole_id" | "inscription_id" | "libelle" | "nature" | "prix_unitaire">;
     };
     Views: { [_ in never]: never };
-    Functions: { [_ in never]: never };
+    Functions: {
+      /** Inscription atomique (supabase/schema/05-migrations.sql, bloc v1.7) ; retour : voir ResultatInscription */
+      inscrire_eleve: {
+        Args: {
+          p_classe_id: string;
+          p_eleve_id?: string | null;
+          p_prenom?: string | null;
+          p_nom?: string | null;
+          p_sexe?: string | null;
+          p_date_naissance?: string | null;
+          p_parent_nom?: string | null;
+          p_parent_telephone?: string | null;
+          p_reduction?: number;
+          p_articles?: Json;
+          p_mois_debut_services?: string | null;
+          p_mode?: string | null;
+          p_reference?: string | null;
+          p_lignes_paiement?: Json;
+        };
+        Returns: Json;
+      };
+    };
     Enums: { [_ in never]: never };
     CompositeTypes: { [_ in never]: never };
   };

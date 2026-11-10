@@ -977,3 +977,190 @@ DROP TRIGGER IF EXISTS trg_proteger_article_inscription ON public.articles_inscr
 CREATE TRIGGER trg_proteger_article_inscription BEFORE UPDATE OR DELETE ON public.articles_inscription
     FOR EACH ROW EXECUTE FUNCTION public.proteger_article_inscription();
 
+
+-- ==============================================================================
+-- v1.7 : inscription d'un élève en une seule transaction (fonction inscrire_eleve).
+-- Parent (dédoublonné par téléphone), élève (matricule calculé sous verrou), inscription (tarifs recopiés
+-- depuis la classe) et articles (recopiés depuis le catalogue de la classe) sont créés ensemble : un échec
+-- n'en laisse aucun. SECURITY INVOKER : la RLS École s'applique à chaque lecture et écriture ; ecole_id vient
+-- du JWT, jamais d'un paramètre. Le téléphone arrive normalisé (E.164) par le serveur.
+-- p_mode, p_reference, p_lignes_paiement : réservés à l'encaissement à l'inscription (tranche 2), refusés
+-- tant qu'ils ne sont pas pris en charge. Nouvelle fonction, aucun bloc existant modifié.
+-- Bloc final : garder en dernier.
+-- ==============================================================================
+CREATE OR REPLACE FUNCTION public.inscrire_eleve(
+    p_classe_id UUID,
+    p_eleve_id UUID DEFAULT NULL,
+    p_prenom TEXT DEFAULT NULL,
+    p_nom TEXT DEFAULT NULL,
+    p_sexe TEXT DEFAULT NULL,
+    p_date_naissance DATE DEFAULT NULL,
+    p_parent_nom TEXT DEFAULT NULL,
+    p_parent_telephone TEXT DEFAULT NULL,
+    p_reduction INTEGER DEFAULT 0,
+    p_articles JSONB DEFAULT '[]'::jsonb,
+    p_mois_debut_services DATE DEFAULT NULL,
+    p_mode TEXT DEFAULT NULL,
+    p_reference TEXT DEFAULT NULL,
+    p_lignes_paiement JSONB DEFAULT '[]'::jsonb
+) RETURNS JSONB
+LANGUAGE plpgsql VOLATILE SECURITY INVOKER SET search_path = public AS $$
+DECLARE
+    v_ecole UUID := public.jwt_ecole_id();
+    v_annee TEXT;
+    v_classe public.classes%ROWTYPE;
+    v_choix JSONB := coalesce(p_articles, '[]'::jsonb);
+    v_lignes JSONB := coalesce(p_lignes_paiement, '[]'::jsonb);
+    v_prenom TEXT := btrim(coalesce(p_prenom, ''));
+    v_nom TEXT := btrim(coalesce(p_nom, ''));
+    v_parent_nom TEXT := btrim(coalesce(p_parent_nom, ''));
+    v_manquant TEXT;
+    v_eleve UUID;
+    v_parent UUID;
+    v_parent_cree BOOLEAN := false;
+    v_prefixe TEXT;
+    v_num BIGINT;
+    v_matricule TEXT;
+    v_inscription UUID;
+BEGIN
+    IF public.jwt_role_app() IS DISTINCT FROM 'ecole' OR v_ecole IS NULL THEN
+        RAISE EXCEPTION 'Accès refusé.' USING ERRCODE = 'FJ403';
+    END IF;
+    IF p_mode IS NOT NULL OR p_reference IS NOT NULL
+       OR jsonb_typeof(v_lignes) IS DISTINCT FROM 'array' OR jsonb_array_length(v_lignes) > 0 THEN
+        RAISE EXCEPTION 'Encaissement à l''inscription pas encore pris en charge : encaissez depuis la fiche.' USING ERRCODE = 'FJ422';
+    END IF;
+
+    -- Année scolaire de l'école et classe choisie (active, de la même année)
+    SELECT annee_scolaire INTO v_annee FROM public.ecoles WHERE id = v_ecole;
+    IF v_annee IS NULL THEN
+        RAISE EXCEPTION 'École introuvable.' USING ERRCODE = 'FJ404';
+    END IF;
+    SELECT * INTO v_classe FROM public.classes WHERE id = p_classe_id AND ecole_id = v_ecole AND is_active;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Choisissez une classe.' USING ERRCODE = 'FJ404';
+    END IF;
+    IF v_classe.annee_scolaire IS DISTINCT FROM v_annee THEN
+        RAISE EXCEPTION 'Cette classe appartient à l''année %.', v_classe.annee_scolaire USING ERRCODE = 'FJ412';
+    END IF;
+    IF p_reduction IS NULL OR p_reduction < 0 THEN
+        RAISE EXCEPTION 'Réduction invalide.' USING ERRCODE = 'FJ422';
+    END IF;
+    IF p_reduction > v_classe.mensualite THEN
+        RAISE EXCEPTION 'La réduction dépasse la mensualité.' USING ERRCODE = 'FJ422';
+    END IF;
+
+    -- Articles retenus : [{article_classe_id, quantite}], chacun du catalogue de cette classe, une seule fois
+    IF jsonb_typeof(v_choix) IS DISTINCT FROM 'array' OR jsonb_array_length(v_choix) > 50
+       OR EXISTS (SELECT 1 FROM jsonb_array_elements(v_choix) AS c(e)
+                  WHERE jsonb_typeof(c.e) IS DISTINCT FROM 'object'
+                     OR coalesce(c.e ->> 'article_classe_id', '') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+                     OR coalesce(c.e ->> 'quantite', '') !~ '^[0-9]{1,2}$')
+       OR (SELECT count(*) FROM jsonb_array_elements(v_choix))
+          <> (SELECT count(DISTINCT lower(e ->> 'article_classe_id')) FROM jsonb_array_elements(v_choix) AS c(e)) THEN
+        RAISE EXCEPTION 'Articles invalides.' USING ERRCODE = 'FJ422';
+    END IF;
+    IF EXISTS (SELECT 1 FROM jsonb_array_elements(v_choix) AS c(e)
+               WHERE NOT EXISTS (SELECT 1 FROM public.articles_classe a
+                                 WHERE a.id = (c.e ->> 'article_classe_id')::uuid
+                                   AND a.classe_id = v_classe.id AND a.ecole_id = v_ecole)) THEN
+        RAISE EXCEPTION 'Article introuvable pour cette classe.' USING ERRCODE = 'FJ404';
+    END IF;
+    -- Un article obligatoire (service mensuel, ou frais unique avec une quantité par défaut) doit être retenu
+    SELECT a.libelle INTO v_manquant
+    FROM public.articles_classe a
+    WHERE a.classe_id = v_classe.id AND a.ecole_id = v_ecole AND a.obligatoire
+      AND (a.nature = 'mensuel' OR a.quantite_defaut > 0)
+      AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(v_choix) AS c(e)
+                      WHERE (c.e ->> 'article_classe_id')::uuid = a.id
+                        AND (a.nature = 'mensuel' OR (c.e ->> 'quantite')::int > 0))
+    ORDER BY a.ordre
+    LIMIT 1;
+    IF v_manquant IS NOT NULL THEN
+        RAISE EXCEPTION '« % » est obligatoire pour cette classe.', v_manquant USING ERRCODE = 'FJ422';
+    END IF;
+    IF p_mois_debut_services IS NULL
+       AND EXISTS (SELECT 1 FROM jsonb_array_elements(v_choix) AS c(e)
+                   JOIN public.articles_classe a ON a.id = (c.e ->> 'article_classe_id')::uuid
+                   WHERE a.nature = 'mensuel') THEN
+        RAISE EXCEPTION 'Mois de début des services manquant.' USING ERRCODE = 'FJ422';
+    END IF;
+    IF p_mois_debut_services IS NOT NULL AND extract(day FROM p_mois_debut_services) <> 1 THEN
+        RAISE EXCEPTION 'Mois de début des services invalide.' USING ERRCODE = 'FJ422';
+    END IF;
+
+    IF p_eleve_id IS NOT NULL THEN
+        -- Réinscription : l'élève existe dans l'école, son parent ne change pas
+        SELECT id, parent_id INTO v_eleve, v_parent FROM public.eleves WHERE id = p_eleve_id AND ecole_id = v_ecole;
+        IF NOT FOUND THEN
+            RAISE EXCEPTION 'Élève introuvable.' USING ERRCODE = 'FJ404';
+        END IF;
+    ELSE
+        IF v_prenom = '' OR v_nom = '' THEN
+            RAISE EXCEPTION 'Prénom et nom de l''élève obligatoires.' USING ERRCODE = 'FJ422';
+        END IF;
+        IF length(v_prenom) > 60 OR length(v_nom) > 60 THEN
+            RAISE EXCEPTION 'Prénom ou nom de l''élève trop long.' USING ERRCODE = 'FJ422';
+        END IF;
+        IF v_parent_nom = '' OR length(v_parent_nom) > 80 OR coalesce(p_parent_telephone, '') !~ '^\+[0-9]{9,15}$' THEN
+            RAISE EXCEPTION 'Nom et téléphone du parent obligatoires (ex : 77 123 45 67).' USING ERRCODE = 'FJ422';
+        END IF;
+        IF p_sexe IS NOT NULL AND p_sexe NOT IN ('M', 'F') THEN
+            RAISE EXCEPTION 'Sexe invalide.' USING ERRCODE = 'FJ422';
+        END IF;
+
+        -- Parent : le même téléphone dans l'école désigne le même parent (son nom et son lien ne changent pas)
+        INSERT INTO public.parents AS p (ecole_id, nom, telephone)
+        VALUES (v_ecole, v_parent_nom, p_parent_telephone)
+        ON CONFLICT (ecole_id, telephone) DO UPDATE SET nom = p.nom
+        RETURNING p.id, (p.xmax = 0) INTO v_parent, v_parent_cree;
+
+        -- Matricule : 2 chiffres de l'année + plus grand numéro existant + 1 (au moins 4 chiffres).
+        -- Le verrou sérialise les inscriptions simultanées de l'école jusqu'à la fin de la transaction.
+        v_prefixe := substr(v_annee, 3, 2);
+        PERFORM pg_advisory_xact_lock(hashtextextended('matricule:' || v_ecole::text || ':' || v_prefixe, 0));
+        SELECT coalesce(max(substr(matricule, 3)::bigint), 0) + 1 INTO v_num
+        FROM public.eleves
+        WHERE ecole_id = v_ecole AND matricule ~ ('^' || v_prefixe || '[0-9]{1,12}$');
+        v_matricule := v_prefixe || lpad(v_num::text, greatest(4, length(v_num::text)), '0');
+
+        INSERT INTO public.eleves (ecole_id, parent_id, matricule, prenom, nom, sexe, date_naissance)
+        VALUES (v_ecole, v_parent, v_matricule, v_prenom, v_nom, p_sexe, p_date_naissance)
+        RETURNING id INTO v_eleve;
+    END IF;
+
+    -- Inscription : tarifs figés depuis la classe (un élève déjà inscrit cette année lève 23505)
+    INSERT INTO public.inscriptions (ecole_id, eleve_id, classe_id, annee_scolaire, frais_inscription, mensualite,
+                                     mensualite_dernier_mois, reduction_mensuelle)
+    VALUES (v_ecole, v_eleve, v_classe.id, v_annee, v_classe.frais_inscription, v_classe.mensualite,
+            v_classe.mensualite_dernier_mois, p_reduction)
+    RETURNING id INTO v_inscription;
+
+    -- Articles : libellé, nature, prix et obligation recopiés du catalogue ; un service mensuel compte pour 1
+    INSERT INTO public.articles_inscription (ecole_id, inscription_id, article_classe_id, libelle, nature,
+                                             prix_unitaire, quantite, obligatoire, mois_debut)
+    SELECT v_ecole, v_inscription, a.id, a.libelle, a.nature, a.prix_unitaire,
+           CASE WHEN a.nature = 'mensuel' THEN 1 ELSE (c.e ->> 'quantite')::int END,
+           a.obligatoire,
+           CASE WHEN a.nature = 'mensuel' THEN p_mois_debut_services END
+    FROM jsonb_array_elements(v_choix) AS c(e)
+    JOIN public.articles_classe a ON a.id = (c.e ->> 'article_classe_id')::uuid
+                                  AND a.classe_id = v_classe.id AND a.ecole_id = v_ecole
+    WHERE a.nature = 'mensuel' OR (c.e ->> 'quantite')::int > 0
+    ORDER BY a.ordre;
+
+    RETURN jsonb_build_object(
+        'eleve_id', v_eleve,
+        'inscription_id', v_inscription,
+        'parent_id', v_parent,
+        'parent_cree', v_parent_cree,
+        'matricule', v_matricule,
+        'numero_recu', NULL,
+        'montant_encaisse', 0
+    );
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.inscrire_eleve(UUID, UUID, TEXT, TEXT, TEXT, DATE, TEXT, TEXT, INTEGER, JSONB, DATE, TEXT, TEXT, JSONB)
+    FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.inscrire_eleve(UUID, UUID, TEXT, TEXT, TEXT, DATE, TEXT, TEXT, INTEGER, JSONB, DATE, TEXT, TEXT, JSONB)
+    TO authenticated;

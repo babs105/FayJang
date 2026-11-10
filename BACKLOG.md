@@ -112,6 +112,31 @@
   l'ouverture (`src/app/ecole/export/route.ts`). Correctif : préfixer d'une apostrophe ces chaînes
   avant `addRow`. *Estimé : 20 min. Croise : toute évolution de l'export.* (review tranche 3 « départ d'un élève », 2026-11-08)
 
+- [ ] **Identifiants et date de naissance non contrôlés à l'inscription** (S7) — `inscrireEleve` ne vérifie
+  pas que `eleve_id` et `classe_id` sont des UUID, ni qu'une date de naissance n'est pas dans le futur :
+  le message reste générique (« Opération impossible… ») ou la date future est acceptée. Le 31 février
+  relève de l'entrée « Dates saisies » ci-dessus. Correctif : regex UUID avec « Classe ou élève invalide. »
+  et `date_naissance <= todayDakar()`. *Estimé : 20 min. Croise : tranche 2 « inscription atomique ».*
+  (review security tranche 1 « inscription atomique », 2026-11-10)
+
+- [ ] **Message ambigu pour une classe désactivée** — `inscrire_eleve` (bloc v1.7 de
+  `supabase/schema/05-migrations.sql`) répond « Choisissez une classe. » pour une classe désactivée comme
+  pour une classe inexistante. Correctif : « Classe introuvable ou désactivée. », sans distinguer une classe
+  d'une autre école. *Estimé : 5 min. Croise : tranche 2 « inscription atomique ».*
+  (review database tranche 1 « inscription atomique », 2026-11-10)
+
+- [ ] **Parent connu réécrit à chaque inscription** — `ON CONFLICT … DO UPDATE SET nom = p.nom` dans
+  `inscrire_eleve` crée une nouvelle version de la ligne `parents` (un peu de bloat, verrou de ligne).
+  Correct fonctionnellement. Correctif si besoin : `ON CONFLICT DO NOTHING RETURNING id` puis `SELECT`.
+  *Estimé : 15 min. Croise : import Excel des élèves (inscriptions en masse).*
+  (review database tranche 1 « inscription atomique », 2026-11-10)
+
+- [ ] **Signature de `inscrire_eleve` à garder en tranche 2** (M3) — le `CREATE OR REPLACE` de la tranche 2
+  doit garder exactement les 14 types de paramètres, sinon une surcharge (erreur PostgREST PGRST203) et des
+  REVOKE/GRANT à refaire. Retirer aussi le refus de l'encaissement et valider le contenu de
+  `p_lignes_paiement`. *Estimé : inclus dans la tranche 2. Croise : tranche 2 « inscription atomique ».*
+  (review database tranche 1 « inscription atomique », 2026-11-10)
+
 ---
 
 ## Décisions tranchées (ne plus rouvrir)
