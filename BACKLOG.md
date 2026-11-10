@@ -201,3 +201,16 @@
   retiré, lignes de paiement validées avant tout cast. Commit `865f9d2`. (2026-11-10)
 - [x] **Parent existant à l'inscription** : même téléphone dans l'école = même parent ; son nom et son lien
   ne changent pas (un parent désactivé est réutilisé sans être réactivé). (2026-11-10)
+- [x] **Encaissement atomique (paiements simultanés)** — fonction SQL `encaisser_paiement` (bloc v1.8 de
+  `supabase/schema/05-migrations.sql`), SECURITY INVOKER : verrou de l'inscription (`FOR NO KEY UPDATE`),
+  empreinte des paiements lus par le serveur (tout changement depuis la lecture → FJ412 « Un autre encaissement
+  ou une annulation vient d'être enregistré… »), plafonds d'après les tarifs figés de l'inscription, un seul
+  INSERT. Le calcul fin reste dans `situationInscription` ; conflit en FJ412 (pas de FJ409) ; pas d'index unique
+  sur `paiements`. Testé en preview : deux postes à la même milliseconde → un seul reçu. Commit `013056d`. (2026-11-10)
+- [x] **Double-clic sur Encaisser (idempotence)** — clé d'encaissement (`lot_id`) générée par la fiche élève et
+  rejouée par `encaisser_paiement` : même clé et même contenu (comparé ligne par ligne) → le reçu existant est
+  renvoyé sans rien ajouter ; même clé et autre contenu, ou reçu annulé → refus FJ412. Côté base : commit
+  `013056d` ; côté fiche élève : tranche 2 « encaissement atomique ». (2026-11-10)
+- [x] **Paiement libre refusé pour un élève parti, aussi en base** — `encaisser_paiement` refuse un paiement libre
+  si l'inscription n'est pas active (FJ412). Couvre le seul chemin d'encaissement ; la policy RLS `ecole_encaisse`
+  n'a pas changé. Commit `013056d`. (2026-11-10)

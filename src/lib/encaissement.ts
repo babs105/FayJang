@@ -67,3 +67,40 @@ export function lireResultatEncaissement(data: unknown): ResultatEncaissement | 
     rejoue: d.rejoue === true,
   };
 }
+
+/** Issue d'une tentative d'encaissement vue du navigateur */
+export type IssueEncaissement =
+  | "succes" // reçu créé, ou rejeu d'un reçu déjà créé (success: true dans les deux cas)
+  | "echec_metier" // l'action a répondu success: false (refus, conflit, erreur base)
+  | "echec_reseau"; // la Server Action a levé une exception : on ignore si la base a enregistré
+
+/** Dernière tentative d'envoi : contenu envoyé (voir signatureEncaissement) et issue */
+export interface TentativeEncaissement {
+  signature: string;
+  issue: IssueEncaissement;
+}
+
+/** Empreinte du contenu saisi (ce que l'administration a choisi) : deux envois identiques ont la même signature */
+export function signatureEncaissement(contenu: Record<string, unknown>): string {
+  return JSON.stringify(contenu);
+}
+
+/**
+ * Clé d'encaissement à envoyer maintenant. On garde la clé tant que renvoyer est sans risque :
+ * - jamais envoyé : la clé du formulaire ;
+ * - après une erreur réseau : la même clé, même si la sélection a changé (la base a pu enregistrer le premier envoi,
+ *   seule la clé permet alors de retrouver son reçu) ;
+ * - après un succès (rejeu compris) : une nouvelle clé, le prochain encaissement est un autre reçu ;
+ * - après un refus de l'action : la même clé pour le même contenu, une nouvelle clé dès que le contenu change.
+ */
+export function cleAEnvoyer(cle: string, derniere: TentativeEncaissement | null, signature: string, generer: () => string): string {
+  if (!derniere) return cle;
+  switch (derniere.issue) {
+    case "succes":
+      return generer();
+    case "echec_metier":
+      return derniere.signature === signature ? cle : generer();
+    case "echec_reseau":
+      return cle;
+  }
+}
