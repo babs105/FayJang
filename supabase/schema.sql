@@ -1956,3 +1956,145 @@ REVOKE EXECUTE ON FUNCTION public.inscrire_eleve(UUID, UUID, TEXT, TEXT, TEXT, D
     FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.inscrire_eleve(UUID, UUID, TEXT, TEXT, TEXT, DATE, TEXT, TEXT, INTEGER, JSONB, DATE, TEXT, TEXT, JSONB)
     TO authenticated;
+
+-- ==============================================================================
+-- v1.11 : paramètres de l'école et passage à l'année suivante en une seule transaction (fonction
+-- enregistrer_parametres). Réglages de l'école, puis, si l'année change et que la nouvelle année n'a encore
+-- aucune classe : copie des classes actives de l'année quittée et de leur catalogue d'articles. Un échec n'écrit
+-- rien (ni année changée sans classes, ni classes sans catalogue).
+-- SECURITY INVOKER : la RLS École s'applique (ecole_modifie_sa_fiche, ecole_gere_ses_classes, …) ; ecole_id vient
+-- du JWT. L'école est verrouillée (FOR NO KEY UPDATE) avant toute lecture : deux enregistrements simultanés passent
+-- l'un après l'autre, et une création de classe (enregistrer_classe, FOR SHARE de l'école) ne peut pas se glisser
+-- entre le comptage et la copie. Classes de la nouvelle année déjà présentes (archivées comprises) : aucune copie,
+-- l'année change quand même (classes_deja_presentes > 0, l'école est prévenue).
+-- Les règles croisées du calendrier (verifierReglages, tranches) restent en TypeScript ; la base revérifie les formes
+-- et les bornes (FJ422). Tranches désactivées : mois_debut_tranches et nb_tranches à NULL, rang_mois_tranches à 1.
+-- ==============================================================================
+CREATE OR REPLACE FUNCTION public.enregistrer_parametres(
+    p_nom TEXT DEFAULT NULL,
+    p_ville TEXT DEFAULT NULL,
+    p_adresse TEXT DEFAULT NULL,
+    p_responsable_nom TEXT DEFAULT NULL,
+    p_telephone_contact TEXT DEFAULT NULL,
+    p_annee_scolaire TEXT DEFAULT NULL,
+    p_mois_debut INTEGER DEFAULT NULL,
+    p_nb_mensualites INTEGER DEFAULT NULL,
+    p_jour_echeance INTEGER DEFAULT NULL,
+    p_tranches_dernier_mois BOOLEAN DEFAULT false,
+    p_mois_debut_tranches INTEGER DEFAULT NULL,
+    p_nb_tranches INTEGER DEFAULT NULL,
+    p_rang_mois_tranches INTEGER DEFAULT 1,
+    p_premier_mois_a_linscription BOOLEAN DEFAULT false,
+    p_dernier_mois_a_linscription BOOLEAN DEFAULT false
+) RETURNS JSONB
+LANGUAGE plpgsql VOLATILE SECURITY INVOKER SET search_path = public AS $$
+DECLARE
+    v_ecole UUID := public.jwt_ecole_id();
+    v_nom TEXT := btrim(coalesce(p_nom, ''));
+    v_ville TEXT := nullif(btrim(coalesce(p_ville, '')), '');
+    v_adresse TEXT := nullif(btrim(coalesce(p_adresse, '')), '');
+    v_responsable TEXT := nullif(btrim(coalesce(p_responsable_nom, '')), '');
+    v_telephone TEXT := nullif(btrim(coalesce(p_telephone_contact, '')), '');
+    v_annee TEXT := btrim(coalesce(p_annee_scolaire, ''));
+    v_tranches BOOLEAN := coalesce(p_tranches_dernier_mois, false);
+    v_ancienne TEXT;
+    v_deja INTEGER := 0;
+    v_classes INTEGER := 0;
+    v_articles INTEGER := 0;
+BEGIN
+    IF public.jwt_role_app() IS DISTINCT FROM 'ecole' OR v_ecole IS NULL THEN
+        RAISE EXCEPTION 'Accès refusé.' USING ERRCODE = 'FJ403';
+    END IF;
+
+    -- Formes et bornes (messages identiques à enregistrerParametres)
+    IF length(v_nom) NOT BETWEEN 2 AND 100 THEN
+        RAISE EXCEPTION 'Nom de l''école obligatoire.' USING ERRCODE = 'FJ422';
+    END IF;
+    IF length(v_ville) > 60 OR length(v_adresse) > 120 OR length(v_responsable) > 80 OR length(v_telephone) > 30 THEN
+        RAISE EXCEPTION 'Coordonnées de l''école trop longues.' USING ERRCODE = 'FJ422';
+    END IF;
+    -- CASE : le cast n'est évalué qu'après la regex (l'ordre d'un OR n'est pas garanti)
+    IF (CASE WHEN v_annee ~ '^[0-9]{4}-[0-9]{4}$'
+             THEN substr(v_annee, 6, 4)::int <> substr(v_annee, 1, 4)::int + 1
+             ELSE true END) THEN
+        RAISE EXCEPTION 'Année scolaire au format 2026-2027.' USING ERRCODE = 'FJ422';
+    END IF;
+    IF p_mois_debut IS NULL OR p_mois_debut NOT BETWEEN 1 AND 12 THEN
+        RAISE EXCEPTION 'Mois de rentrée invalide.' USING ERRCODE = 'FJ422';
+    END IF;
+    IF p_nb_mensualites IS NULL OR p_nb_mensualites NOT BETWEEN 1 AND 12 THEN
+        RAISE EXCEPTION 'Nombre de mensualités entre 1 et 12.' USING ERRCODE = 'FJ422';
+    END IF;
+    IF p_jour_echeance IS NULL OR p_jour_echeance NOT BETWEEN 1 AND 28 THEN
+        RAISE EXCEPTION 'Jour d''échéance entre 1 et 28.' USING ERRCODE = 'FJ422';
+    END IF;
+    IF v_tranches THEN
+        IF p_rang_mois_tranches IS NULL OR p_rang_mois_tranches NOT BETWEEN 1 AND 3 THEN
+            RAISE EXCEPTION 'Mois payé par tranches invalide.' USING ERRCODE = 'FJ422';
+        END IF;
+        IF p_mois_debut_tranches IS NULL OR p_mois_debut_tranches NOT BETWEEN 1 AND 12 THEN
+            RAISE EXCEPTION 'Choisissez le mois de la première tranche.' USING ERRCODE = 'FJ422';
+        END IF;
+        IF p_nb_tranches IS NULL OR p_nb_tranches NOT BETWEEN 1 AND 11 THEN
+            RAISE EXCEPTION 'Nombre de tranches invalide.' USING ERRCODE = 'FJ422';
+        END IF;
+    END IF;
+
+    -- École verrouillée : l'année quittée est lue sous verrou
+    SELECT annee_scolaire INTO v_ancienne FROM public.ecoles WHERE id = v_ecole FOR NO KEY UPDATE;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'École introuvable.' USING ERRCODE = 'FJ404';
+    END IF;
+
+    -- Nouvelle année sans classe : reprise des classes actives et de leur catalogue (correspondance par nom,
+    -- unique par école et par année)
+    IF v_annee <> v_ancienne THEN
+        SELECT count(*) INTO v_deja FROM public.classes WHERE ecole_id = v_ecole AND annee_scolaire = v_annee;
+        IF v_deja = 0 THEN
+            WITH nouvelles AS (
+                INSERT INTO public.classes (ecole_id, annee_scolaire, nom, niveau, frais_inscription, mensualite, mensualite_dernier_mois)
+                SELECT v_ecole, v_annee, c.nom, c.niveau, c.frais_inscription, c.mensualite, c.mensualite_dernier_mois
+                FROM public.classes c
+                WHERE c.ecole_id = v_ecole AND c.annee_scolaire = v_ancienne AND c.is_active
+                RETURNING id
+            )
+            SELECT count(*) INTO v_classes FROM nouvelles;
+
+            INSERT INTO public.articles_classe (ecole_id, classe_id, libelle, nature, prix_unitaire, quantite_defaut, obligatoire, ordre)
+            SELECT v_ecole, n.id, a.libelle, a.nature, a.prix_unitaire, a.quantite_defaut, a.obligatoire, a.ordre
+            FROM public.articles_classe a
+            JOIN public.classes o ON o.id = a.classe_id AND o.ecole_id = v_ecole
+                                 AND o.annee_scolaire = v_ancienne AND o.is_active
+            JOIN public.classes n ON n.ecole_id = v_ecole AND n.annee_scolaire = v_annee AND n.nom = o.nom
+            WHERE a.ecole_id = v_ecole;
+            GET DIAGNOSTICS v_articles = ROW_COUNT;
+        END IF;
+    END IF;
+
+    UPDATE public.ecoles
+    SET nom = v_nom, ville = v_ville, adresse = v_adresse, responsable_nom = v_responsable,
+        telephone_contact = v_telephone, annee_scolaire = v_annee,
+        mois_debut = p_mois_debut, nb_mensualites = p_nb_mensualites, jour_echeance = p_jour_echeance,
+        tranches_dernier_mois = v_tranches,
+        mois_debut_tranches = CASE WHEN v_tranches THEN p_mois_debut_tranches END,
+        nb_tranches = CASE WHEN v_tranches THEN p_nb_tranches END,
+        rang_mois_tranches = CASE WHEN v_tranches THEN p_rang_mois_tranches ELSE 1 END,
+        premier_mois_a_linscription = coalesce(p_premier_mois_a_linscription, false),
+        dernier_mois_a_linscription = coalesce(p_dernier_mois_a_linscription, false)
+    WHERE id = v_ecole;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'École introuvable.' USING ERRCODE = 'FJ404';
+    END IF;
+
+    RETURN jsonb_build_object(
+        'annee_changee', v_annee <> v_ancienne,
+        'classes_copiees', v_classes,
+        'articles_copies', v_articles,
+        'classes_deja_presentes', CASE WHEN v_annee <> v_ancienne THEN v_deja ELSE 0 END
+    );
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.enregistrer_parametres(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, INTEGER, INTEGER, INTEGER, BOOLEAN, INTEGER, INTEGER, INTEGER, BOOLEAN, BOOLEAN)
+    FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.enregistrer_parametres(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, INTEGER, INTEGER, INTEGER, BOOLEAN, INTEGER, INTEGER, INTEGER, BOOLEAN, BOOLEAN)
+    TO authenticated;
