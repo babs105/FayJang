@@ -1,4 +1,5 @@
-import type { NatureArticle } from "@/types/database";
+import { choixALinscription, lignesAEncaisser, situationInscription, type ArticleCalcul, type CalendrierEcole } from "@/lib/scolarite";
+import type { Classe, Ecole, NatureArticle } from "@/types/database";
 
 /** Ligne du catalogue d'une classe, telle que lue dans articles_classe */
 export type ArticleCatalogue = {
@@ -39,4 +40,71 @@ export function selectionnerArticles(
     articles.push({ article_classe_id: a.id, quantite: a.nature === "mensuel" ? 1 : q });
   }
   return { articles };
+}
+
+/** Article du catalogue avec son prix, nécessaire pour calculer ce qui est dû à l'inscription */
+export type ArticleCatalogueTarif = ArticleCatalogue & { prix_unitaire: number };
+
+/** Ligne de reçu envoyée à la fonction SQL inscrire_eleve (p_lignes_paiement) ; l'article est désigné par son article_classe_id */
+export type LignePaiementInscription = {
+  type: "inscription" | "mensualite" | "autre";
+  mois: string | null;
+  article_classe_id: string | null;
+  montant: number;
+  libelle: string | null;
+};
+
+/**
+ * Lignes du reçu d'inscription : frais d'inscription, mensualités exigibles dès l'inscription (1er et/ou dernier
+ * mois, réglage de l'école) et frais uniques retenus, nets de la réduction. Calcul sur une inscription virtuelle
+ * (tarifs de la classe, aucun paiement) avec le même code que l'encaissement depuis la fiche. La base ne recalcule
+ * pas : elle vérifie seulement que chaque ligne ne dépasse pas le dû. Les services mensuels (transport…) ne sont
+ * pas encaissés à l'inscription. Erreur « Rien à encaisser… » si rien n'est dû.
+ */
+export function lignesPaiementInscription(entree: {
+  classe: Pick<Classe, "frais_inscription" | "mensualite" | "mensualite_dernier_mois">;
+  reduction: number;
+  ecole: CalendrierEcole & Pick<Ecole, "annee_scolaire">;
+  aujourdhui: string;
+  catalogue: ArticleCatalogueTarif[];
+  articles: ArticleRetenu[];
+  /** Début des services mensuels (YYYY-MM-01), null s'il n'y en a pas */
+  moisDebutServices: string | null;
+}): { lignes: LignePaiementInscription[]; total: number } | { erreur: string } {
+  const { classe, reduction, ecole, aujourdhui, catalogue, articles, moisDebutServices } = entree;
+  const virtuels: ArticleCalcul[] = [];
+  for (const retenu of articles) {
+    const a = catalogue.find((c) => c.id === retenu.article_classe_id);
+    if (!a) return { erreur: "Article introuvable pour cette classe." };
+    virtuels.push({
+      id: a.id,
+      libelle: a.libelle,
+      nature: a.nature,
+      prix_unitaire: a.prix_unitaire,
+      quantite: retenu.quantite,
+      obligatoire: a.obligatoire,
+      mois_debut: a.nature === "mensuel" ? moisDebutServices : null,
+      mois_fin: null,
+    });
+  }
+  const inscription = {
+    annee_scolaire: ecole.annee_scolaire,
+    frais_inscription: classe.frais_inscription,
+    mensualite: classe.mensualite,
+    mensualite_dernier_mois: classe.mensualite_dernier_mois,
+    reduction_mensuelle: reduction,
+    statut: "active" as const,
+  };
+  const situation = situationInscription(inscription, [], ecole, aujourdhui, virtuels);
+  const calcul = lignesAEncaisser(situation, choixALinscription(situation));
+  if ("erreur" in calcul) return { erreur: calcul.erreur };
+  const lignes = calcul.lignes.map((l) => ({
+    type: l.type,
+    mois: l.mois,
+    article_classe_id: l.article_id,
+    montant: l.montant,
+    // La base refuse un libellé de plus de 120 caractères (libellé du catalogue sans plafond)
+    libelle: l.libelle ? l.libelle.slice(0, 120) : l.libelle,
+  }));
+  return { lignes, total: lignes.reduce((t, l) => t + l.montant, 0) };
 }

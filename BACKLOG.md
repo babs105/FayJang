@@ -21,35 +21,26 @@
 
 ## Chantiers (feature-scale, à planifier avec architect)
 
-- [ ] **Inscription d'élève atomique** — `inscrireEleve` crée le parent, l'élève,
-  l'inscription puis le paiement des frais en plusieurs requêtes ; en cas d'échec,
-  le code supprime ce qu'il a créé, mais un parent créé reste en place et une coupure
-  réseau au mauvais moment peut laisser un élève sans inscription. Correctif : fonction
-  SQL `inscrire_eleve(...)` (SECURITY DEFINER, contrôle `role_app = 'ecole'`) qui fait
-  tout dans une transaction. *Estimé : 1 jour. Croise : import Excel des élèves.*
-
 - [ ] **Double-clic sur Encaisser (idempotence UI)** — le bouton est désactivé
   pendant l'envoi, mais un double-clic rapide ou un réseau lent peut créer deux
   reçus. Correctif : clé d'idempotence générée à l'ouverture du formulaire et
   contrainte UNIQUE `(ecole_id, lot_id)` sur la première ligne du lot.
   *Estimé : 4 h. Croise : toute évolution de l'encaissement.*
 
-- [ ] **Encaissement atomique (paiements simultanés)** — `encaisserPaiement` et
-  `inscrireEleve` recalculent le reste dû puis insèrent sans verrou : deux
-  encaissements simultanés sur la même inscription (deux onglets, deux
-  comptables) peuvent surpayer. Correctif : fonction SQL `encaisser(...)`
-  SECURITY DEFINER (`search_path` fixé, REVOKE, contrôle `role_app = 'ecole'`)
-  qui verrouille l'inscription (`FOR UPDATE`), recalcule et insère le lot.
-  **À traiter avec « Inscription d'élève atomique »** : même pattern de
-  fonction SQL transactionnelle. *Estimé : 0,5 jour. Croise : prochaine
-  évolution de l'encaissement.*
+- [ ] **Encaissement atomique (paiements simultanés)** — `encaisserPaiement`
+  recalcule le reste dû puis insère sans verrou : deux encaissements simultanés sur
+  la même inscription (deux onglets, deux comptables) peuvent surpayer. Correctif :
+  fonction SQL `encaisser(...)` (`search_path` fixé, REVOKE, contrôle
+  `role_app = 'ecole'`) qui verrouille l'inscription (`FOR UPDATE`), vérifie et insère
+  le lot, sur le modèle de la branche paiement de `inscrire_eleve` (bloc v1.7).
+  `inscrireEleve` n'est plus concerné (encaissement dans la transaction de
+  l'inscription). *Estimé : 0,5 jour. Croise : prochaine évolution de l'encaissement.*
 
 - [ ] **Opérations multi-étapes non atomiques** — `enregistrerClasse` (classe puis
-  catalogue ligne par ligne), `inscrireEleve` (parent, élève, inscription, articles,
-  paiement) et la copie d'année de `enregistrerParametres` : en cas d'échec au milieu,
-  l'état reste partiel ; les rollbacks côté code ne couvrent pas tout. Correctif : une
-  RPC SQL transactionnelle par opération. *Estimé : 1 jour. Croise : « Inscription
-  d'élève atomique », import Excel.*
+  catalogue ligne par ligne) et la copie d'année de `enregistrerParametres` : en cas
+  d'échec au milieu, l'état reste partiel ; les rollbacks côté code ne couvrent pas tout.
+  Correctif : une RPC SQL transactionnelle par opération, sur le modèle de
+  `inscrire_eleve` (bloc v1.7). *Estimé : 1 jour. Croise : import Excel.*
 
 
 - [ ] **`updated_at` absent hors `acces_ecole`** (M1) — aucune trace de la dernière
@@ -103,20 +94,17 @@
   afficherait le message de la réduction. Correctif : tester les noms complets des contraintes.
   *Estimé : 10 min. Croise : prochaine modification de `modifierInscription`.* (review tranche 2, 2026-11-08)
 
-- [ ] **Plafond de lignes sur le calcul du matricule** — corrigé par tri décroissant + `limit(1)` ;
-  au-delà de 9 999 élèves sur une année (matricule à 7 caractères), l'ordre texte ne suivrait plus
-  l'ordre numérique. *Estimé : 15 min. Croise : très grosses écoles.* (review du hotfix matricule, 2026-11-08)
-
 - [ ] **Formules Excel non neutralisées dans l'export** — les noms d'élève et de parent saisis
   librement peuvent commencer par `=`, `+`, `-` ou `@` et être interprétés comme formules à
   l'ouverture (`src/app/ecole/export/route.ts`). Correctif : préfixer d'une apostrophe ces chaînes
   avant `addRow`. *Estimé : 20 min. Croise : toute évolution de l'export.* (review tranche 3 « départ d'un élève », 2026-11-08)
 
-- [ ] **Identifiants et date de naissance non contrôlés à l'inscription** (S7) — `inscrireEleve` ne vérifie
-  pas que `eleve_id` et `classe_id` sont des UUID, ni qu'une date de naissance n'est pas dans le futur :
-  le message reste générique (« Opération impossible… ») ou la date future est acceptée. Le 31 février
-  relève de l'entrée « Dates saisies » ci-dessus. Correctif : regex UUID avec « Classe ou élève invalide. »
-  et `date_naissance <= todayDakar()`. *Estimé : 20 min. Croise : tranche 2 « inscription atomique ».*
+- [ ] **`classe_id` et date de naissance non contrôlés à l'inscription** (S7) — `inscrireEleve` ne vérifie
+  pas que `classe_id` est un UUID, ni qu'une date de naissance n'est pas dans le futur : le message reste
+  générique (« Opération impossible… ») ou la date future est acceptée. `eleve_id` est contrôlé depuis la
+  tranche 2. Le 31 février relève de l'entrée « Dates saisies » ci-dessus. Correctif : regex UUID avec
+  « Choisissez une classe. » et `date_naissance <= todayDakar()`. *Estimé : 15 min. Croise : prochaine
+  tranche sur la fiche élève.*
   (review security tranche 1 « inscription atomique », 2026-11-10)
 
 - [ ] **Message ambigu pour une classe désactivée** — `inscrire_eleve` (bloc v1.7 de
@@ -131,11 +119,40 @@
   *Estimé : 15 min. Croise : import Excel des élèves (inscriptions en masse).*
   (review database tranche 1 « inscription atomique », 2026-11-10)
 
-- [ ] **Signature de `inscrire_eleve` à garder en tranche 2** (M3) — le `CREATE OR REPLACE` de la tranche 2
-  doit garder exactement les 14 types de paramètres, sinon une surcharge (erreur PostgREST PGRST203) et des
-  REVOKE/GRANT à refaire. Retirer aussi le refus de l'encaissement et valider le contenu de
-  `p_lignes_paiement`. *Estimé : inclus dans la tranche 2. Croise : tranche 2 « inscription atomique ».*
-  (review database tranche 1 « inscription atomique », 2026-11-10)
+- [ ] **Prix d'article sans plafond et produit calculé en `int`** (H4) — ni `articles_classe.prix_unitaire` ni
+  `articles_inscription.prix_unitaire` n'ont de borne haute ; dans `inscrire_eleve`, `ai.prix_unitaire * ai.quantite`
+  peut dépasser l'entier 32 bits (erreur 22003, message générique, tout est annulé). Correctif :
+  `ai.prix_unitaire::bigint * ai.quantite` et `CHECK (prix_unitaire <= 99999999)` NOT VALID dans
+  `05-migrations.sql`. *Estimé : 20 min. Croise : catalogue de frais de classe.*
+  (review database tranche 2 « inscription atomique », 2026-11-10)
+
+- [ ] **Message FJ422 unique pour l'encaissement à l'inscription** — une ligne mal formée, un montant au-delà du
+  dû ou un libellé trop long donnent tous « Montant à encaisser incohérent avec le tarif, réessayez. » ; le libellé
+  du catalogue (`articles_classe.libelle`) n'a pas de plafond en base (coupé à 120 côté serveur). Correctif :
+  CHECK de longueur sur le libellé du catalogue et messages distincts. *Estimé : 30 min. Croise : feature
+  « paramètres de classe ».* (review database tranche 2 « inscription atomique », 2026-11-10)
+
+- [ ] **Commentaire de tête du bloc v1.7 trop affirmatif** — il dit que chaque ligne correspond à « un élément
+  réellement dû », alors que pour une mensualité la base vérifie seulement « mois de l'année, ≤ dû du mois » (un
+  mois payé d'avance reste accepté). Correctif : reformuler le commentaire. *Estimé : 5 min. Croise : prochaine
+  évolution de `inscrire_eleve`.* (review database tranche 2 « inscription atomique », 2026-11-10)
+
+- [ ] **Tarif modifié entre le calcul et l'enregistrement de l'inscription** — l'action lit les tarifs puis
+  appelle `inscrire_eleve` : si le tarif baisse entre les deux, la base refuse (FJ422, « réessayez ») ; s'il monte,
+  le reçu est inférieur au dû et le solde apparaît en reste. Sans danger, rien à corriger : à documenter.
+  *Estimé : 10 min (doc). Croise : modification des tarifs en cours d'année.*
+  (review database tranche 2 « inscription atomique », 2026-11-10)
+
+- [ ] **Version unique de `inscrire_eleve` à vérifier en base** — après application du schéma, s'assurer qu'une
+  seule signature existe : `SELECT oid::regprocedure FROM pg_proc WHERE proname = 'inscrire_eleve';` doit renvoyer
+  une ligne (une surcharge donnerait l'erreur PostgREST PGRST203). *Estimé : 2 min. Croise : mise en production
+  de « inscription atomique ».* (review database tranche 2 « inscription atomique », 2026-11-10)
+
+- [ ] **« Rien à encaisser » reconnu par son texte** (S7) — `inscrireEleve` repère ce cas avec
+  `calcul.erreur.startsWith("Rien à encaisser")` ; si le libellé de `lignesAEncaisser` change, une inscription sans
+  rien à payer serait refusée à tort (rien créé). Correctif : indicateur explicite renvoyé par
+  `lignesPaiementInscription`. *Estimé : 15 min. Croise : prochaine évolution de `lignesAEncaisser`.*
+  (review security tranche 2 « inscription atomique », 2026-11-10)
 
 ---
 
@@ -164,3 +181,16 @@
   feature « départ d'un élève »). (2026-11-08)
 - [x] **Préfixe des reçus encore « JP- »** — vient de l'ancien nom JàngPay. Passer à
   « FJ- » demande un bloc final qui remplace `numeroter_recu` .(2026-11-09)
+- [x] **Inscription d'élève atomique** — fonction SQL `inscrire_eleve` (bloc v1.7 de
+  `supabase/schema/05-migrations.sql`) : parent, élève, inscription, articles et reçu d'inscription
+  créés en une seule transaction ; un échec n'en laisse aucun et ne consomme pas de numéro de reçu.
+  SECURITY INVOKER (et non DEFINER comme prévu au départ) : la RLS École reste appliquée, `ecole_id`
+  vient du JWT. Le dû reste calculé en TypeScript (`situationInscription`), la base vérifie seulement
+  les plafonds. Tranche 1 : commit `561ff6d` ; tranche 2 : branche `feat/inscription-atomique-t2`. (2026-11-10)
+- [x] **Plafond de lignes sur le calcul du matricule** — le matricule est calculé par `inscrire_eleve`
+  (plus grand suffixe numérique + 1, sous verrou), sans lecture plafonnée ni ordre texte ; testé : après
+  269999 vient 2610000. Commit `561ff6d`. (2026-11-10)
+- [x] **Signature de `inscrire_eleve` gardée en tranche 2** — mêmes 14 paramètres, refus de l'encaissement
+  retiré, lignes de paiement validées avant tout cast. Branche `feat/inscription-atomique-t2`. (2026-11-10)
+- [x] **Parent existant à l'inscription** : même téléphone dans l'école = même parent ; son nom et son lien
+  ne changent pas (un parent désactivé est réutilisé sans être réactivé). (2026-11-10)

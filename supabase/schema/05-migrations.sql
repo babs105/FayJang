@@ -376,8 +376,11 @@ CREATE TRIGGER trg_proteger_article_inscription BEFORE UPDATE OR DELETE ON publi
 -- depuis la classe) et articles (recopiés depuis le catalogue de la classe) sont créés ensemble : un échec
 -- n'en laisse aucun. SECURITY INVOKER : la RLS École s'applique à chaque lecture et écriture ; ecole_id vient
 -- du JWT, jamais d'un paramètre. Le téléphone arrive normalisé (E.164) par le serveur.
--- p_mode, p_reference, p_lignes_paiement : réservés à l'encaissement à l'inscription (tranche 2), refusés
--- tant qu'ils ne sont pas pris en charge. Nouvelle fonction, aucun bloc existant modifié.
+-- Encaissement à l'inscription (tranche 2) : p_mode, p_reference et p_lignes_paiement [{type, mois,
+-- article_classe_id, montant, libelle}] créent, dans la même transaction, les lignes d'un seul reçu (lot_id
+-- généré ici, numéro attribué par le trigger numeroter_recu). Le dû est calculé par le serveur (TypeScript) ;
+-- la base ne recalcule pas, elle vérifie que chaque ligne correspond à un élément réellement dû, sans doublon,
+-- avec 0 < montant <= reste dû d'une inscription neuve. Échec : FJ422 et tout est annulé (aucun numéro consommé).
 -- Bloc final : garder en dernier.
 -- ==============================================================================
 CREATE OR REPLACE FUNCTION public.inscrire_eleve(
@@ -414,17 +417,61 @@ DECLARE
     v_num BIGINT;
     v_matricule TEXT;
     v_inscription UUID;
+    v_reference TEXT := nullif(btrim(coalesce(p_reference, '')), '');
+    v_mois_debut INTEGER;
+    v_nb_mois INTEGER;
+    v_lot UUID;
+    v_numero_recu TEXT;
+    v_montant_encaisse BIGINT := 0;
 BEGIN
     IF public.jwt_role_app() IS DISTINCT FROM 'ecole' OR v_ecole IS NULL THEN
         RAISE EXCEPTION 'Accès refusé.' USING ERRCODE = 'FJ403';
     END IF;
-    IF p_mode IS NOT NULL OR p_reference IS NOT NULL
-       OR jsonb_typeof(v_lignes) IS DISTINCT FROM 'array' OR jsonb_array_length(v_lignes) > 0 THEN
-        RAISE EXCEPTION 'Encaissement à l''inscription pas encore pris en charge : encaissez depuis la fiche.' USING ERRCODE = 'FJ422';
+    -- Encaissement demandé : mode valide, référence (obligatoire pour le mobile money), lignes bien formées.
+    -- Aucun cast avant que la forme de chaque champ soit vérifiée.
+    IF jsonb_typeof(v_lignes) IS DISTINCT FROM 'array' THEN
+        RAISE EXCEPTION 'Montant à encaisser incohérent avec le tarif, réessayez.' USING ERRCODE = 'FJ422';
+    END IF;
+    IF p_mode IS NULL THEN
+        IF v_reference IS NOT NULL OR jsonb_array_length(v_lignes) > 0 THEN
+            RAISE EXCEPTION 'Mode de paiement manquant.' USING ERRCODE = 'FJ422';
+        END IF;
+    ELSE
+        IF p_mode NOT IN ('especes', 'wave', 'orange_money', 'free_money', 'virement', 'cheque') THEN
+            RAISE EXCEPTION 'Mode de paiement inconnu.' USING ERRCODE = 'FJ422';
+        END IF;
+        IF p_mode IN ('wave', 'orange_money', 'free_money') AND v_reference IS NULL THEN
+            RAISE EXCEPTION 'Indiquez la référence de la transaction mobile money.' USING ERRCODE = 'FJ422';
+        END IF;
+        IF length(v_reference) > 60 THEN
+            RAISE EXCEPTION 'Référence trop longue.' USING ERRCODE = 'FJ422';
+        END IF;
+        IF jsonb_array_length(v_lignes) NOT BETWEEN 1 AND 50
+           OR EXISTS (SELECT 1 FROM jsonb_array_elements(v_lignes) AS c(e)
+                      WHERE jsonb_typeof(c.e) IS DISTINCT FROM 'object'
+                         OR coalesce(c.e ->> 'type', '') NOT IN ('inscription', 'mensualite', 'autre')
+                         OR jsonb_typeof(c.e -> 'montant') IS DISTINCT FROM 'number'
+                         OR coalesce(c.e ->> 'montant', '') !~ '^[1-9][0-9]{0,7}$'
+                         OR coalesce(jsonb_typeof(c.e -> 'mois'), 'null') NOT IN ('string', 'null')
+                         OR coalesce(jsonb_typeof(c.e -> 'article_classe_id'), 'null') NOT IN ('string', 'null')
+                         OR coalesce(jsonb_typeof(c.e -> 'libelle'), 'null') NOT IN ('string', 'null')
+                         OR coalesce(c.e ->> 'mois', '2000-01-01') !~ '^20[0-9]{2}-(0[1-9]|1[0-2])-01$'
+                         OR coalesce(c.e ->> 'article_classe_id', '00000000-0000-0000-0000-000000000000')
+                            !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+                         OR length(coalesce(c.e ->> 'libelle', '')) > 120
+                         -- Cohérence du type : inscription sans mois ni article, mensualité avec mois, article avec type « autre »
+                         OR (c.e ->> 'type' = 'inscription' AND (c.e ->> 'mois' IS NOT NULL OR c.e ->> 'article_classe_id' IS NOT NULL))
+                         OR (c.e ->> 'type' = 'mensualite' AND (c.e ->> 'mois' IS NULL OR c.e ->> 'article_classe_id' IS NOT NULL))
+                         OR (c.e ->> 'type' = 'autre' AND (c.e ->> 'mois' IS NOT NULL OR c.e ->> 'article_classe_id' IS NULL)))
+           OR (SELECT count(*) FROM jsonb_array_elements(v_lignes))
+              <> (SELECT count(DISTINCT (c.e ->> 'type') || '|' || coalesce(c.e ->> 'mois', '') || '|' || lower(coalesce(c.e ->> 'article_classe_id', '')))
+                  FROM jsonb_array_elements(v_lignes) AS c(e)) THEN
+            RAISE EXCEPTION 'Montant à encaisser incohérent avec le tarif, réessayez.' USING ERRCODE = 'FJ422';
+        END IF;
     END IF;
 
     -- Année scolaire de l'école et classe choisie (active, de la même année)
-    SELECT annee_scolaire INTO v_annee FROM public.ecoles WHERE id = v_ecole;
+    SELECT annee_scolaire, mois_debut, nb_mensualites INTO v_annee, v_mois_debut, v_nb_mois FROM public.ecoles WHERE id = v_ecole;
     IF v_annee IS NULL THEN
         RAISE EXCEPTION 'École introuvable.' USING ERRCODE = 'FJ404';
     END IF;
@@ -541,14 +588,58 @@ BEGIN
     WHERE a.nature = 'mensuel' OR (c.e ->> 'quantite')::int > 0
     ORDER BY a.ordre;
 
+    -- Encaissement : chaque ligne doit correspondre à un élément réellement dû d'une inscription neuve
+    -- (aucun paiement antérieur), avec 0 < montant <= reste dû. Le montant exact est calculé par le serveur.
+    IF p_mode IS NOT NULL THEN
+        IF EXISTS (
+            SELECT 1
+            FROM jsonb_array_elements(v_lignes) AS c(e)
+            LEFT JOIN public.articles_inscription ai
+                   ON ai.inscription_id = v_inscription AND ai.ecole_id = v_ecole
+                  AND ai.article_classe_id = (c.e ->> 'article_classe_id')::uuid
+            WHERE CASE c.e ->> 'type'
+                WHEN 'inscription' THEN (c.e ->> 'montant')::int > v_classe.frais_inscription
+                WHEN 'mensualite' THEN
+                    (c.e ->> 'mois')::date NOT IN (
+                        SELECT (make_date(substr(v_annee, 1, 4)::int, 1, 1) + ((v_mois_debut - 1 + i) * interval '1 month'))::date
+                        FROM generate_series(0, v_nb_mois - 1) AS g(i))
+                    -- Dû exact du mois (comme situationInscription) : tarif du dernier mois pour le dernier, mensualité sinon
+                    OR (c.e ->> 'montant')::int >
+                       CASE WHEN (c.e ->> 'mois')::date =
+                                 (make_date(substr(v_annee, 1, 4)::int, 1, 1) + ((v_mois_debut - 1 + v_nb_mois - 1) * interval '1 month'))::date
+                            THEN coalesce(v_classe.mensualite_dernier_mois, v_classe.mensualite)
+                            ELSE v_classe.mensualite END - p_reduction
+                ELSE ai.id IS NULL OR ai.nature <> 'unique' OR (c.e ->> 'montant')::int > ai.prix_unitaire * ai.quantite
+            END
+        ) THEN
+            RAISE EXCEPTION 'Montant à encaisser incohérent avec le tarif, réessayez.' USING ERRCODE = 'FJ422';
+        END IF;
+
+        -- Un seul INSERT : les lignes partagent le lot_id, donc le même numéro de reçu (trigger numeroter_recu).
+        -- paye_le reste au DEFAULT de la colonne (date du jour à Dakar).
+        v_lot := gen_random_uuid();
+        WITH inseres AS (
+            INSERT INTO public.paiements (ecole_id, inscription_id, type, mois, montant, mode, reference, libelle, lot_id, article_id)
+            SELECT v_ecole, v_inscription, c.e ->> 'type', (c.e ->> 'mois')::date, (c.e ->> 'montant')::int,
+                   p_mode, v_reference, nullif(btrim(coalesce(c.e ->> 'libelle', '')), ''), v_lot, ai.id
+            FROM jsonb_array_elements(v_lignes) WITH ORDINALITY AS c(e, n)
+            LEFT JOIN public.articles_inscription ai
+                   ON ai.inscription_id = v_inscription AND ai.ecole_id = v_ecole
+                  AND ai.article_classe_id = (c.e ->> 'article_classe_id')::uuid
+            ORDER BY c.n
+            RETURNING numero_recu, montant
+        )
+        SELECT min(numero_recu), sum(montant) INTO v_numero_recu, v_montant_encaisse FROM inseres;
+    END IF;
+
     RETURN jsonb_build_object(
         'eleve_id', v_eleve,
         'inscription_id', v_inscription,
         'parent_id', v_parent,
         'parent_cree', v_parent_cree,
         'matricule', v_matricule,
-        'numero_recu', NULL,
-        'montant_encaisse', 0
+        'numero_recu', v_numero_recu,
+        'montant_encaisse', v_montant_encaisse
     );
 END;
 $$;

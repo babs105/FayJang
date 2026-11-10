@@ -8,8 +8,8 @@ import { generateToken, todayDakar } from "@/lib/config";
 import { isAnneeScolaireValide, isDateValide, moisScolaires } from "@/lib/dates";
 import { messageErreur } from "@/lib/erreurs";
 import { MODES_PAIEMENT, NIVEAUX } from "@/lib/libelles";
-import { choixALinscription, lignesAEncaisser, paiementLibreAutorise, situationInscription, verifierReglages } from "@/lib/scolarite";
-import { selectionnerArticles } from "@/lib/inscription-initiale";
+import { lignesAEncaisser, paiementLibreAutorise, situationInscription, verifierReglages } from "@/lib/scolarite";
+import { lignesPaiementInscription, selectionnerArticles, type LignePaiementInscription } from "@/lib/inscription-initiale";
 import { normaliserTelephone } from "@/lib/telephone";
 import type { ModePaiement, NatureArticle, Niveau, StatutInscription } from "@/types/database";
 
@@ -278,7 +278,7 @@ type ResultatInscription = {
 };
 
 /**
- * Inscrit un élève (nouveau ou réinscrit) : parent, élève, inscription et articles sont créés par la fonction SQL
+ * Inscrit un élève (nouveau ou réinscrit) : parent, élève, inscription, articles et reçu (si demandé) sont créés par la fonction SQL
  * inscrire_eleve en une seule transaction, donc jamais à moitié. Les champs sont validés ici pour les messages,
  * puis revérifiés par la base, qui recopie elle-même tarifs et articles depuis la classe.
  */
@@ -288,6 +288,10 @@ export async function inscrireEleve(saisie: SaisieInscription): Promise<Resultat
 
   const classeId = texte(saisie.classe_id, 40);
   if (!classeId) return { success: false, message: "Choisissez une classe." };
+  // Réinscription : un identifiant mal formé est refusé ici plutôt que par une erreur Postgres générique
+  if (saisie.eleve_id && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(saisie.eleve_id)) {
+    return { success: false, message: "Élève introuvable." };
+  }
   const reduction = montant(saisie.reduction_mensuelle || 0);
   if (reduction === null) return { success: false, message: "Réduction invalide." };
   const reglement = saisie.payer_inscription ? lireMode(saisie.mode, saisie.reference) : null;
@@ -323,13 +327,40 @@ export async function inscrireEleve(saisie: SaisieInscription): Promise<Resultat
     const ecole = await lireEcole(s.supabase, s.ecoleId);
     const { data: catalogue, error: erreurCatalogue } = await s.supabase
       .from("articles_classe")
-      .select("id, libelle, nature, quantite_defaut, obligatoire")
+      .select("id, libelle, nature, quantite_defaut, obligatoire, prix_unitaire")
       .eq("classe_id", classeId)
       .eq("ecole_id", s.ecoleId)
       .order("ordre");
     if (erreurCatalogue) throw erreurCatalogue;
     const selection = selectionnerArticles(catalogue ?? [], saisie.articles);
     if ("erreur" in selection) return { success: false, message: selection.erreur };
+    // Un service mensuel pris en cours d'année est dû à partir du mois courant
+    const moisDebutServices = debutService(moisScolaires(ecole.annee_scolaire, ecole.mois_debut, ecole.nb_mensualites));
+
+    // Encaissement à l'inscription : lignes calculées ici (même code que la fiche), la base les vérifie
+    // et les insère dans la même transaction que l'inscription. Rien à encaisser : on inscrit sans reçu.
+    let lignes: LignePaiementInscription[] = [];
+    if (reglement) {
+      const { data: classe, error: erreurClasse } = await s.supabase
+        .from("classes")
+        .select("frais_inscription, mensualite, mensualite_dernier_mois")
+        .eq("id", classeId)
+        .eq("ecole_id", s.ecoleId)
+        .maybeSingle();
+      if (erreurClasse) throw erreurClasse;
+      if (!classe) return { success: false, message: "Choisissez une classe." };
+      const calcul = lignesPaiementInscription({
+        classe,
+        reduction,
+        ecole,
+        aujourdhui: todayDakar(),
+        catalogue: catalogue ?? [],
+        articles: selection.articles,
+        moisDebutServices,
+      });
+      if ("lignes" in calcul) lignes = calcul.lignes;
+      else if (!calcul.erreur.startsWith("Rien à encaisser")) return { success: false, message: calcul.erreur };
+    }
 
     const { data, error } = await s.supabase.rpc("inscrire_eleve", {
       p_classe_id: classeId,
@@ -337,8 +368,10 @@ export async function inscrireEleve(saisie: SaisieInscription): Promise<Resultat
       ...identite,
       p_reduction: reduction,
       p_articles: selection.articles,
-      // Un service mensuel pris en cours d'année est dû à partir du mois courant
-      p_mois_debut_services: debutService(moisScolaires(ecole.annee_scolaire, ecole.mois_debut, ecole.nb_mensualites)),
+      p_mois_debut_services: moisDebutServices,
+      p_mode: reglement && lignes.length ? reglement.mode : null,
+      p_reference: reglement && lignes.length ? reglement.reference : null,
+      p_lignes_paiement: lignes,
     });
     if (error) throw error;
     inscrit = data as ResultatInscription;
@@ -346,34 +379,16 @@ export async function inscrireEleve(saisie: SaisieInscription): Promise<Resultat
     return { success: false, message: messageErreur("inscription", err, undefined, "Cet élève est déjà inscrit cette année.") };
   }
 
-  // Tout ce qui est dû à l'inscription, recalculé par le serveur, sur un seul reçu.
-  // Étape séparée en attendant l'encaissement dans la même transaction (tranche 2) : si elle échoue,
-  // l'élève reste inscrit sans reçu, et l'école encaisse depuis la fiche.
-  let encaisse = 0;
-  let avertissement = "";
-  if (reglement) {
-    try {
-      const charge = await chargerSituation(s.supabase, s.ecoleId, inscrit.inscription_id);
-      const calcul = charge ? lignesAEncaisser(charge.situation, choixALinscription(charge.situation)) : null;
-      if (calcul && "lignes" in calcul) {
-        const base = { ecole_id: s.ecoleId, inscription_id: inscrit.inscription_id, ...reglement, paye_le: todayDakar(), lot_id: randomUUID() };
-        const { error } = await s.supabase.from("paiements").insert(calcul.lignes.map((l) => ({ ...base, ...l })));
-        if (error) throw error;
-        encaisse = calcul.lignes.reduce((t, l) => t + l.montant, 0);
-      } else if (calcul && "erreur" in calcul && !calcul.erreur.startsWith("Rien à encaisser")) {
-        avertissement = ` Encaissement non fait : ${calcul.erreur} Encaissez depuis la fiche.`;
-      }
-    } catch (err) {
-      messageErreur("inscription-encaissement", err);
-      avertissement = " Encaissement non fait : encaissez depuis la fiche de l'élève.";
-    }
-  }
-
   const parentConnu = !saisie.eleve_id && !inscrit.parent_cree ? " Parent déjà enregistré avec ce téléphone : l'élève est rattaché à sa fiche." : "";
   revalidatePath("/ecole");
   return {
     success: true,
-    message: (encaisse ? `Élève inscrit. Reçu créé : ${fcfa(encaisse)} encaissés.` : `Élève inscrit.${avertissement}`) + parentConnu,
+    message:
+      (inscrit.numero_recu
+        ? `Élève inscrit. Reçu ${inscrit.numero_recu} créé : ${fcfa(inscrit.montant_encaisse)} encaissés.`
+        : reglement
+          ? "Élève inscrit. Rien à encaisser à l'inscription : aucun reçu créé."
+          : "Élève inscrit.") + parentConnu,
     data: { eleveId: inscrit.eleve_id },
   };
 }

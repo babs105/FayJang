@@ -3,7 +3,7 @@
 > **Fichier généré automatiquement.** Ne pas éditer à la main.
 > Régénérer : `bash scripts/schema-index.sh`
 
-**Total : 1166 lignes.**
+**Total : 1257 lignes.**
 
 ## Tables
 
@@ -32,7 +32,7 @@
 - `echanger_jeton_parent` — L332
 - `effacer_tentatives` — L227
 - `hacher_code_bcrypt` — L257
-- `inscrire_eleve` — L991
+- `inscrire_eleve` — L994
 - `ip_pour_cle` — L237
 - `jwt_ecole_id` — L179
 - `jwt_parent_id` — L182
