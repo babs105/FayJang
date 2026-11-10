@@ -2098,3 +2098,59 @@ REVOKE EXECUTE ON FUNCTION public.enregistrer_parametres(TEXT, TEXT, TEXT, TEXT,
     FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.enregistrer_parametres(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, INTEGER, INTEGER, INTEGER, BOOLEAN, INTEGER, INTEGER, INTEGER, BOOLEAN, BOOLEAN)
     TO authenticated;
+
+-- ==============================================================================
+-- v1.13 : un service mensuel ne s'arrête pas avant son dernier mois payé (remplace proteger_article_inscription, v1.5).
+-- La règle était tenue seulement par retirerArticleInscription ; elle l'est désormais par la base, quel que soit le
+-- chemin (application, éditeur SQL, import). Dernier mois payé = max(mois) des paiements non annulés de l'article
+-- (un reçu annulé ne compte plus). Aucun paiement : rien ne bloque. mois_fin NULL (jusqu'à la fin de l'année) :
+-- toujours accepté. Le contrôle ne joue que si mois_fin change : une ligne ancienne déjà en violation reste
+-- modifiable pour ses autres colonnes (FK SET NULL du catalogue, quantité à 0).
+-- Concurrence : sur tout UPDATE, l'inscription est verrouillée (FOR NO KEY UPDATE, même verrou que
+-- encaisser_paiement) en tête de fonction, avant de lire les paiements : un encaissement en cours est terminé et
+-- visible au moment des contrôles (fin de service, et prix/quantité figés dès le premier paiement).
+-- SECURITY INVOKER (comme en v1.5). Bloc final : garder en dernier.
+-- ==============================================================================
+CREATE OR REPLACE FUNCTION public.proteger_article_inscription()
+RETURNS TRIGGER LANGUAGE plpgsql SET search_path = public AS $$
+DECLARE
+    v_dernier DATE;
+BEGIN
+    -- Verrou de l'inscription d'abord (UPDATE) : un encaissement en cours est terminé et visible avant les deux
+    -- contrôles ci-dessous, y compris le tout premier paiement de l'article.
+    IF TG_OP = 'UPDATE' THEN
+        PERFORM 1 FROM public.inscriptions
+        WHERE id = OLD.inscription_id AND ecole_id = OLD.ecole_id
+        FOR NO KEY UPDATE;
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM public.paiements WHERE article_id = OLD.id AND NOT annule) THEN
+        IF TG_OP = 'DELETE' THEN
+            RAISE EXCEPTION 'Cet article a des paiements : arrêtez le service ou annulez les reçus.' USING ERRCODE = 'FJ412';
+        END IF;
+        IF NEW.prix_unitaire IS DISTINCT FROM OLD.prix_unitaire
+           OR NEW.quantite IS DISTINCT FROM OLD.quantite
+           OR NEW.nature IS DISTINCT FROM OLD.nature
+           OR NEW.inscription_id IS DISTINCT FROM OLD.inscription_id
+           OR NEW.mois_debut IS DISTINCT FROM OLD.mois_debut THEN
+            RAISE EXCEPTION 'Article déjà payé : son prix et sa quantité ne changent plus.' USING ERRCODE = 'FJ412';
+        END IF;
+    END IF;
+
+    -- Fin d'un service : jamais avant le dernier mois payé non annulé
+    IF TG_OP = 'UPDATE' AND NEW.mois_fin IS NOT NULL AND NEW.mois_fin IS DISTINCT FROM OLD.mois_fin THEN
+        SELECT max(mois) INTO v_dernier FROM public.paiements
+        WHERE article_id = OLD.id AND ecole_id = OLD.ecole_id AND NOT annule AND mois IS NOT NULL;
+        IF v_dernier IS NOT NULL AND NEW.mois_fin < v_dernier THEN
+            RAISE EXCEPTION 'Ce service est payé jusqu''à % : il ne peut pas s''arrêter avant.', to_char(v_dernier, 'MM/YYYY')
+                USING ERRCODE = 'FJ412';
+        END IF;
+    END IF;
+
+    RETURN COALESCE(NEW, OLD);
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.proteger_article_inscription() FROM PUBLIC, anon, authenticated;
+DROP TRIGGER IF EXISTS trg_proteger_article_inscription ON public.articles_inscription;
+CREATE TRIGGER trg_proteger_article_inscription BEFORE UPDATE OR DELETE ON public.articles_inscription
+    FOR EACH ROW EXECUTE FUNCTION public.proteger_article_inscription();

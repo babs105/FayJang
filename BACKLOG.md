@@ -38,6 +38,14 @@
   `supabase/schema.sql`). Correctif : contrôles dans `verifier_meme_ecole` et
   `proteger_article_inscription`. *Estimé : 2 h. Croise : tout import de données.*
 
+- [ ] **Encaissement d'un mois hors période du service** (H4) — `encaisser_paiement` (bloc v1.8) accepte, pour un
+  article mensuel, n'importe quel mois de l'année sans le comparer à `mois_debut` ni à `mois_fin` : un service arrêté
+  en novembre peut encore être encaissé pour mars, ce qui repousse ensuite le dernier mois payé au-delà de l'arrêt.
+  Décision métier à prendre (refus en base FJ412, ou simple avertissement à l'école ; recommandation du reviewer :
+  refus). Correctif : après la lecture de `v_art`, refuser si `v_mois < mois_debut` ou `v_mois > mois_fin`, dans un
+  nouveau bloc en fin de `05-migrations.sql`. *Estimé : 1 h. Croise : services mensuels, arrêt de service.*
+  (review database tranche 1 « intégrité des données », 2026-11-10)
+
 ---
 
 ## Corrections mineures (à appliquer quand une feature croise le sujet)

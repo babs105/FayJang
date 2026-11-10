@@ -3,7 +3,7 @@
 > **Fichier généré automatiquement.** Ne pas éditer à la main.
 > Régénérer : `bash scripts/schema-index.sh`
 
-**Total : 2100 lignes.**
+**Total : 2156 lignes.**
 
 ## Tables
 
@@ -42,7 +42,7 @@
 - `jwt_role_app` — L176
 - `noter_echec_plafonne` — L198
 - `numeroter_recu` — L786 **(active)** · remplace L417
-- `proteger_article_inscription` — L958
+- `proteger_article_inscription` — L2114 **(active)** · remplace L958
 - `proteger_colonnes_ecole` — L377
 - `proteger_inscription` — L465
 - `proteger_paiement` — L925 **(active)** · remplace L436, L826
@@ -77,7 +77,7 @@
 - `trg_meme_ecole` sur `inscriptions` — L577
 - `trg_meme_ecole` sur `paiements` — L921 **(active)** · remplace L580
 - `trg_numeroter_recu` sur `paiements` — L589
-- `trg_proteger_article_inscription` sur `articles_inscription` — L977
+- `trg_proteger_article_inscription` sur `articles_inscription` — L2155 **(active)** · remplace L977
 - `trg_proteger_colonnes_ecole` sur `ecoles` — L570
 - `trg_proteger_inscription_maj` sur `inscriptions` — L597
 - `trg_proteger_inscription` sur `inscriptions` — L594
@@ -117,6 +117,7 @@
 - L1509 : v1.9 : enregistrement d'une classe et de son catalogue en une seule transaction (fonction enregistrer_classe).
 - L1675 : v1.10 : prix d'article plafonné, produit prix × quantité en bigint (finding H4), classe verrouillée à l'inscription.
 - L1961 : v1.11 : paramètres de l'école et passage à l'année suivante en une seule transaction (fonction
+- L2103 : v1.13 : un service mensuel ne s'arrête pas avant son dernier mois payé (remplace proteger_article_inscription, v1.5).
 
 ## Notes pour l'agent
 
