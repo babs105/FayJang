@@ -213,6 +213,42 @@ export type Database = {
         };
         Returns: Json;
       };
+      /** Classe + catalogue en une transaction (supabase/schema/05-migrations.sql, bloc v1.9) ;
+       * retour : { classe_id, creee, nb_articles }. p_articles null = catalogue non touché */
+      enregistrer_classe: {
+        Args: {
+          p_classe_id?: string | null;
+          p_nom?: string | null;
+          p_niveau?: string | null;
+          p_frais_inscription?: number | null;
+          p_mensualite?: number | null;
+          p_mensualite_dernier_mois?: number | null;
+          p_articles?: Json | null;
+        };
+        Returns: Json;
+      };
+      /** Réglages + copie des classes à la nouvelle année en une transaction (supabase/schema/05-migrations.sql,
+       * bloc v1.11) ; retour : voir ResultatParametres (src/lib/parametres.ts) */
+      enregistrer_parametres: {
+        Args: {
+          p_nom?: string | null;
+          p_ville?: string | null;
+          p_adresse?: string | null;
+          p_responsable_nom?: string | null;
+          p_telephone_contact?: string | null;
+          p_annee_scolaire?: string | null;
+          p_mois_debut?: number | null;
+          p_nb_mensualites?: number | null;
+          p_jour_echeance?: number | null;
+          p_tranches_dernier_mois?: boolean;
+          p_mois_debut_tranches?: number | null;
+          p_nb_tranches?: number | null;
+          p_rang_mois_tranches?: number;
+          p_premier_mois_a_linscription?: boolean;
+          p_dernier_mois_a_linscription?: boolean;
+        };
+        Returns: Json;
+      };
     };
     Enums: { [_ in never]: never };
     CompositeTypes: { [_ in never]: never };
