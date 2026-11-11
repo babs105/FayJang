@@ -113,6 +113,8 @@ texte = [
     ("• « Début des options » : mois où l'élève a commencé ses services mensuels (ex : 01/2027 ou janvier).", None),
     ("  Vide : le service est dû depuis la rentrée s'il a reçu de l'argent, sinon à partir du mois de l'import.", None),
     ("  Un service commencé un autre mois que les autres : « Transport ; Cantine (03/2027) ».", None),
+    ("  Un service arrêté : début et fin entre parenthèses, « Transport (11/2026-01/2027) » ou « Transport (novembre à janvier) ».", None),
+    ("  Arrêté puis repris : une fois par période, « Transport (11/2026-12/2026) ; Transport (02/2027) ». Les mois d'arrêt ne sont pas dus.", None),
     ("• Statut « abandon » ou « transfert » : « Date de départ » obligatoire, pas dans le futur. Vide = élève actif.", None),
     ("• « Matricule ancien » : unique dans l'école ; il évite qu'un élève soit importé deux fois.", None),
     ("• Un élève déjà présent dans FayJàng est ignoré et signalé : rien n'est modifié.", None),
@@ -216,7 +218,7 @@ cols = [
     ("Nom du parent", 18, "Parent ou tuteur."),
     ("Téléphone du parent", 17, "Ex : 77 123 45 67. Même numéro = même parent (frères et sœurs)."),
     ("Total versé (scolarité)", 16, "Tout ce qui a été payé cette année en inscription et mensualités. Vide = rien."),
-    ("Articles optionnels", 26, "Options prises par l'élève, séparées par « ; » (ex : Transport ; Cantine)."),
+    ("Articles optionnels", 26, "Options séparées par « ; » (ex : Transport ; Cantine). Période d'un service : Transport (11/2026-01/2027). Repris : Transport (11/2026-12/2026) ; Transport (02/2027)."),
     ("Début des options", 13, "Mois où l'élève a commencé ses services mensuels (ex : 01/2027). Vide = depuis la rentrée s'il a payé, sinon mois de l'import."),
     ("Total versé (articles)", 15, "Tout ce qui a été payé en articles et services. Vide = rien."),
     ("Réduction mensuelle", 13, "Remise en FCFA sur chaque mensualité. Vide = 0."),
@@ -289,6 +291,9 @@ cas = [
     ("Bineta Sy", "Transport pris en cours d'année : « Début des options » = 11/2026.",
      "Scolarité 55 000 : inscription + octobre + novembre. Articles 21 000 : tenue ×2 16 000, transport de novembre 5 000 (octobre non dû). "
      "Arriéré : 0. Sans la colonne, le transport aurait été rangé sur octobre et novembre aurait paru impayé."),
+    ("Arrêt et reprise", "Transport (5 000 F) pris de novembre à décembre, arrêté en janvier, repris de février à mars, arrêté en avril, repris en mai. "
+     "« Articles optionnels » = Transport (11/2026-12/2026) ; Transport (02/2027-03/2027) ; Transport (05/2027). Import le 15 juin, 20 000 versés en articles.",
+     "Les 20 000 paient novembre, décembre, février et mars. Janvier et avril ne sont jamais dus. Arriéré transport : mai et juin = 10 000."),
     ("Réglage : juin à l'inscription + mai par tranches", "Même total que d'autres élèves, mais l'école exige juin à l'inscription et paie mai (avant-dernier mois) en 3 tranches dues le 5 janvier, février et mars. Élève de CM2 A.",
      "62 000 : inscription 25 000, juin 15 000, octobre 15 000, novembre 7 000 → arriéré 8 000 (novembre). "
      "130 000 : inscription, juin, octobre à janvier, tranche 1 de mai 5 000, février, tranche 2 de mai 5 000, mars 5 000 sur 15 000 → mai « Tranches 1 à 2/3 » payé 10 000, mars partiel, arriéré 0."),

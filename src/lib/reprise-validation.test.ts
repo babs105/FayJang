@@ -4,6 +4,7 @@ import {
   analyserReprise,
   dateCellule,
   lireOption,
+  lirePeriode,
   moisCellule,
   separerDebut,
   montantCellule,
@@ -190,12 +191,12 @@ describe("analyserReprise", () => {
       ),
       CTX
     );
-    expect(a.eleves[0].options).toEqual([{ libelle: "Transport", quantite: null, debut: null }, { libelle: "Tenue", quantite: 3, debut: null }]);
+    expect(a.eleves[0].options).toEqual([{ libelle: "Transport", quantite: null, debut: null, fin: null }, { libelle: "Tenue", quantite: 3, debut: null, fin: null }]);
     expect(a.eleves[0].etat).toBe("a_creer");
-    expect(a.eleves[1].options).toEqual([{ libelle: "Pack x3", quantite: null, debut: null }]);
+    expect(a.eleves[1].options).toEqual([{ libelle: "Pack x3", quantite: null, debut: null, fin: null }]);
     expect(a.eleves[2].erreurs[0]).toContain("un service mensuel n'a pas de quantité");
     expect(a.eleves[3].erreurs[0]).toContain("Article « Cantine » absent du catalogue de CM2 A");
-    expect(a.eleves[4].erreurs[0]).toContain("cité deux fois");
+    expect(a.eleves[4].erreurs[0]).toContain("cité plusieurs fois : donnez sa période");
     expect(a.eleves[5].erreurs[0]).toContain("quantité de 1 à 99");
   });
 
@@ -250,7 +251,7 @@ describe("analyserReprise", () => {
     );
     expect(a.classes[0].etat).toBe("existante");
     expect(a.articles[0].etat).toBe("ignore");
-    expect(a.eleves[0]).toMatchObject({ etat: "a_creer", classe: "CM2 A", options: [{ libelle: "Cantine", quantite: null, debut: null }] });
+    expect(a.eleves[0]).toMatchObject({ etat: "a_creer", classe: "CM2 A", options: [{ libelle: "Cantine", quantite: null, debut: null, fin: null }] });
     expect(a.avertissements.join(" ")).toContain("ne sera pas modifiée");
   });
 
@@ -426,9 +427,9 @@ describe("analyserReprise : début des options", () => {
     const a = analyser([avecDebut({ options: "Transport ; Cantine ; Tenue x3", art: 46000 }, "11/2026")]);
     expect(a.eleves[0].erreurs).toEqual([]);
     expect(a.eleves[0].options).toEqual([
-      { libelle: "Transport", quantite: null, debut: "2026-11-01" },
-      { libelle: "Cantine", quantite: null, debut: "2026-11-01" },
-      { libelle: "Tenue", quantite: 3, debut: null },
+      { libelle: "Transport", quantite: null, debut: "2026-11-01", fin: null },
+      { libelle: "Cantine", quantite: null, debut: "2026-11-01", fin: null },
+      { libelle: "Tenue", quantite: 3, debut: null, fin: null },
     ]);
   });
 
@@ -439,7 +440,7 @@ describe("analyserReprise : début des options", () => {
 
   it("garde un libellé de catalogue qui contient des parenthèses", () => {
     const a = analyser([avecDebut({ options: "Bus (matin)" }, null)]);
-    expect(a.eleves[0].options).toEqual([{ libelle: "Bus (matin)", quantite: null, debut: null }]);
+    expect(a.eleves[0].options).toEqual([{ libelle: "Bus (matin)", quantite: null, debut: null, fin: null }]);
   });
 
   it("refuse un mois hors de l'année, après l'import ou après le départ", () => {
@@ -484,5 +485,77 @@ describe("analyserReprise : bornes de calcul (review sécurité T2)", () => {
     expect(typeof a.eleves[0].sexe).not.toBe("function");
     expect(typeof a.eleves[0].statut).not.toBe("function");
     expect(moisCellule("constructor", ["2026-10-01"])).toBe("invalide");
+  });
+});
+
+describe("lirePeriode", () => {
+  const ANNEE = ["2026-10-01", "2026-11-01", "2026-12-01", "2027-01-01", "2027-02-01", "2027-03-01", "2027-04-01", "2027-05-01", "2027-06-01"];
+  it("lit un mois seul, une période fermée et une période ouverte", () => {
+    expect(lirePeriode("11/2026", ANNEE)).toEqual({ debut: "2026-11-01", fin: null });
+    expect(lirePeriode("11/2026-01/2027", ANNEE)).toEqual({ debut: "2026-11-01", fin: "2027-01-01" });
+    expect(lirePeriode("11/2026 - 01/2027", ANNEE)).toEqual({ debut: "2026-11-01", fin: "2027-01-01" });
+    expect(lirePeriode("novembre à janvier", ANNEE)).toEqual({ debut: "2026-11-01", fin: "2027-01-01" });
+    expect(lirePeriode("nov-janv", ANNEE)).toEqual({ debut: "2026-11-01", fin: "2027-01-01" });
+    expect(lirePeriode("2026-11-2027-01", ANNEE)).toEqual({ debut: "2026-11-01", fin: "2027-01-01" });
+    expect(lirePeriode("05/2027-", ANNEE)).toEqual({ debut: "2027-05-01", fin: null });
+  });
+  it("refuse ce qui n'est pas une période", () => {
+    expect(lirePeriode("matin", ANNEE)).toBe("invalide");
+    expect(lirePeriode("11/2026-matin", ANNEE)).toBe("invalide");
+  });
+});
+
+describe("analyserReprise : arrêt et reprise d'un service", () => {
+  const CATALOGUE: Cellule[][] = [
+    ["CM2 A", "Tenue", "unique", 8000, 1, "non"],
+    ["CM2 A", "Transport", "mensuel", 5000, 1, "non"],
+  ];
+  // Import le 15 juin : novembre-décembre, arrêt en janvier, février-mars, arrêt en avril, reprise en mai
+  const JUIN: ContexteReprise = { ...CTX, aujourdhui: "2027-06-15" };
+  const analyser = (options: string, art: number | null, ctx = JUIN) =>
+    analyserReprise(classeur([eleve({ options, art, scol: 0 })], { articles: CATALOGUE }), ctx).eleves[0];
+
+  it("lit plusieurs périodes et range l'argent période après période", () => {
+    const e = analyser("Transport (11/2026-12/2026) ; Transport (02/2027-03/2027) ; Transport (05/2027)", 20000);
+    expect(e.erreurs).toEqual([]);
+    expect(e.options.map((o) => [o.debut, o.fin])).toEqual([
+      ["2026-11-01", "2026-12-01"], ["2027-02-01", "2027-03-01"], ["2027-05-01", null],
+    ]);
+    const transport = e.repartition!.paiements.filter((p) => p.article === "Transport").map((p) => p.mois);
+    expect(transport).toEqual(["2026-11-01", "2026-12-01", "2027-02-01", "2027-03-01"]);
+    expect(e.repartition!.articles.map((a) => [a.moisDebut, a.moisFin])).toEqual([
+      ["2026-11-01", "2026-12-01"], ["2027-02-01", "2027-03-01"], ["2027-05-01", null],
+    ]);
+    // Paiements rattachés à la bonne période
+    expect(e.repartition!.paiements.filter((p) => p.article === "Transport").map((p) => p.articleIndex)).toEqual([0, 0, 1, 1]);
+  });
+
+  it("un service arrêté ne compte plus rien après sa fin", () => {
+    const e = analyser("Transport (11/2026-01/2027)", 15000, { ...CTX, aujourdhui: "2027-03-11" });
+    expect(e.erreurs).toEqual([]);
+    expect(e.repartition!.articles[0]).toMatchObject({ moisDebut: "2026-11-01", moisFin: "2027-01-01" });
+  });
+
+  it("refuse des périodes qui se chevauchent ou une période ouverte avant une autre", () => {
+    expect(analyser("Transport (11/2026-02/2027) ; Transport (02/2027)", null).erreurs.join(" ")).toContain("se chevauchent");
+    expect(analyser("Transport (11/2026) ; Transport (02/2027)", null).erreurs.join(" ")).toContain("se chevauchent");
+  });
+
+  it("exige une période à chaque citation d'un service repris", () => {
+    expect(analyser("Transport ; Transport (02/2027)", null).erreurs.join(" ")).toContain("donnez sa période");
+  });
+
+  it("refuse une fin avant le début, après l'import ou après le départ", () => {
+    expect(analyser("Transport (03/2027-01/2027)", null).erreurs.join(" ")).toContain("la fin est avant le début");
+    expect(analyser("Transport (10/2026-01/2027)", null, CTX).erreurs.join(" ")).toContain("après le mois de l'import");
+    const parti = analyserReprise(
+      classeur([eleve({ options: "Transport (10/2026-12/2026)", statut: "abandon", depart: "05/11/2026", scol: 0 })], { articles: CATALOGUE }),
+      JUIN
+    ).eleves[0];
+    expect(parti.erreurs.join(" ")).toContain("la fin est après le départ");
+  });
+
+  it("garde le refus d'un frais unique cité deux fois", () => {
+    expect(analyser("Tenue ; Tenue", null).erreurs.join(" ")).toContain("cité deux fois");
   });
 });

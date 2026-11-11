@@ -60,3 +60,10 @@ export function formatDate(date: string): string {
     new Date(`${date.slice(0, 10)}T12:00:00Z`)
   );
 }
+
+/** « novembre 2026 à janvier 2027 », « en octobre 2026 » (un seul mois), ou « dès novembre 2026 » (en cours) */
+export function formatPeriode(p: { debut: string | null; fin: string | null }): string {
+  if (!p.debut) return "";
+  if (!p.fin) return `dès ${formatMois(p.debut)}`;
+  return p.fin === p.debut ? `en ${formatMois(p.debut)}` : `de ${formatMois(p.debut)} à ${formatMois(p.fin)}`;
+}

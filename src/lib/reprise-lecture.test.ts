@@ -134,9 +134,9 @@ describe("lireClasseur", () => {
     for (const e of apercu.eleves) expect(e.erreurs).toEqual(["Ligne d'exemple du modèle : effacez-la avant l'import."]);
     const cheikh = apercu.eleves.find((e) => e.prenom === "Cheikh")!;
     expect(cheikh.options).toEqual([
-      { libelle: "Transport", quantite: null, debut: null },
-      { libelle: "Étude du soir", quantite: null, debut: null },
-      { libelle: "Tenue", quantite: 3, debut: null },
+      { libelle: "Transport", quantite: null, debut: null, fin: null },
+      { libelle: "Étude du soir", quantite: null, debut: null, fin: null },
+      { libelle: "Tenue", quantite: 3, debut: null, fin: null },
     ]);
     expect(apercu.eleves.find((e) => e.prenom === "Fatou")).toMatchObject({ statut: "abandon", dateDepart: "2026-11-05" });
   });

@@ -1,6 +1,6 @@
 // Reprise de l'existant : contrôle de forme du fichier (classes, articles, élèves), puis chiffrage de chaque élève
 // (reprise-repartition.ts). Produit l'aperçu ligne par ligne affiché à l'école avant tout import. N'écrit rien.
-import { moisScolaires } from "@/lib/dates";
+import { formatPeriode, moisScolaires } from "@/lib/dates";
 import { normaliserTelephone } from "@/lib/telephone";
 import type { Cellule, ClasseurBrut, FeuilleBrute } from "@/lib/reprise-lecture";
 import { COLONNES_REQUISES, normaliser, reconnaitreEntetes, typeFeuille, type TypeFeuille } from "@/lib/reprise-colonnes";
@@ -119,6 +119,26 @@ export function lireOption(brut: string): { libelle: string; quantite: number | 
 }
 
 /** « Cantine (03/2027) » → { reste: "Cantine", debut: "03/2027" } ; sans parenthèse finale : debut null */
+/**
+ * Période d'un service : « 11/2026 » (en cours), « 11/2026-01/2027 », « novembre à janvier », « 05/2027- ».
+ * fin null = toujours en cours. Chaque côté est lu par moisCellule.
+ */
+export function lirePeriode(texte: string, moisAnnee: string[]): { debut: string; fin: string | null } | "invalide" {
+  const s = texte.trim();
+  const seul = moisCellule(s, moisAnnee);
+  if (seul !== null && seul !== "invalide") return { debut: seul, fin: null };
+  // « 2026-11-2027-01 » contient plusieurs tirets : chaque séparateur est essayé jusqu'à deux côtés lisibles
+  for (const m of s.matchAll(/\s*[-–—→]\s*|\s+(?:a|à|au|jusqu'?a|jusqu'?à|jusqu’à)\s+/gi)) {
+    const debut = moisCellule(s.slice(0, m.index), moisAnnee);
+    if (debut === null || debut === "invalide") continue;
+    const droite = s.slice(m.index! + m[0].length).trim();
+    if (!droite) return { debut, fin: null };
+    const fin = moisCellule(droite, moisAnnee);
+    if (fin !== null && fin !== "invalide") return { debut, fin };
+  }
+  return "invalide";
+}
+
 export function separerDebut(brut: string): { reste: string; debut: string | null } {
   const m = /^(.*?)\s*\(([^()]*)\)\s*$/.exec(brut.trim());
   if (m && m[1].trim()) return { reste: m[1].trim(), debut: m[2].trim() };
@@ -219,6 +239,8 @@ export interface OptionEleve {
   quantite: number | null;
   /** Service mensuel : premier mois dû (AAAA-MM-01) donné par le fichier ; null = règle par défaut */
   debut: string | null;
+  /** Service mensuel : dernier mois dû si le service s'est arrêté ; null = en cours (ou jusqu'au départ) */
+  fin: string | null;
 }
 
 export interface EleveApercu {
@@ -604,12 +626,29 @@ export function analyserReprise(classeur: ClasseurBrut, ctx: ContexteReprise): A
         return null;
       };
       const debutColonne = lireDebut(cellule("debutOptions"), "Début des options");
+      const lirePeriodeOption = (texte: string, origine: string): { debut: string; fin: string | null } | null => {
+        const p = lirePeriode(texte, moisAnnee);
+        if (p === "invalide") {
+          erreurs.push(`${origine} : période illisible (ex : 11/2026, 11/2026-01/2027 ou novembre à janvier).`);
+          return null;
+        }
+        const debut = lireDebut(p.debut, origine);
+        if (!debut) return null;
+        if (p.fin === null) return { debut, fin: null };
+        if (!moisAnnee.includes(p.fin)) erreurs.push(`${origine} : la fin doit tomber dans l'année scolaire ${ctx.anneeScolaire}.`);
+        else if (p.fin < debut) erreurs.push(`${origine} : la fin est avant le début.`);
+        else if (p.fin > moisImport) erreurs.push(`${origine} : la fin ne peut pas être après le mois de l'import (un arrêt à venir se fait dans la fiche de l'élève).`);
+        else if (moisDepart && p.fin > moisDepart) erreurs.push(`${origine} : la fin est après le départ de l'élève.`);
+        else return { debut, fin: p.fin };
+        return null;
+      };
 
       // Articles optionnels (« Transport ; Cantine (03/2027) ; Tenue x3 »)
       const options: OptionEleve[] = [];
       const optionsBrutes = texteCellule(cellule("articlesOptionnels"), 300);
       if (optionsBrutes && catalogue) {
         const vus = new Set<string>();
+        const periodes = new Map<string, { libelle: string; propre: boolean }[]>();
         const pieces = optionsBrutes.split(";").map((s) => s.trim()).filter(Boolean);
         if (pieces.length > MAX_OPTIONS_ELEVE) erreurs.push(`Trop d'articles optionnels : ${MAX_OPTIONS_ELEVE} au maximum.`);
         for (const brut of pieces.slice(0, MAX_OPTIONS_ELEVE)) {
@@ -632,23 +671,26 @@ export function analyserReprise(classeur: ClasseurBrut, ctx: ContexteReprise): A
             article = chercher(catalogue, lu.libelle);
             quantite = lu.quantite;
           }
-          let debutOption: string | null = null;
+          let periode: { debut: string; fin: string | null } | null = null;
           if (article && debutPropre !== null) {
             if (article.nature !== "mensuel") {
               erreurs.push(`« ${brut} » : un frais unique n'a pas de mois de début.`);
               continue;
             }
-            debutOption = lireDebut(debutPropre, `« ${brut} »`);
+            periode = lirePeriodeOption(debutPropre, `« ${brut} »`);
+            if (!periode) continue;
           }
           if (!article) {
             erreurs.push(`Article « ${morceau} » absent du catalogue de ${catalogue.nom}.`);
             continue;
           }
-          if (vus.has(normaliser(article.libelle))) {
+          // Un service peut revenir plusieurs fois (arrêt puis reprise), chaque fois avec sa période ; un frais unique non
+          const cleArticle = normaliser(article.libelle);
+          if (vus.has(cleArticle) && article.nature === "unique") {
             erreurs.push(`Article « ${article.libelle} » cité deux fois.`);
             continue;
           }
-          vus.add(normaliser(article.libelle));
+          vus.add(cleArticle);
           if (quantite !== null && article.nature === "mensuel") {
             erreurs.push(`« ${morceau} » : un service mensuel n'a pas de quantité.`);
             continue;
@@ -657,14 +699,37 @@ export function analyserReprise(classeur: ClasseurBrut, ctx: ContexteReprise): A
             erreurs.push(`« ${morceau} » : quantité de 1 à 99.`);
             continue;
           }
-          if (article.obligatoire && quantite === null) {
+          if (article.obligatoire && quantite === null && !periode) {
             avert.push(`« ${article.libelle} » est obligatoire : il est ajouté d'office.`);
+          }
+          if (article.nature === "mensuel") {
+            const liste = periodes.get(cleArticle) ?? [];
+            liste.push({ libelle: article.libelle, propre: periode !== null });
+            periodes.set(cleArticle, liste);
           }
           options.push({
             libelle: article.libelle,
             quantite,
-            debut: article.nature === "mensuel" ? (debutOption ?? debutColonne) : null,
+            debut: article.nature === "mensuel" ? (periode?.debut ?? debutColonne) : null,
+            fin: article.nature === "mensuel" ? (periode?.fin ?? null) : null,
           });
+        }
+        // Service cité plusieurs fois : chaque citation porte sa période, sans chevauchement, seule la dernière ouverte
+        for (const [cle, liste] of periodes) {
+          if (liste.length < 2) continue;
+          const libelle = liste[0].libelle;
+          if (liste.some((x) => !x.propre)) {
+            erreurs.push(`« ${libelle} » cité plusieurs fois : donnez sa période à chaque fois, ex : « ${libelle} (11/2026-12/2026) ; ${libelle} (02/2027) ».`);
+            continue;
+          }
+          const tri = options.filter((o) => normaliser(o.libelle) === cle).sort((a, b) => (a.debut! < b.debut! ? -1 : 1));
+          for (let k = 1; k < tri.length; k++) {
+            const prec = tri[k - 1];
+            if (prec.fin === null || prec.fin >= tri[k].debut!) {
+              erreurs.push(`« ${libelle} » : les périodes se chevauchent (${formatPeriode(prec)} et ${formatPeriode(tri[k])}).`);
+              break;
+            }
+          }
         }
       }
       if (debutColonne && !options.some((o) => o.debut !== null)) {
