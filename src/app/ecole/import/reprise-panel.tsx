@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { AlertTriangle, CheckCircle2, Download, FileSpreadsheet, Loader2 } from "lucide-react";
 import { cn, formatFCFA } from "@/lib/utils";
-import { formatDate } from "@/lib/dates";
+import { formatDate, formatMois } from "@/lib/dates";
 import { LIBELLE_NIVEAU, LIBELLE_STATUT_INSCRIPTION } from "@/lib/libelles";
 import { Badge, Bouton, Carte, Kpi, Message } from "@/components/ui";
 import type { ApercuReprise, EleveApercu } from "@/lib/reprise-validation";
@@ -25,6 +25,9 @@ export function ReprisePanel() {
   const [message, setMessage] = useState<string | null>(null);
   const [filtre, setFiltre] = useState<Filtre>("tous");
   const [isPending, startTransition] = useTransition();
+  // Avant le chargement de React, un envoi partirait en GET classique (nom du fichier dans l'URL, rien d'analysé)
+  const [pret, setPret] = useState(false);
+  useEffect(() => setPret(true), []);
 
   function analyser(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -75,7 +78,7 @@ export function ReprisePanel() {
           >
             <Download className="w-4 h-4" /> Télécharger le modèle
           </a>
-          <form onSubmit={analyser} className="flex flex-col sm:flex-row gap-2 flex-1">
+          <form method="post" encType="multipart/form-data" onSubmit={analyser} className="flex flex-col sm:flex-row gap-2 flex-1">
             <label className="flex-1 flex items-center gap-2 px-3 py-2 rounded-xl border border-dashed border-neutral-300 bg-neutral-50 text-xs text-neutral-600 cursor-pointer hover:bg-neutral-100 min-w-0">
               <FileSpreadsheet className="w-4 h-4 shrink-0 text-jang-600" />
               <input
@@ -85,7 +88,7 @@ export function ReprisePanel() {
                 className="text-xs min-w-0 w-full file:mr-2 file:px-2 file:py-1 file:rounded-lg file:border-0 file:bg-white file:text-xs file:font-bold"
               />
             </label>
-            <Bouton type="submit" disabled={isPending}>
+            <Bouton type="submit" disabled={isPending || !pret}>
               {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
               {isPending ? "Vérification…" : "Vérifier le fichier"}
             </Bouton>
@@ -105,6 +108,16 @@ export function ReprisePanel() {
               <Kpi label="Déjà présents" valeur={String(apercu.compteurs.dejaPresents)} detail="ignorés" />
               <Kpi label="Lignes en erreur" valeur={String(apercu.compteurs.erreurs)} ton={apercu.compteurs.erreurs ? "rouge" : undefined} />
               <Kpi label="Classes à créer" valeur={String(apercu.compteurs.classesNouvelles)} />
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <Kpi
+                label="Arriéré total de l'école"
+                valeur={formatFCFA(apercu.totaux.arriere)}
+                detail="à comparer à votre cahier de caisse"
+                ton={apercu.totaux.arriere ? "rouge" : "vert"}
+              />
+              <Kpi label="Reste sur l'année" valeur={formatFCFA(apercu.totaux.resteAnnee)} detail="élèves à créer" />
+              <Kpi label="Déjà versé" valeur={formatFCFA(apercu.totaux.verse)} detail="élèves à créer" />
             </div>
             {apercu.erreursGlobales.length > 0 && (
               <Message ok={false}>
@@ -126,7 +139,7 @@ export function ReprisePanel() {
               </div>
             )}
             <p className="text-[11px] text-neutral-500">
-              Prochaine étape (bientôt) : le calcul, pour chaque élève, des mois payés, de l&apos;arriéré et du reste à payer, puis l&apos;import.
+              Les montants ci-dessous sont calculés comme FayJàng les affichera après l&apos;import. Prochaine étape (bientôt) : l&apos;import lui-même.
             </p>
           </Carte>
 
@@ -247,6 +260,9 @@ export function ReprisePanel() {
                       <th className="py-1.5 pr-3 font-bold">Parent</th>
                       <th className="py-1.5 pr-3 font-bold text-right">Versé scolarité</th>
                       <th className="py-1.5 pr-3 font-bold text-right">Versé articles</th>
+                      <th className="py-1.5 pr-3 font-bold">Paiements prévus</th>
+                      <th className="py-1.5 pr-3 font-bold text-right">Arriéré</th>
+                      <th className="py-1.5 pr-3 font-bold text-right">Reste sur l&apos;année</th>
                       <th className="py-1.5 font-bold">État</th>
                     </tr>
                   </thead>
@@ -266,7 +282,7 @@ export function ReprisePanel() {
                               e.matriculeAncien && `matricule ${e.matriculeAncien}`,
                               e.statut !== "active" && `${LIBELLE_STATUT_INSCRIPTION[e.statut]}${e.dateDepart ? ` le ${formatDate(e.dateDepart)}` : ""}`,
                               e.reduction && `réduction ${formatFCFA(e.reduction)}/mois`,
-                              e.options.length && `options : ${e.options.map((o) => (o.quantite ? `${o.libelle} ×${o.quantite}` : o.libelle)).join(", ")}`,
+                              e.options.length && `options : ${e.options.map((o) => (o.quantite ? `${o.libelle} ×${o.quantite}` : o.debut ? `${o.libelle} dès ${formatMois(o.debut)}` : o.libelle)).join(", ")}`,
                             ]
                               .filter(Boolean)
                               .join(" · ")}
@@ -279,6 +295,33 @@ export function ReprisePanel() {
                         </td>
                         <td className="py-1.5 pr-3 text-right whitespace-nowrap">{montant(e.totalScolarite)}</td>
                         <td className="py-1.5 pr-3 text-right whitespace-nowrap">{montant(e.totalArticles)}</td>
+                        <td className="py-1.5 pr-3 min-w-[170px]">
+                          {e.repartition ? (
+                            e.repartition.paiements.length === 0 ? (
+                              <span className="text-neutral-400">Aucun</span>
+                            ) : (
+                              <details>
+                                <summary className="cursor-pointer text-jang-700 font-bold">
+                                  {e.repartition.paiements.length} paiement{e.repartition.paiements.length > 1 ? "s" : ""}
+                                </summary>
+                                <ul className="mt-1 space-y-0.5 text-[11px] text-neutral-600">
+                                  {e.repartition.paiements.map((p, i) => (
+                                    <li key={i} className="flex justify-between gap-3">
+                                      <span>{p.libelle}</span>
+                                      <span className="whitespace-nowrap">{formatFCFA(p.montant)}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </details>
+                            )
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                        <td className={cn("py-1.5 pr-3 text-right whitespace-nowrap font-bold", e.repartition?.arriere ? "text-red-700" : "text-neutral-800")}>
+                          {montant(e.repartition?.arriere ?? null)}
+                        </td>
+                        <td className="py-1.5 pr-3 text-right whitespace-nowrap">{montant(e.repartition?.resteAnnee ?? null)}</td>
                         <td className="py-1.5 min-w-[180px]">
                           {e.etat === "erreur" ? <Erreurs liste={e.erreurs} /> : <Badge ton={ETAT_ELEVE[e.etat].ton}>{ETAT_ELEVE[e.etat].libelle}</Badge>}
                           {e.avertissements.map((a, i) => (

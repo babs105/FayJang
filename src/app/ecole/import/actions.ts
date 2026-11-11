@@ -33,7 +33,7 @@ async function toutLire<T>(
 }
 
 /**
- * Reprise de l'existant, étape 1 : lit le fichier de l'école et renvoie l'aperçu ligne par ligne.
+ * Reprise de l'existant, étapes 1 et 2 : lit le fichier de l'école et renvoie l'aperçu ligne par ligne, chaque élève chiffré.
  * Lecture seule : rien n'est écrit en base, le fichier n'est pas conservé.
  */
 export async function analyserFichierReprise(formData: FormData): Promise<Resultat<ApercuReprise>> {
@@ -61,9 +61,9 @@ export async function analyserFichierReprise(formData: FormData): Promise<Result
 
     const annee = ecole.annee_scolaire;
     const [classes, catalogue, inscriptions] = await Promise.all([
-      toutLire((a, b) => supabase.from("classes").select("id, nom").eq("ecole_id", ecoleId).eq("annee_scolaire", annee).order("id").range(a, b)),
+      toutLire((a, b) => supabase.from("classes").select("id, nom, frais_inscription, mensualite, mensualite_dernier_mois").eq("ecole_id", ecoleId).eq("annee_scolaire", annee).order("id").range(a, b)),
       toutLire((a, b) =>
-        supabase.from("articles_classe").select("classe_id, libelle, nature, obligatoire").eq("ecole_id", ecoleId).order("ordre").order("id").range(a, b)
+        supabase.from("articles_classe").select("classe_id, libelle, nature, obligatoire, prix_unitaire, quantite_defaut").eq("ecole_id", ecoleId).order("ordre").order("id").range(a, b)
       ),
       toutLire((a, b) => supabase.from("inscriptions").select("eleve_id").eq("ecole_id", ecoleId).eq("annee_scolaire", annee).order("id").range(a, b)),
     ]);
@@ -90,11 +90,15 @@ export async function analyserFichierReprise(formData: FormData): Promise<Result
       anneeScolaire: annee,
       aujourdhui: todayDakar(),
       premierMois: mois[0],
+      calendrier: ecole,
       classes: classes.map((c) => ({
         nom: c.nom,
+        frais: c.frais_inscription,
+        mensualite: c.mensualite,
+        dernierMois: c.mensualite_dernier_mois,
         articles: catalogue
           .filter((a) => a.classe_id === c.id)
-          .map((a) => ({ libelle: a.libelle, nature: a.nature, obligatoire: a.obligatoire })),
+          .map((a) => ({ libelle: a.libelle, nature: a.nature, obligatoire: a.obligatoire, prix: a.prix_unitaire, quantiteDefaut: a.quantite_defaut })),
       })),
       eleves: presents,
     });

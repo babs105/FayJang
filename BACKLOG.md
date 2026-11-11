@@ -137,7 +137,34 @@
 - [ ] **`toutLire` tronque en silence au-delà de ~22 000 lignes** (S7) — acceptable pour l'aperçu, pas pour l'écriture :
   une liste incomplète fausserait la détection des doublons. Correctif : lever une erreur au-delà du plafond et
   s'appuyer sur une contrainte d'unicité en base. *Estimé : 30 min. Croise : tranche 5 de l'import.*
-  (review security tranche 1 « reprise de l'existant », 2026-11-11)
+  (review security tranche 1 « reprise de l'existant », 2026-11-11 ; relevé aussi par les deux reviews de la tranche 2)
+
+- [ ] **Service mensuel d'un élève parti sans aucun versement : règle à trancher** (M-A) — `repartirReprise`
+  (`src/lib/reprise-repartition.ts`) : un service obligatoire devient dû pour le mois du départ (ex. 10 000 F de
+  transport jamais encaissé), un service optionnel est écarté avec le message erroné « demandé après le départ ».
+  Un élève actif, lui, ne doit rien des mois passés. Option 1 (recommandée, « on paie d'abord ») : ne rien rattacher
+  et avertir ; option 2 : garder et reformuler le message. *Estimé : 30 min. Croise : tranche 5 (écriture).*
+  (review database tranche 2 « reprise de l'existant », 2026-11-11)
+
+- [ ] **Article unique de quantité 0 rattaché à l'inscription** (M-B) — `repartirReprise` produit un article prévu à
+  `quantite: 0` (obligatoire à `quantite_defaut` 0, ou optionnel choisi sans quantité) : ligne à 0 F alors que
+  `inscrire_eleve` l'ignore. Correctif : écarter dans `retenus` les uniques de quantité < 1. *Estimé : 15 min.
+  Croise : tranche 5.* (review database tranche 2 « reprise de l'existant », 2026-11-11)
+
+- [ ] **Début de service hors de l'année pour un import après le dernier mois** (M-C) — un service sans argent
+  reçoit `moisDebut` = mois de l'import, au-delà du dernier mois de l'année : sans effet sur le calcul, mais écrit
+  tel quel en tranche 5. Correctif : plafonner au dernier mois ou ne pas rattacher. *Estimé : 15 min. Croise :
+  tranche 5 (`articles_inscription.mois_debut`).* (review database tranche 2 « reprise de l'existant », 2026-11-11)
+
+- [ ] **`bodySizeLimit: "3mb"` vaut pour toutes les Server Actions** — `next.config.ts` : Next 15 n'a pas de réglage
+  par action, le corps (3 Mo au lieu de 1) est mis en mémoire avant le contrôle de session. Risque faible, accepté
+  pour l'import (2 Mo + enveloppe multipart). À revoir si Next permet une limite par route, ou passer l'envoi par une
+  route dédiée. *Estimé : 1 h.* (review security tranche 2 « reprise de l'existant », 2026-11-11)
+
+- [ ] **`formatMois` recrée un `Intl.DateTimeFormat` à chaque appel** — `src/lib/dates.ts` ; `situationInscription`
+  l'appelle pour chaque libellé d'article. Un aperçu de 2000 élèves paie ce coût, et la suite de tests de parité de la
+  reprise prend ~30 s. Correctif : formateur créé une fois au niveau du module. *Estimé : 15 min. Croise : prochaine
+  tranche qui touche `dates.ts`.* (tranche 2 « reprise de l'existant », 2026-11-11)
 
 
 ---

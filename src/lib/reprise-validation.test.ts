@@ -4,6 +4,8 @@ import {
   analyserReprise,
   dateCellule,
   lireOption,
+  moisCellule,
+  separerDebut,
   montantCellule,
   ressembleAUneFormule,
   telephoneCellule,
@@ -14,6 +16,7 @@ const CTX: ContexteReprise = {
   anneeScolaire: "2026-2027",
   aujourdhui: "2026-11-11",
   premierMois: "2026-10-01",
+  calendrier: { mois_debut: 10, nb_mensualites: 9, jour_echeance: 5 },
   classes: [],
   eleves: [],
 };
@@ -187,9 +190,9 @@ describe("analyserReprise", () => {
       ),
       CTX
     );
-    expect(a.eleves[0].options).toEqual([{ libelle: "Transport", quantite: null }, { libelle: "Tenue", quantite: 3 }]);
+    expect(a.eleves[0].options).toEqual([{ libelle: "Transport", quantite: null, debut: null }, { libelle: "Tenue", quantite: 3, debut: null }]);
     expect(a.eleves[0].etat).toBe("a_creer");
-    expect(a.eleves[1].options).toEqual([{ libelle: "Pack x3", quantite: null }]);
+    expect(a.eleves[1].options).toEqual([{ libelle: "Pack x3", quantite: null, debut: null }]);
     expect(a.eleves[2].erreurs[0]).toContain("un service mensuel n'a pas de quantité");
     expect(a.eleves[3].erreurs[0]).toContain("Article « Cantine » absent du catalogue de CM2 A");
     expect(a.eleves[4].erreurs[0]).toContain("cité deux fois");
@@ -231,7 +234,12 @@ describe("analyserReprise", () => {
   it("garde une classe déjà en base sans la modifier, avec son catalogue", () => {
     const ctx: ContexteReprise = {
       ...CTX,
-      classes: [{ nom: "CM2 A", articles: [{ libelle: "Cantine", nature: "mensuel", obligatoire: false }] }],
+      classes: [
+        {
+          nom: "CM2 A", frais: 30000, mensualite: 15000, dernierMois: null,
+          articles: [{ libelle: "Cantine", nature: "mensuel", obligatoire: false, prix: 10000, quantiteDefaut: 1 }],
+        },
+      ],
     };
     const a = analyserReprise(
       classeur([eleve({ classe: "cm2 a", options: "Cantine" })], {
@@ -242,7 +250,7 @@ describe("analyserReprise", () => {
     );
     expect(a.classes[0].etat).toBe("existante");
     expect(a.articles[0].etat).toBe("ignore");
-    expect(a.eleves[0]).toMatchObject({ etat: "a_creer", classe: "CM2 A", options: [{ libelle: "Cantine", quantite: null }] });
+    expect(a.eleves[0]).toMatchObject({ etat: "a_creer", classe: "CM2 A", options: [{ libelle: "Cantine", quantite: null, debut: null }] });
     expect(a.avertissements.join(" ")).toContain("ne sera pas modifiée");
   });
 
@@ -305,5 +313,176 @@ describe("analyserReprise", () => {
     const c = classeur([eleve()]);
     c.feuilles[3].tronquee = true;
     expect(analyserReprise(c, CTX).erreursGlobales[0]).toContain("découpez le fichier");
+  });
+});
+
+describe("analyserReprise : chiffrage des élèves", () => {
+  const ARTICLES = [["CM2 A", "Cantine", "mensuel", 10000, 1, "non"]];
+
+  it("répartit le versé et totalise l'arriéré de l'école", () => {
+    // Frais 25 000, mensualité 15 000 ; 62 000 versés au 11/11/2026 : inscription, octobre, novembre, 7 000 sur décembre
+    const a = analyserReprise(classeur([eleve({ scol: 62000 }), eleve({ prenom: "Modou", tel: "70 111 22 34", scol: 25000 })]), CTX);
+    expect(a.eleves[0].repartition).toMatchObject({ arriere: 0, resteAnnee: 98000, totalPaye: 62000 });
+    expect(a.eleves[0].repartition?.paiements.map((p) => p.montant)).toEqual([25000, 15000, 15000, 7000]);
+    // Le second ne doit que octobre et novembre
+    expect(a.eleves[1].repartition).toMatchObject({ arriere: 30000, resteAnnee: 135000 });
+    expect(a.totaux).toEqual({ arriere: 30000, resteAnnee: 233000, verse: 87000 });
+  });
+
+  it("refuse un versé supérieur au dû de l'année", () => {
+    const a = analyserReprise(classeur([eleve({ scol: 170000 })]), CTX);
+    expect(a.eleves[0].etat).toBe("erreur");
+    expect(a.eleves[0].erreurs.join(" ")).toContain("dépasse");
+    expect(a.eleves[0].repartition).toBeNull();
+    expect(a.totaux.arriere).toBe(0);
+  });
+
+  it("signale un élève parti qui a trop versé", () => {
+    const a = analyserReprise(classeur([eleve({ scol: 60000, statut: "abandon", depart: "05/11/2026" })]), CTX);
+    expect(a.eleves[0].etat).toBe("a_creer");
+    expect(a.eleves[0].avertissements.join(" ")).toContain("versés après le départ");
+  });
+
+  it("classe déjà en base : des tarifs différents dans le fichier refusent ses élèves", () => {
+    const ctx: ContexteReprise = { ...CTX, classes: [{ nom: "CM2 A", frais: 30000, mensualite: 15000, dernierMois: null, articles: [] }] };
+    const a = analyserReprise(classeur([eleve()], { classes: [["CM2 A", "elementaire", 25000, 15000, null]] }), ctx);
+    expect(a.eleves[0].etat).toBe("erreur");
+    expect(a.eleves[0].erreurs).toContain("Les tarifs du fichier diffèrent de la classe CM2 A de FayJàng : corrigez le fichier ou la classe.");
+  });
+
+  it("classe déjà en base : ses tarifs servent au calcul quand le fichier est identique ou muet", () => {
+    const ctx: ContexteReprise = { ...CTX, classes: [{ nom: "CM2 A", frais: 30000, mensualite: 15000, dernierMois: null, articles: [] }] };
+    const a = analyserReprise(classeur([eleve({ scol: 30000 })], { classes: [["CM2 A", "elementaire", null, null, null]] }), ctx);
+    expect(a.eleves[0].etat).toBe("a_creer");
+    expect(a.eleves[0].repartition?.paiements[0]).toMatchObject({ type: "inscription", montant: 30000 });
+  });
+
+  it("classe nouvelle : le catalogue du fichier (prix, quantité) entre dans le calcul", () => {
+    const a = analyserReprise(
+      classeur([eleve({ scol: null, art: 20000, options: "Cantine" })], { articles: ARTICLES }),
+      CTX
+    );
+    expect(a.eleves[0].etat).toBe("a_creer");
+    expect(a.eleves[0].repartition?.paiements.map((p) => [p.article, p.mois, p.montant])).toEqual([
+      ["Cantine", "2026-10-01", 10000],
+      ["Cantine", "2026-11-01", 10000],
+    ]);
+    // Cantine due pour octobre et novembre, soldée : plus d'arriéré sur l'article, mais l'inscription et les mois restent dus
+    expect(a.eleves[0].repartition?.arriere).toBe(25000 + 30000);
+  });
+
+  it("ne chiffre pas un élève déjà présent", () => {
+    const ctx: ContexteReprise = { ...CTX, eleves: [{ prenom: "Aminata", nom: "Faye", telephone: "+221774005060" }] };
+    const a = analyserReprise(classeur([eleve()]), ctx);
+    expect(a.eleves[0].etat).toBe("deja_present");
+    expect(a.eleves[0].repartition).toBeNull();
+  });
+});
+
+describe("moisCellule", () => {
+  const ANNEE = ["2026-10-01", "2026-11-01", "2026-12-01", "2027-01-01", "2027-02-01", "2027-03-01", "2027-04-01", "2027-05-01", "2027-06-01"];
+  it("lit les écritures courantes d'un mois", () => {
+    expect(moisCellule("01/2027", ANNEE)).toBe("2027-01-01");
+    expect(moisCellule("1/2027", ANNEE)).toBe("2027-01-01");
+    expect(moisCellule("2027-01", ANNEE)).toBe("2027-01-01");
+    expect(moisCellule("janvier", ANNEE)).toBe("2027-01-01");
+    expect(moisCellule("Novembre", ANNEE)).toBe("2026-11-01");
+    expect(moisCellule("janv. 2027", ANNEE)).toBe("2027-01-01");
+    expect(moisCellule("Décembre 2026", ANNEE)).toBe("2026-12-01");
+    expect(moisCellule("15/01/2027", ANNEE)).toBe("2027-01-01");
+    expect(moisCellule(new Date(Date.UTC(2027, 0, 1)), ANNEE)).toBe("2027-01-01");
+    expect(moisCellule(null, ANNEE)).toBeNull();
+  });
+  it("refuse ce qui n'est pas un mois", () => {
+    expect(moisCellule("13/2027", ANNEE)).toBe("invalide");
+    expect(moisCellule("bientôt", ANNEE)).toBe("invalide");
+    expect(moisCellule("août", ANNEE)).toBe("invalide");
+  });
+});
+
+describe("separerDebut", () => {
+  it("détache le mois entre parenthèses en fin d'option", () => {
+    expect(separerDebut("Cantine (03/2027)")).toEqual({ reste: "Cantine", debut: "03/2027" });
+    expect(separerDebut("Transport")).toEqual({ reste: "Transport", debut: null });
+  });
+});
+
+describe("analyserReprise : début des options", () => {
+  const CATALOGUE: Cellule[][] = [
+    ["CM2 A", "Tenue", "unique", 8000, 2, "oui"],
+    ["CM2 A", "Transport", "mensuel", 5000, 1, "non"],
+    ["CM2 A", "Cantine", "mensuel", 10000, 1, "non"],
+    ["CM2 A", "Bus (matin)", "mensuel", 2000, 1, "non"],
+  ];
+  const ENTETES = [...ENTETES_ELEVES, "Début des options"];
+  const avecDebut = (modifs: Partial<Record<string, Cellule>>, debut: Cellule): Cellule[] => [...eleve(modifs), debut];
+  const analyser = (lignes: Cellule[][]) => {
+    const c = classeur([], { articles: CATALOGUE });
+    c.feuilles[3].lignes = [ENTETES, ...lignes];
+    return analyserReprise(c, CTX);
+  };
+
+  it("applique la colonne aux services mensuels choisis, pas aux frais uniques", () => {
+    const a = analyser([avecDebut({ options: "Transport ; Cantine ; Tenue x3", art: 46000 }, "11/2026")]);
+    expect(a.eleves[0].erreurs).toEqual([]);
+    expect(a.eleves[0].options).toEqual([
+      { libelle: "Transport", quantite: null, debut: "2026-11-01" },
+      { libelle: "Cantine", quantite: null, debut: "2026-11-01" },
+      { libelle: "Tenue", quantite: 3, debut: null },
+    ]);
+  });
+
+  it("laisse un service préciser son propre mois", () => {
+    const a = analyser([avecDebut({ options: "Transport ; Cantine (novembre)" }, "10/2026")]);
+    expect(a.eleves[0].options.map((o) => o.debut)).toEqual(["2026-10-01", "2026-11-01"]);
+  });
+
+  it("garde un libellé de catalogue qui contient des parenthèses", () => {
+    const a = analyser([avecDebut({ options: "Bus (matin)" }, null)]);
+    expect(a.eleves[0].options).toEqual([{ libelle: "Bus (matin)", quantite: null, debut: null }]);
+  });
+
+  it("refuse un mois hors de l'année, après l'import ou après le départ", () => {
+    const a = analyser([
+      avecDebut({ options: "Transport" }, "08/2026"),
+      avecDebut({ prenom: "B", options: "Transport" }, "01/2027"),
+      avecDebut({ prenom: "C", options: "Transport", statut: "abandon", depart: "31/10/2026" }, "11/2026"),
+      avecDebut({ prenom: "D", options: "Transport" }, "plus tard"),
+      avecDebut({ prenom: "E", options: "Tenue (11/2026)" }, null),
+    ]);
+    expect(a.eleves[0].erreurs[0]).toContain("dans l'année scolaire");
+    expect(a.eleves[1].erreurs[0]).toContain("après le mois de l'import");
+    expect(a.eleves[2].erreurs[0]).toContain("après le départ");
+    expect(a.eleves[3].erreurs[0]).toContain("mois illisible");
+    expect(a.eleves[4].erreurs[0]).toContain("un frais unique n'a pas de mois de début");
+  });
+
+  it("avertit quand la colonne est remplie sans service mensuel", () => {
+    const a = analyser([avecDebut({ options: null }, "11/2026")]);
+    expect(a.eleves[0].avertissements.join(" ")).toContain("« Début des options » ignoré");
+  });
+});
+
+describe("analyserReprise : bornes de calcul (review sécurité T2)", () => {
+  it("refuse plus de 20 articles optionnels et plafonne les erreurs d'une ligne", () => {
+    const options = Array.from({ length: 150 }, () => "a").join(";");
+    const a = analyserReprise(classeur([eleve({ options })], { articles: [["CM2 A", "Transport", "mensuel", 5000, 1, "non"]] }), CTX);
+    expect(a.eleves[0].etat).toBe("erreur");
+    expect(a.eleves[0].erreurs[0]).toContain("20 au maximum");
+    expect(a.eleves[0].erreurs.length).toBeLessThanOrEqual(5);
+  });
+
+  it("n'agrandit plus le catalogue d'une classe au-delà du plafond", () => {
+    const articles: Cellule[][] = Array.from({ length: 200 }, (_, i) => ["CM2 A", `Article ${i}`, "unique", 1000, 1, "non"]);
+    const a = analyserReprise(classeur([eleve({ options: "Article 150" })], { articles }), CTX);
+    expect(a.erreursGlobales.join(" ")).toContain("30 articles au maximum");
+    expect(a.eleves[0].erreurs.join(" ")).toContain("absent du catalogue");
+  });
+
+  it("ne confond pas « constructor » avec une valeur connue", () => {
+    const a = analyserReprise(classeur([eleve({ sexe: "constructor", statut: "constructor" })]), CTX);
+    expect(typeof a.eleves[0].sexe).not.toBe("function");
+    expect(typeof a.eleves[0].statut).not.toBe("function");
+    expect(moisCellule("constructor", ["2026-10-01"])).toBe("invalide");
   });
 });
