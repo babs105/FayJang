@@ -35,17 +35,6 @@ _Aucun chantier en attente._
   le nettoyage de tests. *Estimé : 1 h. Croise : mise en production avec de
   vrais reçus.*
 
-- [ ] **Headers de sécurité absents** (S9) — aucun `X-Frame-Options`,
-  `X-Content-Type-Options`, `Referrer-Policy`, CSP dans `next.config.ts`. Le
-  `Referrer-Policy` compte : l'URL de la page parent contient le token. Correctif :
-  `headers()` dans `next.config.ts`. *Estimé : 1 h. Croise : prochaine tranche sur /p/[token].*
-
-- [ ] **Dates saisies : 31 février accepté** — `isDateValide` (`src/lib/dates.ts`) accepte une date
-  inexistante (ex. 2026-02-31) ; corrigé pour la date de départ (contrôle par aller-retour dans
-  `modifierInscription`), mais pas pour la date de naissance (`inscrireEleve`, `modifierEleve`).
-  Correctif : renforcer `isDateValide` par l'aller-retour ISO. *Estimé : 15 min. Croise : prochaine
-  tranche sur la fiche élève.* (review tranche 2 « départ d'un élève », 2026-11-08)
-
 - [ ] **Erreur 23514 de `modifierInscription` reconnue par sous-chaîne** — la contrainte de la date
   de départ est repérée par « date_depart » dans le message ; toute autre contrainte CHECK future
   afficherait le message de la réduction. Correctif : tester les noms complets des contraintes.
@@ -96,11 +85,6 @@ _Aucun chantier en attente._
   `lignesPaiementInscription`. *Estimé : 15 min. Croise : prochaine évolution de `lignesAEncaisser`.*
   (review security tranche 2 « inscription atomique », 2026-11-10)
 
-- [ ] **`inscription_id` non validé en UUID dans `encaisserPaiement`** (S7) — un identifiant malformé part en
-  base et revient en erreur 22P02, interceptée par `messageErreur` (message générique, aucune fuite). Correctif :
-  valider le format UUID avant la requête. *Estimé : 10 min. Croise : durcissement des Server Actions.*
-  (review security tranche 1 « encaissement atomique », 2026-11-10)
-
 - [ ] **Verrou de lot absent de `inscrire_eleve`** (M4) — `encaisser_paiement` prend `pg_advisory_xact_lock` sur
   `(école, lot_id)`, pas `inscrire_eleve` : un même `lot_id` partagé entre les deux fonctions en parallèle n'est pas
   couvert (deux UUID identiques, improbable). Correctif : prendre le même verrou dans `inscrire_eleve`.
@@ -127,11 +111,6 @@ _Aucun chantier en attente._
   par action, le corps (3 Mo au lieu de 1) est mis en mémoire avant le contrôle de session. Risque faible, accepté
   pour l'import (2 Mo + enveloppe multipart). À revoir si Next permet une limite par route, ou passer l'envoi par une
   route dédiée. *Estimé : 1 h.* (review security tranche 2 « reprise de l'existant », 2026-11-11)
-
-- [ ] **`formatMois` recrée un `Intl.DateTimeFormat` à chaque appel** — `src/lib/dates.ts` ; `situationInscription`
-  l'appelle pour chaque libellé d'article. Un aperçu de 2000 élèves paie ce coût, et la suite de tests de parité de la
-  reprise prend ~30 s. Correctif : formateur créé une fois au niveau du module. *Estimé : 15 min. Croise : prochaine
-  tranche qui touche `dates.ts`.* (tranche 2 « reprise de l'existant », 2026-11-11)
 
 - [ ] **Test de non-régression SQL du contrôle de période** (H4) — le refus FJ412 d'un service mensuel hors
   `[mois_debut, mois_fin]` (`encaisser_paiement` v1.16) n'a aucun test automatique (Vitest ne couvre que `src/lib`).
@@ -325,3 +304,18 @@ _Aucun chantier en attente._
 - [x] **Formules Excel neutralisées dans l'export** — `celluleTexte` (`src/lib/export-sur.ts`) préfixe d'une apostrophe
   tout texte libre commençant par =, +, -, @, tabulation ou retour chariot (téléphones +221 laissés tels quels).
   Commit `4d1dad0`. (2026-11-11)
+- [x] **En-têtes de sécurité** (S9) — `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`,
+  `Referrer-Policy: no-referrer` (le lien magique du parent ne part vers aucun autre site) et `Permissions-Policy` sur
+  toutes les réponses (`headers()` de `next.config.ts`), plus une `Content-Security-Policy` tout en `'self'`
+  (`frame-ancestors 'none'`, `form-action 'self'` ; `'unsafe-inline'` gardé pour Next, faute de middleware pour des
+  nonces). Vérifié en preview : en-têtes servis, Espace École (6 onglets), reçu PDF, export, connexion et accueil sans
+  erreur de console. Commit `ce9f0b6`. (2026-11-11)
+- [x] **ESLint configuré** — `npm run lint` lance `eslint .` (`eslint.config.mjs`, règles Next + TypeScript) : 0 erreur ;
+  les `any` volontaires restent en avertissement. Commit `ce9f0b6`. (2026-11-11)
+- [x] **Dates saisies : une date inexistante est refusée** — `isDateValide` (`src/lib/dates.ts`) contrôle par
+  aller-retour ISO : le 31 février ou le 29 février d'une année non bissextile sont refusés (date de naissance, fin
+  d'abonnement). Tests dans `src/lib/dates.test.ts`. Commit `ce9f0b6`. (2026-11-11)
+- [x] **`inscription_id` validé en UUID dans `encaisserPaiement`** (S7) — `estUuid()` avant toute requête, message
+  « Inscription introuvable. » (`src/app/ecole/actions.ts`). Commit `ce9f0b6`. (2026-11-11)
+- [x] **`formatMois` : formateur créé une seule fois** — `FORMAT_MOIS` au niveau du module (`src/lib/dates.ts`), test
+  dans `src/lib/dates.test.ts`. Commit `ce9f0b6`. (2026-11-11)
