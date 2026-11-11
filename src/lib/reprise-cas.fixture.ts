@@ -49,8 +49,11 @@ export interface CasReprise {
     reduction: number | null;
     statut: "active" | "abandon" | "transfert";
     dateDepart: string | null;
-    /** Options choisies ; quantite null = quantité par défaut */
-    options: { libelle: string; quantite: number | null }[];
+    /**
+     * Options choisies ; quantite null = quantité par défaut ; debut = premier mois dû d'un service mensuel donné par
+     * le fichier (colonne « Début des options » ou « Cantine (03/2027) »), absent ou null = règle par défaut
+     */
+    options: { libelle: string; quantite: number | null; debut?: string | null }[];
   };
   attendu:
     | { erreur: string }
@@ -254,6 +257,66 @@ export const CAS_REPRISE: CasReprise[] = [
       arriere: 8000,
       // Scolarité 105 000 + transport 8 × 5 000 + étude 8 × 3 000
       resteAnnee: 169000,
+    },
+  },
+  {
+    nom: "Bineta Sy",
+    description: "Transport pris en cours d'année : « Début des options » = 11/2026",
+    ...BASE,
+    reglages: SANS_REGLAGE,
+    classe: CM2A,
+    catalogue: CATALOGUE_CM2A,
+    eleve: { ...ACTIF, totalScolarite: 55000, totalArticles: 21000, options: [{ libelle: "Transport", quantite: null, debut: "2026-11-01" }] },
+    attendu: {
+      paiements: [ins(25000), m("2026-10", 15000), m("2026-11", 15000), art("Tenue", 16000), art("Transport", 5000, "2026-11")],
+      debutServices: { Transport: "2026-11-01" },
+      arriere: 0,
+      // Scolarité 105 000 + transport décembre à juin 35 000
+      resteAnnee: 140000,
+    },
+  },
+  {
+    nom: "Transport depuis janvier, import en février",
+    description: "Sans le mois de début, les 10 000 iraient sur octobre et novembre (15 000 d'arriéré fictif)",
+    annee: "2026-2027",
+    aujourdhui: "2027-02-11",
+    reglages: SANS_REGLAGE,
+    classe: CM2A,
+    catalogue: [{ libelle: "Transport", nature: "mensuel", prix_unitaire: 5000, quantite_defaut: 1, obligatoire: false, ordre: 0 }],
+    eleve: { ...ACTIF, totalScolarite: 100000, totalArticles: 10000, options: [{ libelle: "Transport", quantite: null, debut: "2027-01-01" }] },
+    attendu: {
+      paiements: [
+        ins(25000), m("2026-10", 15000), m("2026-11", 15000), m("2026-12", 15000), m("2027-01", 15000), m("2027-02", 15000),
+        art("Transport", 5000, "2027-01"), art("Transport", 5000, "2027-02"),
+      ],
+      debutServices: { Transport: "2027-01-01" },
+      arriere: 0,
+      // Scolarité mars à juin 60 000 + transport mars à juin 20 000
+      resteAnnee: 80000,
+    },
+  },
+  {
+    nom: "Un service avec son propre mois",
+    description: "« Transport ; Cantine (11/2026) » : transport par défaut (payé, donc depuis octobre), cantine depuis novembre",
+    ...BASE,
+    reglages: SANS_REGLAGE,
+    classe: CM2A,
+    catalogue: CATALOGUE_CM2A,
+    eleve: {
+      ...ACTIF,
+      totalScolarite: 55000,
+      totalArticles: 36000,
+      options: [{ libelle: "Transport", quantite: null, debut: null }, { libelle: "Cantine", quantite: null, debut: "2026-11-01" }],
+    },
+    attendu: {
+      paiements: [
+        ins(25000), m("2026-10", 15000), m("2026-11", 15000),
+        art("Tenue", 16000), art("Transport", 5000, "2026-10"), art("Transport", 5000, "2026-11"), art("Cantine", 10000, "2026-11"),
+      ],
+      debutServices: { Transport: "2026-10-01", Cantine: "2026-11-01" },
+      arriere: 0,
+      // Scolarité 105 000 + transport décembre à juin 35 000 + cantine décembre à juin 70 000
+      resteAnnee: 210000,
     },
   },
   {

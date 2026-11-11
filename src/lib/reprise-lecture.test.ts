@@ -129,14 +129,14 @@ describe("lireClasseur", () => {
     expect(apercu.erreursGlobales).toEqual([]);
     expect(apercu.classes.map((c) => c.etat)).toEqual(Array(5).fill("nouvelle"));
     expect(apercu.articles.filter((a) => a.etat === "nouveau")).toHaveLength(9);
-    expect(apercu.eleves).toHaveLength(8);
+    expect(apercu.eleves).toHaveLength(9);
     // Seule erreur attendue sur chaque exemple : « ligne d'exemple à effacer »
     for (const e of apercu.eleves) expect(e.erreurs).toEqual(["Ligne d'exemple du modèle : effacez-la avant l'import."]);
     const cheikh = apercu.eleves.find((e) => e.prenom === "Cheikh")!;
     expect(cheikh.options).toEqual([
-      { libelle: "Transport", quantite: null },
-      { libelle: "Étude du soir", quantite: null },
-      { libelle: "Tenue", quantite: 3 },
+      { libelle: "Transport", quantite: null, debut: null },
+      { libelle: "Étude du soir", quantite: null, debut: null },
+      { libelle: "Tenue", quantite: 3, debut: null },
     ]);
     expect(apercu.eleves.find((e) => e.prenom === "Fatou")).toMatchObject({ statut: "abandon", dateDepart: "2026-11-05" });
   });

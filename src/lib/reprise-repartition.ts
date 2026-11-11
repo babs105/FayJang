@@ -44,8 +44,9 @@ export interface EntreeRepartition {
   dateDepart: string | null;
   verseScolarite: number | null;
   verseArticles: number | null;
-  /** Options choisies ; quantite null = quantité par défaut */
-  options: { libelle: string; quantite: number | null }[];
+  /** Options choisies ; quantite null = quantité par défaut ; debut = premier mois (AAAA-MM-01) d'un service mensuel,
+   *  null ou absent = règle par défaut */
+  options: { libelle: string; quantite: number | null; debut?: string | null }[];
 }
 
 export interface PaiementPrevu {
@@ -122,6 +123,14 @@ export function repartirReprise(e: EntreeRepartition): ResultatRepartition {
   const verseArticles = e.verseArticles ?? 0;
   const avertissements: string[] = [];
 
+  // Contrôle défensif du mois de début des services mensuels choisis (la validation du fichier l'a déjà fait)
+  for (const o of e.options) {
+    const def = e.catalogue.find((a) => a.libelle === o.libelle);
+    if (!o.debut || def?.nature !== "mensuel") continue;
+    if (!tous.includes(o.debut)) return { ok: false, erreur: `Le début de « ${o.libelle} » (${o.debut}) est hors de l'année scolaire ${anneeScolaire}.` };
+    if (finService && o.debut > finService) return { ok: false, erreur: `Le début de « ${o.libelle} » (${o.debut.slice(0, 7)}) est après le départ de l'élève.` };
+  }
+
   const ins = {
     annee_scolaire: anneeScolaire,
     frais_inscription: e.tarifs.frais,
@@ -137,7 +146,8 @@ export function repartirReprise(e: EntreeRepartition): ResultatRepartition {
     const option = e.options.find((o) => o.libelle === def.libelle);
     if (!def.obligatoire && !option) return [];
     const quantite = def.nature === "unique" ? (option?.quantite ?? def.quantiteDefaut) : 1;
-    return [{ id: `a${rang}`, rang, def, quantite }];
+    const debut = def.nature === "mensuel" ? (option?.debut ?? null) : null;
+    return [{ id: `a${rang}`, rang, def, quantite, debut }];
   });
   const calcul = (r: (typeof retenus)[number], moisDebut: string | null, moisFin: string | null): ArticleCalcul => ({
     id: r.id,
@@ -156,7 +166,7 @@ export function repartirReprise(e: EntreeRepartition): ResultatRepartition {
     [],
     ecole,
     aujourdhui,
-    retenus.map((r) => calcul(r, r.def.nature === "mensuel" ? premier : null, r.def.nature === "mensuel" ? finService : null))
+    retenus.map((r) => calcul(r, r.def.nature === "mensuel" ? (r.debut ?? premier) : null, r.def.nature === "mensuel" ? finService : null))
   );
 
   // ----- Pool scolarité -----
@@ -252,7 +262,7 @@ export function repartirReprise(e: EntreeRepartition): ResultatRepartition {
     let debut: string | null = null;
     let fin: string | null = null;
     if (r.def.nature === "mensuel") {
-      debut = recoit.has(r.id) ? premier : moisImport > premier ? moisImport : premier;
+      debut = r.debut ?? (recoit.has(r.id) ? premier : moisImport > premier ? moisImport : premier);
       fin = finService;
       if (fin && debut > fin) {
         if (!r.def.obligatoire) {

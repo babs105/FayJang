@@ -1,5 +1,6 @@
 // Reprise de l'existant : contrôle de forme du fichier (classes, articles, élèves), puis chiffrage de chaque élève
 // (reprise-repartition.ts). Produit l'aperçu ligne par ligne affiché à l'école avant tout import. N'écrit rien.
+import { moisScolaires } from "@/lib/dates";
 import { normaliserTelephone } from "@/lib/telephone";
 import type { Cellule, ClasseurBrut, FeuilleBrute } from "@/lib/reprise-lecture";
 import { COLONNES_REQUISES, normaliser, reconnaitreEntetes, typeFeuille, type TypeFeuille } from "@/lib/reprise-colonnes";
@@ -112,6 +113,45 @@ export function lireOption(brut: string): { libelle: string; quantite: number | 
   return { libelle: brut.trim(), quantite: null };
 }
 
+/** « Cantine (03/2027) » → { reste: "Cantine", debut: "03/2027" } ; sans parenthèse finale : debut null */
+export function separerDebut(brut: string): { reste: string; debut: string | null } {
+  const m = /^(.*?)\s*\(([^()]*)\)\s*$/.exec(brut.trim());
+  if (m && m[1].trim()) return { reste: m[1].trim(), debut: m[2].trim() };
+  return { reste: brut.trim(), debut: null };
+}
+
+const MOIS_NOMS: Record<string, number> = {
+  janvier: 1, janv: 1, jan: 1, fevrier: 2, fevr: 2, fev: 2, mars: 3, mar: 3, avril: 4, avr: 4, mai: 5, juin: 6,
+  juillet: 7, juil: 7, aout: 8, septembre: 9, sept: 9, sep: 9, octobre: 10, oct: 10, novembre: 11, nov: 11,
+  decembre: 12, dec: 12,
+};
+
+/**
+ * Mois de début d'un service (AAAA-MM-01) : « 01/2027 », « 2027-01 », « janvier », « janv. 2027 », une date Excel…
+ * Un mois sans année est pris dans l'année scolaire (`moisAnnee`). Vide → null ; illisible → « invalide ».
+ */
+export function moisCellule(c: Cellule, moisAnnee: string[]): string | null | "invalide" {
+  if (c === null || c === "") return null;
+  const mois = (a: number, m: number) => (m >= 1 && m <= 12 && a >= 2000 && a <= 2100 ? `${a}-${String(m).padStart(2, "0")}-01` : "invalide");
+  if (c instanceof Date || typeof c === "number") {
+    const d = dateCellule(c);
+    return d === null || d === "invalide" ? "invalide" : `${d.slice(0, 7)}-01`;
+  }
+  if (typeof c !== "string") return "invalide";
+  const s = c.trim();
+  let m = /^(\d{1,2})[/.-](\d{4})$/.exec(s);
+  if (m) return mois(Number(m[2]), Number(m[1]));
+  m = /^(\d{4})-(\d{1,2})$/.exec(s);
+  if (m) return mois(Number(m[1]), Number(m[2]));
+  const date = dateCellule(s);
+  if (date && date !== "invalide") return `${date.slice(0, 7)}-01`;
+  const n = normaliser(s).split(" ");
+  const numero = MOIS_NOMS[n[0]];
+  if (!numero || n.length > 2) return "invalide";
+  if (n.length === 2) return /^\d{4}$/.test(n[1]) ? mois(Number(n[1]), numero) : "invalide";
+  return moisAnnee.find((x) => Number(x.slice(5, 7)) === numero) ?? "invalide";
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // Aperçu
 
@@ -172,6 +212,8 @@ export interface ArticleApercu {
 export interface OptionEleve {
   libelle: string;
   quantite: number | null;
+  /** Service mensuel : premier mois dû (AAAA-MM-01) donné par le fichier ; null = règle par défaut */
+  debut: string | null;
 }
 
 export interface EleveApercu {
@@ -214,10 +256,10 @@ export interface ApercuReprise {
 const EXEMPLES = new Set(
   [
     ["awa", "diop"], ["ibrahima", "diop"], ["fatou", "ndiaye"], ["moussa", "fall"],
-    ["khady", "sarr"], ["ndeye", "gueye"], ["mariama", "ba"], ["cheikh", "mbaye"],
+    ["khady", "sarr"], ["ndeye", "gueye"], ["mariama", "ba"], ["cheikh", "mbaye"], ["bineta", "sy"],
   ].map(([p, n]) => `${p}|${n}`)
 );
-const TELEPHONES_EXEMPLES = new Set(["+221771234567", "+221787654321", "+221762223344", "+221701112233", "+221779998877", "+221784445566", "+221775556677"]);
+const TELEPHONES_EXEMPLES = new Set(["+221771234567", "+221787654321", "+221762223344", "+221701112233", "+221779998877", "+221784445566", "+221775556677", "+221763334455"]);
 
 /** Clé d'identité d'un élève, comparée comme en base : lower(btrim(...)) */
 function cleStricte(prenom: string, nom: string, telephone: string): string {
@@ -444,6 +486,7 @@ export function analyserReprise(classeur: ClasseurBrut, ctx: ContexteReprise): A
   }
 
   // ----- Élèves -----
+  const moisAnnee = moisScolaires(ctx.anneeScolaire, ctx.calendrier.mois_debut, ctx.calendrier.nb_mensualites);
   const eleves: EleveApercu[] = [];
   const presentsStricts = new Set(ctx.eleves.map((e) => cleStricte(e.prenom, e.nom, e.telephone)));
   const presentsSouples = new Set(ctx.eleves.map((e) => cleSouple(e.prenom, e.nom, e.telephone)));
@@ -527,19 +570,55 @@ export function analyserReprise(classeur: ClasseurBrut, ctx: ContexteReprise): A
         else if (depart < ctx.premierMois) erreurs.push(`Date de départ avant le début de l'année scolaire ${ctx.anneeScolaire}.`);
       }
 
-      // Articles optionnels (« Transport ; Cantine ; Tenue x3 »)
+      // Mois de début des services : colonne « Début des options », ou « Cantine (03/2027) » pour un service
+      const moisImport = `${ctx.aujourdhui.slice(0, 7)}-01`;
+      const moisDepart = typeof depart === "string" && depart !== "invalide" ? `${depart.slice(0, 7)}-01` : null;
+      const lireDebut = (c: Cellule, origine: string): string | null => {
+        const lu = moisCellule(c, moisAnnee);
+        if (lu === null) return null;
+        if (lu === "invalide") {
+          erreurs.push(`${origine} : mois illisible (ex : 01/2027 ou janvier).`);
+          return null;
+        }
+        if (!moisAnnee.includes(lu)) erreurs.push(`${origine} : le mois doit tomber dans l'année scolaire ${ctx.anneeScolaire}.`);
+        else if (lu > moisImport) erreurs.push(`${origine} : le mois ne peut pas être après le mois de l'import.`);
+        else if (moisDepart && lu > moisDepart) erreurs.push(`${origine} : le mois est après le départ de l'élève.`);
+        else return lu;
+        return null;
+      };
+      const debutColonne = lireDebut(cellule("debutOptions"), "Début des options");
+
+      // Articles optionnels (« Transport ; Cantine (03/2027) ; Tenue x3 »)
       const options: OptionEleve[] = [];
       const optionsBrutes = texteCellule(cellule("articlesOptionnels"), 300);
       if (optionsBrutes && catalogue) {
         const vus = new Set<string>();
-        for (const morceau of optionsBrutes.split(";").map((s) => s.trim()).filter(Boolean)) {
-          // Le libellé complet passe d'abord : un article nommé « Pack x3 » reste trouvable
-          let article = catalogue.articles.find((a) => normaliser(a.libelle) === normaliser(morceau));
+        for (const brut of optionsBrutes.split(";").map((s) => s.trim()).filter(Boolean)) {
+          // Le libellé complet passe d'abord : un article nommé « Pack x3 » ou « Bus (matin) » reste trouvable
+          let article = catalogue.articles.find((a) => normaliser(a.libelle) === normaliser(brut));
+          let morceau = brut;
+          let debutPropre: string | null = null;
+          if (!article) {
+            const { reste, debut } = separerDebut(brut);
+            if (debut !== null) {
+              morceau = reste;
+              debutPropre = debut;
+              article = catalogue.articles.find((a) => normaliser(a.libelle) === normaliser(reste));
+            }
+          }
           let quantite: number | null = null;
           if (!article) {
             const lu = lireOption(morceau);
             article = catalogue.articles.find((a) => normaliser(a.libelle) === normaliser(lu.libelle));
             quantite = lu.quantite;
+          }
+          let debutOption: string | null = null;
+          if (article && debutPropre !== null) {
+            if (article.nature !== "mensuel") {
+              erreurs.push(`« ${brut} » : un frais unique n'a pas de mois de début.`);
+              continue;
+            }
+            debutOption = lireDebut(debutPropre, `« ${brut} »`);
           }
           if (!article) {
             erreurs.push(`Article « ${morceau} » absent du catalogue de ${catalogue.nom}.`);
@@ -561,8 +640,15 @@ export function analyserReprise(classeur: ClasseurBrut, ctx: ContexteReprise): A
           if (article.obligatoire && quantite === null) {
             avert.push(`« ${article.libelle} » est obligatoire : il est ajouté d'office.`);
           }
-          options.push({ libelle: article.libelle, quantite });
+          options.push({
+            libelle: article.libelle,
+            quantite,
+            debut: article.nature === "mensuel" ? (debutOption ?? debutColonne) : null,
+          });
         }
+      }
+      if (debutColonne && !options.some((o) => o.debut !== null)) {
+        avert.push("« Début des options » ignoré : aucun service mensuel n'est choisi dans « Articles optionnels ».");
       }
 
       if (catalogue?.ecart) erreurs.push(catalogue.ecart);

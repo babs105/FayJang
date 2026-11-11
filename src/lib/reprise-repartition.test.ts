@@ -207,6 +207,61 @@ describe("repartirReprise : parité avec situationInscription", () => {
   }
 });
 
+describe("repartirReprise : services qui commencent en cours d'année (parité)", () => {
+  const cas: [string, string, "active" | "abandon" | "transfert", string | null, string | null, string | null][] = [
+    ["actif, transport depuis janvier", "2027-02-11", "active", null, "2027-01-01", null],
+    ["actif, transport depuis janvier et cantine depuis mars", "2027-04-02", "active", null, "2027-01-01", "2027-03-01"],
+    ["actif, début au mois de l'import", "2026-11-11", "active", null, "2026-11-01", "2026-11-01"],
+    ["parti, transport depuis novembre", "2027-01-15", "abandon", "2026-12-05", "2026-11-01", null],
+    ["parti, début au mois du départ", "2027-01-15", "transfert", "2026-12-05", "2026-12-01", "2026-12-01"],
+  ];
+  for (const [nom, aujourdhui, statut, dateDepart, debutT, debutC] of cas) {
+    it(`balayage des versés : ${nom}`, { timeout: 30000 }, () => {
+      const e: EntreeRepartition = {
+        anneeScolaire: "2026-2027", aujourdhui, ecole: R(), tarifs: { frais: 25000, mensualite: 15000, dernierMois: null }, reduction: null,
+        catalogue: CATALOGUE_CM2A, statut, dateDepart, verseScolarite: 0, verseArticles: 0,
+        options: [{ libelle: "Transport", quantite: null, debut: debutT }, { libelle: "Cantine", quantite: null, debut: debutC }],
+      };
+      // Le dû des articles, lu sur la situation sans paiement dont les services commencent à leur mois
+      const sans = ok(repartirReprise(e));
+      expect(sans.articles.find((a) => a.libelle === "Transport")?.moisDebut).toBe(debutT);
+      if (debutC) expect(sans.articles.find((a) => a.libelle === "Cantine")?.moisDebut).toBe(debutC);
+      const fin = dateDepart ? `${dateDepart.slice(0, 7)}-01` : null;
+      const dueArt = situationInscription(
+        { annee_scolaire: e.anneeScolaire, frais_inscription: 0, mensualite: 0, reduction_mensuelle: 0, statut, date_depart: dateDepart },
+        [], e.ecole, aujourdhui,
+        CATALOGUE_CM2A.map((a, i): ArticleCalcul => ({
+          id: `p${i}`, libelle: a.libelle, nature: a.nature, prix_unitaire: a.prix, quantite: a.quantiteDefaut, obligatoire: a.obligatoire,
+          mois_debut: a.libelle === "Transport" ? debutT : a.libelle === "Cantine" ? (debutC ?? (a.nature === "mensuel" ? "2026-10-01" : null)) : null,
+          mois_fin: a.nature === "mensuel" ? fin : null,
+        }))
+      ).articles.reduce((s, l) => s + l.du, 0);
+      for (let verse = 0; verse <= dueArt; verse += 2500) {
+        const entree = { ...e, verseScolarite: 40000, verseArticles: verse };
+        const r = ok(repartirReprise(entree));
+        // Aucun paiement de service avant le mois de début du service
+        for (const p of r.paiements.filter((x) => x.article === "Transport")) expect(p.mois! >= debutT!).toBe(true);
+        verifierParite(entree, r);
+      }
+      verifierParite({ ...e, verseArticles: dueArt }, ok(repartirReprise({ ...e, verseArticles: dueArt })));
+      const debord = repartirReprise({ ...e, verseArticles: dueArt + 1 });
+      expect(debord.ok).toBe(false);
+    });
+  }
+
+  it("refuse un début hors de l'année", () => {
+    const e = depuisCas(CAS_REPRISE.find((c) => c.nom === "Bineta Sy")!);
+    const r = repartirReprise({ ...e, options: [{ libelle: "Transport", quantite: null, debut: "2026-09-01" }] });
+    expect(!r.ok && r.erreur).toContain("hors de l'année");
+  });
+
+  it("refuse un début après le départ", () => {
+    const e = depuisCas(CAS_REPRISE.find((c) => c.nom === "Bineta Sy")!);
+    const r = repartirReprise({ ...e, statut: "abandon", dateDepart: "2026-11-05", options: [{ libelle: "Transport", quantite: null, debut: "2026-12-01" }] });
+    expect(!r.ok && r.erreur).toContain("après le départ");
+  });
+});
+
 describe("repartirReprise : ordre de remplissage", () => {
   const base = depuisCas(CAS_REPRISE.find((c) => c.nom === "Réglage spécial, 130 000 versés")!);
   const mensualites = (e: EntreeRepartition) =>
