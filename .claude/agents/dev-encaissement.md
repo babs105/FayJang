@@ -64,6 +64,9 @@ feature. Si une demande sort de ton scope, tu refuses et renvoies vers
   l'application en base (éditeur SQL Supabase) — c'est l'humain. Sans accord explicite, tu ne fais que proposer.
 - `src/types/database.ts` → mis à jour **dans le même mouvement que `schema.sql`**, et seulement si l'humain a donné l'autorisation explicite (mode B). Tu ajoutes les nouvelles colonnes, tables et types de retour des fonctions modifiées. Sans autorisation, tu signales la mise à jour nécessaire dans ton rapport. L'humain relit le diff avant application en base.
 - `src/lib/supabase/**` (`jeton.ts`, `server.ts`, `admin.ts`) → hors scope.
+- `docs/feature-spec.md` → hors scope : seule la session principale le met à
+  jour, avec l'accord de l'humain. Si ta tranche change ce que la fiche décrit,
+  signale-le dans ton rapport (« Hors scope identifié »).
 - `src/lib/ecole-session.ts`, `src/lib/admin-session.ts` → hors scope.
 - Les autres actions de `actions.ts` (inscription d'élève, classes, paramètres,
   code d'accès), `/inscription`, `/admin`, `/api/**`.

@@ -33,6 +33,7 @@ Répondre et écrire en **français** : messages, commentaires de code, libellé
 - `supabase/schema.sql` : schéma complet et **idempotent** (relancé en entier dans l'éditeur SQL Supabase)
 - `.claude/SCHEMA-INDEX.md` : index du schéma (tables, fonctions, policies, triggers avec leurs lignes), **généré** par
   `bash scripts/schema-index.sh` : à régénérer après chaque modification de `schema.sql`, jamais édité à la main
+- `docs/feature-spec.md` : inventaire des features (livrées, à développer, pistes) et **fiche de feature** à faire valider par l'humain avant tout plan `architect` (procédure en section 8)
 - `BACKLOG.md` : findings d'audit en attente d'une feature (géré par le dev, agent ou session principale : il ajoute librement ses findings non corrigés, mais ne coche, supprime, modifie ou tranche qu'avec l'accord explicite de l'humain) ; `docs/mise-en-prod.md` : checklist de mise en production
 
 Espaces : `/ecole` (Espace École, 6 onglets dans `ecole-dashboard-client.tsx` + `fiche-eleve.tsx`), `/p/[token]`

@@ -9,6 +9,42 @@
 
 ## Règles
 
+### Sur la fiche de feature (avant le plan)
+- **Pas de plan sans fiche validée.** Le « quoi » d'une feature (ce que
+  l'utilisateur peut faire, règles métier, effet sur l'argent, hors feature,
+  critère de done, exemple chiffré) est écrit dans une fiche de
+  `docs/feature-spec.md`, selon la procédure de sa **section 8**.
+- **Qui la renseigne** : la session principale rédige le brouillon depuis le
+  code et les décisions déjà prises, et pose les questions ouvertes (deux
+  options + recommandation). **L'humain tranche et valide.** Aucune règle
+  métier n'est inventée, ni par la session, ni par `architect`.
+- **La fiche validée est l'entrée d'`architect`**, copiée telle quelle, avec
+  les entrées de `BACKLOG.md` que la feature croise.
+- **Une règle qui change en cours de feature** se corrige dans la fiche
+  d'abord, dans le plan ensuite.
+- **Exception** : une correction purement technique tirée de `BACKLOG.md`
+  (aucune règle métier, aucun effet sur l'argent) se planifie depuis son
+  entrée du backlog, sans fiche.
+- `docs/feature-spec.md` est aussi l'inventaire des features (livrées, à
+  développer, pistes) : à la fin d'une feature, sa ligne passe à « Livrée ».
+- **Qui met à jour `docs/feature-spec.md`** : **la session principale
+  seulement, avec l'accord de l'humain.** L'humain décide du contenu, la
+  session tient le fichier.
+
+  | Moment | Ce qui change | Accord de l'humain |
+  |---|---|---|
+  | Nouvelle feature ou piste retenue | Une ligne en section 6 ou 7 | L'humain l'a demandée ou validée |
+  | Fiche validée | Fiche ajoutée, ligne à « planifiée » | « fiche validée » |
+  | Règle qui change en cours de feature | La fiche, avec la date | Décision de l'humain citée |
+  | Feature mergée sur `main` | Ligne à « Livrée », fiche réduite en section 4 | Merge confirmé |
+
+- **Les agents ne modifient jamais ce fichier.** `architect` et les reviewers
+  (lecture seule) signalent dans leur rapport une fiche fausse ou incomplète.
+  `dev-encaissement` signale dans son rapport ce qui devrait y changer ; il
+  ne l'édite pas (hors de son périmètre).
+- Une ligne ne passe à « Livrée » qu'avec la **preuve** (commit de merge sur
+  `main`), comme pour une entrée du backlog.
+
 ### Sur le plan
 - L'architect **ne déclenche rien**. Il écrit un plan. C'est l'humain qui
   déclenche chaque étape.
@@ -311,6 +347,14 @@ En cas de conflit, `CLAUDE.md` gagne. Si le `WORKFLOW.md` contredit
    que chacune va en prod, la prod change 3 fois pour 1 feature.
    **Une feature = un seul merge vers `main`.**
 
+## Checklist avant de demander un plan à l'architect
+
+- [ ] La fiche de la feature existe dans `docs/feature-spec.md` (modèle 8.1)
+- [ ] Statut « validée le <date> » : plus aucun « À trancher »
+- [ ] Le champ **Argent** dit l'effet sur le reçu, l'arriéré et le reste sur l'année
+- [ ] L'exemple chiffré a été recalculé à la main par l'humain
+- [ ] Je copie la fiche **telle quelle** dans le prompt de l'architect
+
 ## Checklist avant de lancer un dev
 
 - [ ] Le plan de l'architect est validé (scope strict, tranches verticales,
@@ -348,6 +392,10 @@ En cas de conflit, `CLAUDE.md` gagne. Si le `WORKFLOW.md` contredit
 - [ ] Accord explicite pour le merge vers `main` (c'est un déploiement prod)
 - [ ] Merge `feat/<feature>` → `main`
 - [ ] `git push` sur `main`
+- [ ] `docs/feature-spec.md` mis à jour par la session principale : ligne de la
+      feature à « Livrée » avec le commit de merge, fiche réduite en section 4
+- [ ] Décisions durables de la fiche recopiées dans « Décisions tranchées » de
+      `BACKLOG.md` (avec l'accord de l'humain)
 - [ ] Branche de feature supprimée
 
 ## Exemple complet — feature « relances SMS » (3 tranches)

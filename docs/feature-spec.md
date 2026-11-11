@@ -1,0 +1,276 @@
+# Feature spec — FayJàng
+
+> Inventaire des fonctionnalités de FayJàng, livrées et à développer, écrit pour la méthode
+> **feature-specific** du projet (`.claude/WORKFLOW.md`) : une feature = un flow utilisateur
+> livrable de bout en bout, découpé en tranches verticales par `architect`.
+>
+> État au **2026-11-11**, branche `feat/import-reprise`. Ce document décrit le **quoi** ; le plan
+> d'une feature (tranches, scope des reviews) reste produit par `architect` au moment de la lancer.
+> Les corrections mineures ne sont pas ici : elles vivent dans `BACKLOG.md`.
+
+## 1. Acteurs et espaces
+
+| Acteur | Espace | Accès |
+|---|---|---|
+| Administration de l'école | `/ecole` (Espace École, 7 onglets) | Identifiant + code, cookie de session 30 jours |
+| Parent ou tuteur | `/p/[token]` | Lien magique, sans mot de passe, page serveur seule |
+| SuperAdmin FayJàng | `/admin` | Code SuperAdmin, session 12 h |
+| École qui découvre | `/` et `/inscription` | Public |
+
+## 2. Principes qui s'appliquent à toute feature
+
+- **On paie d'abord** : le service vient après le paiement. C'est la règle qui tranche les cas d'argent.
+- **Un paiement ne se supprime ni ne se modifie** : on l'annule avec un motif, le reçu reste, barré « ANNULÉ ».
+- **Le serveur recalcule** : soldes par `situationInscription()`, jamais de montant cru depuis le navigateur.
+- **Le numéro de reçu vient de la base** (`FJ-2026-00001`), un numéro par encaissement (lot).
+- **Tarifs figés sur l'inscription** : changer le tarif d'une classe ne touche pas les élèves déjà inscrits.
+- **Chaque école ne voit que ses données** : RLS par claims JWT, plus un filtre `ecole_id` dans chaque requête.
+- **Mobile d'abord**, interface en français, fuseau `Africa/Dakar`, montants entiers en FCFA.
+
+## 3. Vue d'ensemble
+
+| N° | Feature | Espace | État |
+|---|---|---|---|
+| F01 | Ouverture d'un compte école | `/inscription` | Livrée (main) |
+| F02 | Connexion de l'école et code d'accès | `/ecole/login`, Paramètres | Livrée (main) |
+| F03 | Classes, tarifs et catalogue d'articles | Onglet Classes | Livrée (main) |
+| F04 | Inscription d'un élève (atomique, avec encaissement) | Onglet Élèves | Livrée (main) |
+| F05 | Fiche élève : suivi et modification | Fiche élève | Livrée (main) |
+| F06 | Encaissement et reçu | Fiche élève | Livrée (main) |
+| F07 | Annulation d'un reçu | Fiche élève, Paiements | Livrée (main) |
+| F08 | Dernier mois payé par tranches | Paramètres, Fiche élève | Livrée (main) |
+| F09 | Articles et services d'un élève | Fiche élève | Livrée (main) |
+| F10 | Départ d'un élève (abandon, transfert) | Fiche élève | Livrée (main) |
+| F11 | Journal des paiements | Onglet Paiements | Livrée (main) |
+| F12 | Impayés et relance WhatsApp | Onglet Impayés | Livrée (main) |
+| F13 | Tableau de bord | Onglet Tableau de bord | Livrée (main) |
+| F14 | Paramètres de l'école et passage à l'année suivante | Onglet Paramètres | Livrée (main) |
+| F15 | Page parent par lien magique | `/p/[token]` | Livrée (main) |
+| F16 | Reçu PDF | `/ecole/recu/[id]`, `/p/[token]/recu/[id]` | Livrée (main) |
+| F17 | Export Excel | `/ecole/export` | Livrée (main) |
+| F18 | Console SuperAdmin | `/admin` | Livrée (main) |
+| F19 | Sécurité et exploitation | Transverse | Livrée, en-têtes et CSP sur la branche |
+| F20 | Reprise de l'existant (import Excel) | Onglet Importer | **Terminée sur la branche, pas encore sur `main`** |
+| D01 à D07 | Features à développer | — | Voir section 6, fiche à remplir selon la section 8 |
+| P01 à P06 | Pistes à trancher | — | Voir section 7 |
+
+## 4. Features livrées
+
+### F01 — Ouverture d'un compte école
+- **L'école peut** créer son compte seule (nom, responsable, contact, code d'accès) et arrive sur l'onglet Classes.
+- **Règles** : essai gratuit de 30 jours ; code de 8 caractères minimum, stocké en bcrypt ; 5 tentatives par IP
+  et par quart d'heure ; champ piège contre les robots.
+- **Code** : `src/app/inscription/`, `createAdminClient()` (appelant autorisé).
+
+### F02 — Connexion de l'école et code d'accès
+- **L'école peut** se connecter avec son identifiant (slug ou e-mail) et son code, se déconnecter, changer son code.
+- **Règles** : blocage après 5 échecs (par IP et identifiant) ; changer le code déconnecte les sessions ; une école
+  désactivée ne se connecte plus.
+- **Code** : `echanger_acces_ecole`, `changer_code_ecole`, `src/lib/ecole-session.ts`.
+
+### F03 — Classes, tarifs et catalogue d'articles
+- **L'école peut** créer une classe par année (niveau, frais d'inscription, mensualité, dernier mois), lui attacher un
+  catalogue d'articles (tenue, fournitures) et de services mensuels (transport, cantine), obligatoires ou
+  optionnels, puis l'archiver.
+- **Règles** : classe et catalogue enregistrés en une transaction (`enregistrer_classe`) ; un article déjà payé ne
+  change plus de prix ni de quantité ; un article attribué ne change pas de classe.
+
+### F04 — Inscription d'un élève
+- **L'école peut** inscrire un élève (nouveau ou déjà connu), rattacher son parent par téléphone, choisir ses
+  articles et encaisser à l'inscription, le tout avec un seul reçu.
+- **Règles** : une seule transaction (`inscrire_eleve`) : parent, élève, inscription, articles, reçu ; deux enfants
+  avec le même téléphone partagent un parent ; matricule attribué par la base ; une inscription par élève et par année.
+
+### F05 — Fiche élève
+- **L'école peut** voir la situation d'un élève (grille des mois, arriéré, reste sur l'année, historique par reçu),
+  modifier son identité, sa réduction mensuelle, et le supprimer s'il n'a aucun paiement.
+- **Règles** : même calcul que le serveur (`src/lib/scolarite.ts`) ; date de dernière modification affichée.
+
+### F06 — Encaissement et reçu
+- **L'école peut** encaisser l'inscription, un ou plusieurs mois, un article, un service, un montant partiel ou un
+  paiement libre, en espèces, Wave, Orange Money, Free Money, virement ou chèque.
+- **Règles** : référence obligatoire pour le mobile money ; montant plafonné au reste dû ; un encaissement = un
+  lot = un reçu ; `encaisser_paiement` travaille sous verrou de l'inscription, avec empreinte des paiements lus
+  (deux postes ne peuvent pas encaisser deux fois) et clé d'idempotence (double clic sans doublon) ; un service
+  mensuel ne s'encaisse pas hors de sa période (bloc v1.16, sur la branche, part en production avec F20).
+
+### F07 — Annulation d'un reçu
+- **L'école peut** annuler un reçu avec un motif (3 caractères minimum).
+- **Règles** : l'annulation porte sur toutes les lignes du reçu ; le reçu reste consultable, barré ; un reçu déjà
+  annulé par un autre poste est signalé comme tel.
+
+### F08 — Dernier mois payé par tranches
+- **L'école peut** répartir la mensualité du dernier mois en tranches dues avec les mensualités précédentes.
+- **Règles** : mois de début et nombre de tranches réglés par l'école ; la tranche due rejoint le reçu de la
+  mensualité (case cochée par défaut) ; seules les tranches échues comptent dans l'arriéré.
+
+### F09 — Articles et services d'un élève
+- **L'école peut** ajouter à un élève un article ou un service du catalogue de sa classe, puis arrêter un service.
+- **Règles** : un service ne s'arrête pas avant son dernier mois payé ; un article vient toujours du catalogue de
+  la classe ; les mois payés restent visibles après l'arrêt.
+
+### F10 — Départ d'un élève
+- **L'école peut** enregistrer un abandon ou un transfert avec sa date, et revenir à « Inscrit ».
+- **Règles** : l'élève ne doit que les mois jusqu'à son départ ; le paiement libre lui est fermé ; le départ est
+  visible dans la liste, les impayés, la relance et la page parent.
+
+### F11 — Journal des paiements
+- **L'école peut** consulter les paiements regroupés par reçu, filtrés par période (jour, mois, année) et par mode.
+- **Règles** : les reçus de reprise n'apparaissent que dans « Toute l'année », avec un badge.
+
+### F12 — Impayés et relance WhatsApp
+- **L'école peut** voir les élèves en retard, le total des arriérés, filtrer par classe et ouvrir une relance
+  WhatsApp pré-rédigée.
+- **Règles** : envoi manuel par lien `wa.me` ouvert par l'école ; le message cite le dû et le lien parent.
+
+### F13 — Tableau de bord
+- **L'école peut** voir les élèves inscrits, l'encaissé du jour et du mois, les encaissements par mode, les
+  derniers paiements et les plus gros arriérés.
+- **Règles** : la reprise de l'existant ne compte ni dans le jour, ni dans le mois, ni par mode.
+
+### F14 — Paramètres et passage à l'année suivante
+- **L'école peut** régler sa fiche (nom, adresse sur les reçus), son calendrier (mois de début, nombre de
+  mensualités, jour d'échéance), les réglages d'encaissement à l'inscription, et passer à l'année suivante.
+- **Règles** : tout est enregistré en une transaction (`enregistrer_parametres`) ; les réglages d'encaissement
+  restent au niveau de l'école ; les élèves de l'année précédente apparaissent en « Non réinscrits ».
+
+### F15 — Page parent
+- **Le parent peut** suivre tous ses enfants avec un seul lien : mois payés, reste à payer, tranches, reçus.
+- **Règles** : page serveur sans JavaScript client (réseau 3G) ; un reçu annulé n'apparaît pas ; l'école peut
+  créer un nouveau lien, l'ancien cesse de fonctionner ; un parent ou une école désactivés n'ont plus d'accès.
+
+### F16 — Reçu PDF
+- **L'école et le parent peuvent** télécharger le reçu d'un encaissement.
+- **Règles** : numéro attribué par la base ; mention « ANNULÉ » ou « Reprise de l'existant » ; plusieurs pages si
+  le reçu a beaucoup de lignes.
+
+### F17 — Export Excel
+- **L'école peut** télécharger un classeur avec les onglets Paiements et Soldes.
+- **Règles** : lecture complète (pas de troncature à 1000 lignes) ; textes neutralisés contre les formules.
+
+### F18 — Console SuperAdmin
+- **Le SuperAdmin peut** voir les écoles et leurs totaux, changer plan, statut d'abonnement, date de fin, et
+  activer ou désactiver une école.
+- **Limite connue** : totaux tronqués au-delà de 1000 lignes (au backlog).
+
+### F19 — Sécurité et exploitation (transverse)
+- RLS sur toutes les tables, JWT de 5 minutes signé par le serveur, pas de middleware (chaque route se protège).
+- Limite de tentatives sur toutes les connexions ; messages d'erreur sans détail technique.
+- `/api/diagnostic` protégé par un secret pour contrôler la configuration en production.
+- Sur la branche : en-têtes de sécurité, Content-Security-Policy, ESLint, 350 tests automatiques (Vitest).
+
+## 5. Feature terminée, à mettre en production
+
+### F20 — Reprise de l'existant (import Excel)
+- **L'école peut** reprendre en cours d'année ses classes, ses élèves et ce qu'ils ont déjà versé, depuis un
+  fichier Excel modèle : aperçu chiffré élève par élève, création des classes et du catalogue, puis import par lots.
+- **Règles** : un reçu « Reprise de l'existant » par élève ; période d'un service (arrêt puis reprise) respectée ;
+  fichier de 2 Mo au maximum, taille réelle contrôlée ; la reprise reste hors des totaux de caisse.
+- **État** : 7 tranches livrées sur `feat/import-reprise`. **Reste à faire** : merge vers `main`, relance du
+  schéma en production (blocs v1.16 à v1.18), contrôles de `docs/mise-en-prod.md`.
+
+## 6. Features à développer (identifiées dans le projet)
+
+Chaque ligne cite sa source. Aucune n'a encore de plan `architect`.
+
+| N° | Feature | Ce que l'utilisateur pourra faire | Source | Points à trancher avant le plan |
+|---|---|---|---|---|
+| D01 | **Changement de classe en cours d'année** | Passer un élève dans une autre classe sans le réinscrire | Règle posée le 2026-11-10 (« on paie d'abord ») | Déjà tranché : seulement si l'élève a soldé son dû à date ; mois passés à l'ancien tarif, nouveau tarif dès le mois du changement. À trancher : sort des articles de l'ancienne classe |
+| D02 | **Abonnement appliqué automatiquement** | L'école voit la fin de son essai et son accès suit son abonnement | Constat dans le code : le statut est géré à la main dans `/admin`, la fin d'essai (`trial_ends_at`) ne bloque rien | Que se passe-t-il à l'expiration : lecture seule, blocage, délai de grâce ? |
+| D03 | **Protection d'un paiement contre la suppression en éditeur SQL** | Un reçu réel ne peut plus être supprimé par accident | `BACKLOG.md` (1 h, touche le schéma) | Aucun |
+| D04 | **Sauvegarde régulière des paiements** | L'école et FayJàng gardent une copie hors de la base | `docs/mise-en-prod.md`, section 5 | Export mensuel par école, ou offre Supabase avec sauvegardes |
+| D05 | **Mobile money dans les reçus de reprise** | Reprendre un versement fait par Wave ou Orange Money | `BACKLOG.md` | Référence de transaction obligatoire ou non pour un versement ancien |
+| D06 | **Limites de fréquence sur l'export et l'analyse d'import** | Aucun changement visible ; le serveur est protégé | `BACKLOG.md` (S10) | Seuils (une génération par minute et par école ?) |
+| D07 | **Tests de non-régression SQL** | Aucun changement visible ; les fonctions `encaisser_paiement` et `importer_reprise` sont testées sur une base | `BACKLOG.md` (H4) | Base de test dédiée |
+
+## 7. Pistes proposées (à trancher, rien n'est décidé)
+
+Ces idées **ne figurent dans aucun document du projet**. Ce sont des propositions, classées par valeur
+estimée pour une école, à valider ou à écarter avant toute planification.
+
+| N° | Piste | Pourquoi | Ce qui existe déjà |
+|---|---|---|---|
+| P01 | **Plusieurs utilisateurs par école** (directeur, caissier) | Savoir qui a encaissé, limiter l'annulation au directeur | Colonne `paiements.encaisse_par`, un seul code par école |
+| P02 | **Réinscription en masse** à la nouvelle année | Réinscrire une classe entière en une fois | Liste « Non réinscrits », réinscription élève par élève |
+| P03 | **Relances automatiques** (WhatsApp ou SMS programmés) | Relancer sans ouvrir chaque lien à la main | Relance manuelle `wa.me` (F12) |
+| P04 | **Paiement en ligne par le parent** (Wave, Orange Money) | Le parent paie depuis sa page, le reçu est créé seul | Page parent en lecture seule, encaissement saisi par l'école |
+| P05 | **Paiement de l'abonnement FayJàng dans l'application** | L'école règle et son abonnement se prolonge seul | Numéro Wave affiché dans Paramètres, statut changé à la main |
+| P06 | **Clôture de caisse journalière** | Rapprocher l'encaissé du jour par mode, l'imprimer | Totaux du jour et par mode (F13) |
+
+## 8. Fiche d'une nouvelle feature : modèle et procédure
+
+Une feature n'est planifiée par `architect` qu'avec une **fiche validée par l'humain**. La fiche porte les
+décisions métier : elles appartiennent à l'humain. Ni la session principale ni `architect` ne les inventent.
+
+### 8.1 Le modèle
+
+```markdown
+### <N°> — <titre fonctionnel>
+**Acteur** : école | parent | SuperAdmin
+**Ce que l'utilisateur peut faire** : <1 phrase>
+**Règles métier** : <liste, avec les décisions déjà tranchées>
+**Argent** : <effet sur les soldes, les reçus, les arriérés, ou « aucun »>
+**Données** : <tables et colonnes touchées, ou « aucune »>
+**Hors feature** : <ce qu'on ne fait pas>
+**Critère de done** : <phrase vérifiable en production>
+**Exemple chiffré** : <cas de référence pour les tests>
+**Questions tranchées** : <question → décision, avec la date>
+**Statut de la fiche** : brouillon | validée le <date>
+```
+
+### 8.2 Qui renseigne quoi
+
+| Champ | Qui écrit | Qui décide |
+|---|---|---|
+| Acteur | Session principale, depuis le code | Humain |
+| Ce que l'utilisateur peut faire | Humain (la session reformule en une phrase) | Humain |
+| Règles métier | Session : règles déjà tranchées + cas ouverts | Humain |
+| Argent | Session : effets repérés dans `scolarite.ts` et les fonctions SQL | Humain |
+| Données | Session, depuis `.claude/SCHEMA-INDEX.md` et `src/types/database.ts` | — (factuel) |
+| Hors feature | Session propose | Humain |
+| Critère de done | Session propose | Humain |
+| Exemple chiffré | Session propose, avec l'exemple de référence du projet | Humain valide les chiffres |
+
+### 8.3 La procédure, étape par étape
+
+1. **L'humain nomme la feature** en une ou deux phrases (« je veux le changement de classe »). Si elle figure en
+   section 6 ou 7, il donne son numéro.
+2. **La session principale rassemble l'existant**, sans rien décider :
+   - le code concerné (pages, actions, fonctions SQL, calculs de `src/lib`) ;
+   - les décisions déjà prises : « Décisions tranchées » de `BACKLOG.md`, section 2 de ce document, mémoire du projet ;
+   - les entrées ouvertes de `BACKLOG.md` que la feature croise (champ « Croise : »).
+3. **La session rédige un brouillon de fiche** (statut « brouillon »). Les champs factuels sont remplis ; chaque
+   point non décidé est écrit **« À trancher »**, jamais deviné.
+4. **La session pose les questions métier ouvertes**, toutes en une fois : une question précise, deux options
+   avec leurs conséquences (sur l'argent d'abord), et une recommandation. Quatre questions au plus par tour ; s'il
+   en reste, c'est que la feature est trop large et doit être coupée en deux fiches.
+5. **L'humain tranche.** La session reporte chaque réponse dans « Questions tranchées » avec la date, et met à jour
+   les règles métier. Une réponse qui crée une nouvelle question relance l'étape 4.
+6. **La session propose l'exemple chiffré** : un cas complet avec les montants attendus (reçu, arriéré, reste sur
+   l'année), bâti sur l'exemple de référence (mensualité 20 000, 9 mensualités d'octobre à juin, échéance le 5).
+   L'humain vérifie les chiffres à la main : ce sont eux qui serviront aux tests.
+7. **L'humain valide la fiche** (« fiche validée »). La session passe le statut à « validée le <date> », ajoute la
+   fiche à la suite de ce document, et met à jour la ligne de la feature dans la vue d'ensemble (section 3).
+8. **La fiche part chez `architect`**, copiée telle quelle, avec les entrées du backlog croisées. Il produit le
+   plan en tranches verticales (`.claude/WORKFLOW.md`).
+
+### 8.4 Quand la fiche est prête
+
+Une fiche est validable seulement si :
+
+- [ ] plus aucun « À trancher » ;
+- [ ] le champ **Argent** dit l'effet sur le reçu, l'arriéré et le reste sur l'année, ou « aucun » ;
+- [ ] **Hors feature** contient au moins une exclusion (sinon le périmètre n'est pas borné) ;
+- [ ] le **critère de done** se vérifie en production par quelqu'un de l'école, sans lire le code ;
+- [ ] l'**exemple chiffré** a été recalculé à la main par l'humain ;
+- [ ] aucune règle ne contredit `CLAUDE.md` ni une décision tranchée (sinon : la rouvrir explicitement d'abord).
+
+### 8.5 Après la validation
+
+- **Question découverte pendant le plan** : `architect` ne décide pas, il la met dans sa section « Escalade ».
+  L'humain répond, la session complète « Questions tranchées » de la fiche, puis le plan est repris.
+- **Règle qui change en cours de feature** : on modifie la fiche d'abord (avec la date), le plan ensuite. La
+  fiche reste la référence du « quoi ».
+- **Feature livrée** : la fiche passe en section 4 (features livrées), réduite à « ce que l'utilisateur peut
+  faire » et « règles » ; les décisions durables sont recopiées dans « Décisions tranchées » de `BACKLOG.md`,
+  avec l'accord de l'humain.

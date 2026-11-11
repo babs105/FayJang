@@ -10,6 +10,25 @@ description: >
 
 # Règles de planification feature-specific — FayJàng
 
+## Entrée du plan : la fiche de feature
+
+Un plan part d'une **fiche validée** de `docs/feature-spec.md` (section 8) :
+acteur, ce que l'utilisateur peut faire, règles métier, argent, données, hors
+feature, critère de done, exemple chiffré, questions tranchées.
+
+| Champ de la fiche | Devient dans le plan |
+|---|---|
+| Ce que l'utilisateur peut faire | Titre et « critère de done global » |
+| Règles métier, questions tranchées | Contraintes de chaque tranche (citées, pas reformulées) |
+| Argent | Zones à risque 🔴 et tests où reçu, arriéré et reste sont vérifiés |
+| Données | Fichiers et scope de `database-reviewer` |
+| Hors feature | « Hors feature » et « Ce que le plan NE fait PAS » |
+| Exemple chiffré | Tests manuels et tests Vitest de chaque tranche |
+
+La fiche dit le **quoi**, le plan dit le **comment**. Si le découpage révèle
+une question que la fiche ne tranche pas, elle va en `## Escalade` : on
+corrige la fiche d'abord, le plan ensuite.
+
 ## Principe
 
 Un plan **feature-specific** découpe une fonctionnalité en **tranches
@@ -40,16 +59,107 @@ reviewers. Ce n'est PAS un plan "par couche" (schéma → serveur → client).
 
 | Fichier | Review obligatoire (avec scope) |
 |---|---|
-| `supabase/schema.sql` | `database-reviewer` sur les objets modifiés UNIQUEMENT |
-| `src/types/database.ts` | Mis à jour à la main par l'humain avec chaque migration (pas de génération CLI) |
+| `supabase/schema/*.sql` (5 sources ; `schema.sql` est **généré**) | `database-reviewer` sur les objets modifiés UNIQUEMENT. Une migration = un nouveau bloc `vX.Y` en fin de `05-migrations.sql`, jamais un bloc existant modifié |
+| `src/types/database.ts` | Mis à jour par le dev **dans le même commit** que le schéma, après accord explicite de l'humain (pas de génération CLI) |
+| Fonctions SQL atomiques : `inscrire_eleve`, `encaisser_paiement`, `enregistrer_classe`, `enregistrer_parametres`, `importer_reprise` | `database-reviewer` sur la fonction nommée. Toute écriture métier en plusieurs lignes passe par une de ces fonctions (une transaction), jamais par plusieurs requêtes depuis l'action |
 | `src/lib/supabase/server.ts` | `database-reviewer` (appels `echanger_*`) + `security-reviewer` |
 | `src/lib/supabase/admin.ts` | `security-reviewer` |
 | `src/lib/supabase/jeton.ts` | `security-reviewer` |
 | `src/lib/ecole-session.ts`, `admin-session.ts` | `security-reviewer` |
 | Pages et actions de login / inscription (`/ecole/login`, `/admin/login`, `/inscription`) | `security-reviewer` |
 | `src/app/**/route.ts` (reçus PDF, export Excel, diagnostic) | `security-reviewer` |
-| `src/lib/scolarite.ts` (soldes, arriérés, tranches) | `database-reviewer` sur la fonction modifiée + tests chiffrés à la main |
-| `src/lib/recu-pdf.ts`, `recu-donnees.ts` | Vérification visuelle d'un reçu par l'humain (pas de tests automatisés) |
+| `src/lib/scolarite.ts` (soldes, arriérés, tranches) | `database-reviewer` sur la fonction modifiée + tests Vitest chiffrés (`scolarite.test.ts`) |
+| `src/lib/encaissement.ts` (clé d'idempotence, empreinte, lignes pour la RPC) | `database-reviewer` sur l'appel RPC + tests Vitest |
+| `src/lib/reprise-*.ts`, `src/app/ecole/import/` (reprise de l'existant) | `security-reviewer` sur l'action d'import (fichier envoyé par l'école) + `database-reviewer` sur `importer_reprise` |
+| `src/lib/recu-pdf.ts`, `recu-donnees.ts` | Vérification visuelle d'un reçu par l'humain (le PDF n'a pas de test automatique) |
+| `next.config.ts` (en-têtes de sécurité, CSP) | `security-reviewer` ; toute ressource externe nouvelle doit entrer dans la CSP dans la même tranche |
+
+### Qui code une tranche
+
+| La tranche touche… | Dev |
+|---|---|
+| Fiche élève, `encaisserPaiement`, `annulerPaiement`, `scolarite.ts`, `encaissement.ts`, reçus PDF | `dev-encaissement` |
+| Tout le reste (classes, inscriptions, paramètres, page parent, export, import, tableau de bord, impayés, admin) | Session principale, avec les règles d'un agent dev |
+
+Une tranche qui mélange les deux périmètres est **mal découpée** : la couper.
+
+## Méthode de travail (lire peu, lire juste, prouver)
+
+Un plan faux coûte une tranche entière. Un plan qui lit tout coûte du temps
+pour rien. Ordre de lecture, **12 appels d'outils au plus** :
+
+1. La **fiche de feature** (dans la demande, sinon `docs/feature-spec.md`).
+2. `BACKLOG.md` : un seul `Grep` sur les mots de la feature (table, action,
+   écran) pour trouver les entrées « Croise : », puis « Décisions tranchées ».
+3. `.claude/SCHEMA-INDEX.md` en entier (court) : tables, fonctions, triggers
+   concernés et **dernier bloc `vX.Y`** (le prochain bloc du plan porte le
+   numéro suivant). Ne jamais lire `supabase/schema.sql` en entier ; lire la
+   plage de la **version active** d'un objet seulement si le plan en dépend.
+4. Un `Grep` groupé sur le code (`grep -E "nomAction|nomFonction|colonne"`)
+   puis `Read` ciblé de l'action ou de la fonction, pas du fichier entier.
+5. `Glob` pour vérifier que chaque fichier cité existe.
+
+**Preuves exigées dans le plan** :
+- Chaque fichier cité dans une tranche a été vu (`Glob` / `Grep`) ou porte la
+  mention **(à créer)**. Aucun chemin inventé.
+- Chaque fonction, trigger ou action existante est citée avec son nom exact
+  et sa version active (« `encaisser_paiement`, bloc v1.16 »).
+- Avant d'écrire « il faut créer X », vérifier que X n'existe pas déjà
+  (helper de `src/lib`, fonction SQL, composant de `src/components/ui.tsx`).
+- Une affirmation non vérifiée s'écrit « à vérifier par le dev », pas comme un fait.
+
+## Contenu obligatoire d'une tranche
+
+Le dev reçoit **une tranche, copiée telle quelle**, sans le reste du plan :
+elle doit se suffire.
+
+| Rubrique | Contenu |
+|---|---|
+| Ce que l'utilisateur peut faire | 1 phrase, vérifiable à l'écran |
+| Qui code | `dev-encaissement` ou session principale (tableau ci-dessus) |
+| Règles de la fiche appliquées | Citées mot pour mot, avec la décision tranchée |
+| Fichiers | Liste exhaustive, **(à créer)** si nouveau |
+| SQL | Fichier source (`0X-*.sql`), numéro du bloc `vX.Y`, objets créés ou remplacés ; « aucun » sinon |
+| Effets de bord à traiter | Voir la liste ci-dessous |
+| Tests automatiques | Fichier `*.test.ts` et cas chiffrés (ceux de la fiche) |
+| Tests manuels | Flow précis en preview, avec les montants attendus |
+| Scope des reviews | Objet nommé par reviewer, ou « aucune » avec la raison |
+| Porte de sortie | Critère de bout en bout |
+| Backlog | Entrées de `BACKLOG.md` résolues par la tranche, par leur titre |
+
+**Effets de bord à vérifier pour chaque tranche** (écrire « aucun » si rien) :
+- **Nouvelle colonne de `paiements`** → l'ajouter à la liste `IS DISTINCT FROM`
+  de `proteger_paiement` dans le même bloc.
+- **Nouvelle table** → `ecole_id`, RLS activée, policies, branche dans
+  `verifier_meme_ecole` + `trg_meme_ecole`, `REVOKE` par défaut.
+- **Nouvelle fonction SQL** → `search_path`, `REVOKE FROM PUBLIC`, contrôle
+  du rôle, verrou si elle écrit de l'argent.
+- **Nouveau code d'erreur ou nouvelle cause** → message en français dans le
+  `RAISE`, code dans `CODES_METIER` (`src/lib/erreurs.ts`), `docs/codes-erreur.md`.
+- **Changement de calcul** (`scolarite.ts`) → la fiche élève, la page parent,
+  l'onglet Impayés, l'export, la relance WhatsApp et la reprise de l'existant
+  (`reprise-repartition.ts`, test de parité) utilisent le même calcul : dire
+  lesquels changent.
+- **Donnée affichée au parent** → policy `parent_*` correspondante.
+- **Schéma** → `src/types/database.ts`, `build-schema.sh`, `schema-index.sh`
+  dans la même tranche.
+- **Ressource externe côté navigateur** → CSP de `next.config.ts`.
+
+## Mise en production (obligatoire si une tranche touche le schéma)
+
+Le plan se termine par une section « Mise en production » :
+
+- **Ordre** : schéma **avant** le déploiement si le nouveau code lit un objet
+  nouveau ; code **avant** le schéma si l'ancien code casserait sur le nouveau
+  schéma. Dire lequel, et pourquoi.
+- **Compatibilité** : entre les deux étapes, l'application en ligne doit
+  continuer de marcher. Sinon le dire et proposer une tranche de transition.
+- **Pré-contrôle des données réelles** : si le plan ajoute une contrainte
+  (`CHECK`, `UNIQUE`, `NOT NULL`) ou un refus nouveau, fournir la requête
+  `SELECT` qui compte les lignes existantes qui la violeraient (0 attendu),
+  à lancer en production **avant** la migration.
+- **Retour arrière** : ce qu'on fait si la feature doit être retirée (le
+  schéma est additif : dire quels objets restent sans gêner).
 
 ## Matrice scope → reviewer (le cœur du feature-specific)
 
@@ -185,16 +295,26 @@ reçoit un seul reçu numéroté avec le détail par enfant.
 
 ### Tranche 1 — Encaisser la même mensualité pour deux enfants, un reçu
 **Après cette tranche** : l'école encaisse janvier pour Awa et Moussa en une fois.
-**Fichiers** : `supabase/schema.sql`, `src/app/ecole/actions.ts`, `src/app/ecole/fiche-eleve.tsx`
+**Qui code** : `dev-encaissement` (fiche élève, encaissement)
+**Règles de la fiche appliquées** : « un reçu famille ne concerne qu'un seul parent » (tranché le …)
+**Fichiers** : `supabase/schema/05-migrations.sql`, `supabase/schema.sql` et
+`.claude/SCHEMA-INDEX.md` (générés), `src/types/database.ts`, `src/app/ecole/actions.ts`,
+`src/app/ecole/fiche-eleve.tsx`, `src/lib/encaissement.ts`, `src/lib/encaissement.test.ts`
+**SQL** : `05-migrations.sql`, bloc **v1.19** : remplace `numeroter_recu` (un lot = un parent),
+crée `encaisser_paiement_famille` (verrou des deux inscriptions, empreinte, clé d'idempotence)
+**Effets de bord à traiter** : `annulerPaiement` annule déjà par lot (rien à changer) ;
+page parent : chaque enfant garde ses lignes (à vérifier par le dev) ; aucune nouvelle colonne
+**Tests automatiques** : `encaissement.test.ts` : lignes des deux enfants, total 40 000
 **Scope des reviews** :
-- `database-reviewer` : sur le trigger `numeroter_recu` (version v1.5) UNIQUEMENT
+- `database-reviewer` : sur `numeroter_recu` (bloc v1.19) et `encaisser_paiement_famille` UNIQUEMENT
 - `security-reviewer` : sur `encaisserPaiementFamille` UNIQUEMENT
 **Porte de sortie** : 2 lignes de paiement, même `numero_recu`, `lot_id` identique,
 `inscription_id` différentes, même `parent_id` → refus si on mélange deux parents
 **Tests manuels** :
-- [ ] Awa + Moussa (même parent) → 1 reçu de 40 000
+- [ ] Awa + Moussa (même parent) → 1 reçu de 40 000, arriéré de chacun diminué de 20 000
 - [ ] Awa + un élève d'un autre parent → refus clair
 - [ ] Double-clic → un seul reçu
+**Backlog** : aucune entrée croisée
 
 ### Tranche 2 — Le reçu PDF détaille chaque enfant
 **Fichiers** : `src/lib/recu-donnees.ts`, `src/lib/recu-pdf.ts`
@@ -207,6 +327,12 @@ reçoit un seul reçu numéroté avec le détail par enfant.
 
 ## Ordre et dépendances
 - T1 avant T2 (le PDF lit le lot créé en T1)
+
+## Mise en production
+- **Ordre** : schéma (bloc v1.19) avant le déploiement : le nouveau code appelle `encaisser_paiement_famille`.
+- **Compatibilité** : l'ancien code continue d'encaisser un élève à la fois avec le nouveau trigger.
+- **Pré-contrôle** : aucun (pas de contrainte nouvelle sur les lignes existantes).
+- **Retour arrière** : retirer le bouton ; la fonction reste en base sans effet.
 
 ## Ce que le plan NE fait PAS
 - Paiement en ligne
@@ -229,10 +355,19 @@ cohérent avec `annulerPaiement` actuel.
 | Pas de scope strict | Toujours commencer par scope / hors scope |
 | Tranche qui touche l'argent sans test chiffré | Ajouter reçu, arriéré et reste sur l'année attendus |
 | Tranche qui casse un flow existant sans le dire | Signaler "cette tranche touche le flow d'encaissement" |
+| Fichier cité sans l'avoir vu | `Glob` d'abord, ou mention **(à créer)** |
+| « Créer un helper X » alors qu'il existe | `Grep` dans `src/lib` avant de proposer |
+| Tranche qui dépend du reste du plan pour être comprise | Chaque tranche se suffit : règles, fichiers, tests, reviews |
+| Plusieurs requêtes d'écriture depuis l'action pour un même geste | Une fonction SQL atomique (une transaction) |
+| Contrainte nouvelle sans regarder les données existantes | Requête de pré-contrôle dans « Mise en production » |
+| Tranche à cheval sur `dev-encaissement` et la session principale | La couper en deux tranches |
+| Règle métier ajoutée « par bon sens » | `## Escalade`, la fiche d'abord |
 
 ## Checklist finale avant de rendre un plan
 
-- [ ] Scope strict écrit (dans / hors feature)
+- [ ] Fiche de feature validée lue (`docs/feature-spec.md`), aucune règle métier ajoutée ou modifiée
+- [ ] Scope strict écrit (dans / hors feature), cohérent avec le « Hors feature » de la fiche
+- [ ] Exemple chiffré de la fiche repris dans les tests des tranches
 - [ ] Critère "done" global en 1 phrase vérifiable
 - [ ] Tranches **verticales**, pas par couche
 - [ ] Chaque tranche a un critère de sortie **end-to-end**
@@ -241,7 +376,14 @@ cohérent avec `annulerPaiement` actuel.
 - [ ] "Hors feature" explicite
 - [ ] Aucune tranche "schéma seule" ou "UI seule"
 - [ ] Findings de `BACKLOG.md` croisés par la feature intégrés
+- [ ] Chaque tranche a toutes les rubriques de « Contenu obligatoire d'une tranche » et se lit seule
+- [ ] Chaque fichier cité a été vu, ou porte **(à créer)** ; versions actives citées
+- [ ] « Qui code » renseigné, aucune tranche à cheval sur deux périmètres
+- [ ] Effets de bord passés en revue pour chaque tranche (« aucun » écrit si rien)
+- [ ] Section « Mise en production » présente si le schéma change (ordre, compatibilité, pré-contrôle, retour arrière)
+- [ ] 12 appels d'outils au plus, aucun fichier lu en entier sans nécessité
 
 ## Le cycle de livraison (non négociable)
 
-1 tranche = 1 agent dev = 1 rapport = N reviews = 1 merge. Puis on recommence.
+1 tranche = 1 branche de slice = 1 dev = 1 rapport = N reviews = 1 merge vers
+la branche de feature. 1 feature = 1 merge vers `main`. Détail : `.claude/WORKFLOW.md`.
