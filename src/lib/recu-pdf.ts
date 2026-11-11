@@ -41,6 +41,18 @@ const BAS_TOTAL = 175;
 /** Limite basse des lignes (au-dessus du pied de page) */
 const BAS_LIGNES = 60;
 
+/** Au-delà, le détail est coupé et le reste regroupé en une ligne : le total reste exact */
+export const MAX_LIGNES_RECU = 300;
+
+/** Coupe un texte trop large pour sa colonne et le termine par « ... » */
+export function couper(t: string, largeur: number, mesurer: (s: string) => number): string {
+  const propre = texte(t);
+  if (mesurer(propre) <= largeur) return propre;
+  let coupe = propre;
+  while (coupe.length > 0 && mesurer(`${coupe}...`) > largeur) coupe = coupe.slice(0, -1);
+  return `${coupe.trimEnd()}...`;
+}
+
 /** Reçu de paiement A5. Un reçu long passe sur plusieurs pages, sans jamais couper une ligne. */
 export async function genererRecuPdf(d: DonneesRecu): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
@@ -54,6 +66,10 @@ export async function genererRecuPdf(d: DonneesRecu): Promise<Uint8Array> {
   const droite = (t: string, x: number, y: number, size: number, font = gras, color = noir) =>
     page.drawText(texte(t), { x: x - font.widthOfTextAtSize(texte(t), size), y, size, font, color });
 
+  /** Texte aligné à gauche, coupé pour ne pas dépasser `largeur` */
+  const gauche = (t: string, x: number, y: number, size: number, largeur: number, font = normal, color = noir) =>
+    page.drawText(couper(t, largeur, (s) => font.widthOfTextAtSize(s, size)), { x, y, size, font, color });
+
   const bandeau = (titre: string) => {
     page.drawRectangle({ x: 0, y: 565, width: 420, height: 30, color: vert });
     page.drawText(texte(titre), { x: 24, y: 575, size: 11, font: gras, color: rgb(1, 1, 1) });
@@ -66,10 +82,10 @@ export async function genererRecuPdf(d: DonneesRecu): Promise<Uint8Array> {
   bandeau("FayJàng - Reçu de paiement");
 
   let y = 535;
-  page.drawText(texte(d.ecole.nom), { x: 24, y, size: 15, font: gras });
+  gauche(d.ecole.nom, 24, y, 15, 372, gras);
   y -= 16;
   const coord = [d.ecole.adresse, d.ecole.ville, d.ecole.telephone_contact].filter(Boolean).join(" - ");
-  if (coord) page.drawText(texte(coord), { x: 24, y, size: 9, font: normal, color: gris });
+  if (coord) gauche(coord, 24, y, 9, 372, normal, gris);
 
   y -= 34;
   page.drawText(texte(`Reçu n° ${d.numero ?? "-"}`), { x: 24, y, size: 12, font: gras });
@@ -83,7 +99,7 @@ export async function genererRecuPdf(d: DonneesRecu): Promise<Uint8Array> {
   y -= 28;
   const info = (label: string, valeur: string) => {
     page.drawText(texte(label), { x: 24, y, size: 10, font: normal, color: gris });
-    page.drawText(texte(valeur), { x: 150, y, size: 10, font: gras });
+    gauche(valeur, 150, y, 10, 246, gras);
     y -= 18;
   };
   info("Élève", `${d.eleve.prenom} ${d.eleve.nom}`);
@@ -99,7 +115,13 @@ export async function genererRecuPdf(d: DonneesRecu): Promise<Uint8Array> {
   enteteColonnes(y);
   y -= 16;
   const valides = d.lignes.filter((l) => !l.annule || d.annule);
-  for (const l of valides) {
+  const affichees = valides.slice(0, MAX_LIGNES_RECU);
+  const masquees = valides.slice(MAX_LIGNES_RECU);
+  const detail = affichees.map((l) => ({ libelle: libellePaiement(l), montant: l.montant }));
+  if (masquees.length) {
+    detail.push({ libelle: `Autres lignes (${masquees.length})`, montant: masquees.reduce((s, l) => s + l.montant, 0) });
+  }
+  for (const l of detail) {
     if (y < BAS_LIGNES) {
       page = doc.addPage([420, 595]);
       bandeau(`FayJàng - Reçu n° ${d.numero ?? "-"} (suite)`);
@@ -107,8 +129,10 @@ export async function genererRecuPdf(d: DonneesRecu): Promise<Uint8Array> {
       enteteColonnes(y);
       y -= 16;
     }
-    page.drawText(texte(libellePaiement(l)), { x: 24, y, size: 10, font: normal });
-    droite(montant(l.montant), 396, y, 10, normal);
+    const prix = montant(l.montant);
+    // Le libellé s'arrête 12 pt avant le montant, aligné à droite
+    gauche(l.libelle, 24, y, 10, 372 - normal.widthOfTextAtSize(prix, 10) - 12);
+    droite(prix, 396, y, 10, normal);
     y -= 16;
   }
   page.drawLine({ start: { x: 24, y: y + 8 }, end: { x: 396, y: y + 8 }, thickness: 0.5, color: gris });

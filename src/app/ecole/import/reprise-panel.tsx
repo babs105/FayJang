@@ -40,6 +40,8 @@ interface Avancement {
   laissees: number;
   enCours: boolean;
   erreur: string | null;
+  /** L'échec est survenu après l'envoi (coupure, réponse inattendue) : le lot a pu être écrit */
+  incertain?: boolean;
 }
 
 export function ReprisePanel() {
@@ -105,7 +107,7 @@ export function ReprisePanel() {
   async function importerLots(depart: Avancement) {
     const fichier = fichierRef.current;
     if (!fichier) return;
-    let a: Avancement = { ...depart, enCours: true, erreur: null };
+    let a: Avancement = { ...depart, enCours: true, erreur: null, incertain: false };
     setAvance(a);
     while (a.prochain < a.lots.length) {
       const formData = new FormData();
@@ -115,7 +117,7 @@ export function ReprisePanel() {
       try {
         const r = await importerLotReprise(formData);
         if (!r.success || !r.data) {
-          a = { ...a, enCours: false, erreur: r.message ?? "Ce lot n'a pas pu être importé." };
+          a = { ...a, enCours: false, erreur: r.message ?? "Ce lot n'a pas pu être importé.", incertain: r.incertain === true };
           break;
         }
         a = {
@@ -130,7 +132,7 @@ export function ReprisePanel() {
         setAvance(a);
       } catch {
         // Connexion coupée : le lot en cours a pu être écrit ou non, le rejeu ignore les élèves déjà créés
-        a = { ...a, enCours: false, erreur: "Connexion interrompue pendant l'envoi. Cliquez sur « Reprendre » : les élèves déjà créés seront ignorés." };
+        a = { ...a, enCours: false, incertain: true, erreur: "Connexion interrompue pendant l'envoi. Cliquez sur « Reprendre » : les élèves déjà créés seront ignorés." };
         break;
       }
     }
@@ -563,9 +565,17 @@ function SuiviImport({ avance, onReprendre }: { avance: Avancement; onReprendre:
       )}
       {avance.erreur && (
         <Message ok={false}>
-          <p className="font-bold">Le lot {avance.prochain + 1} sur {total} n&apos;a pas été importé.</p>
+          <p className="font-bold">
+            {avance.incertain
+              ? `Le lot ${avance.prochain + 1} sur ${total} n'a pas pu être confirmé.`
+              : `Le lot ${avance.prochain + 1} sur ${total} n'a pas été importé.`}
+          </p>
           <p>{avance.erreur}</p>
-          <p className="mt-1">Rien n&apos;a été enregistré pour ce lot. Corrigez le problème, puis reprenez.</p>
+          <p className="mt-1">
+            {avance.incertain
+              ? "Ce lot a peut-être été enregistré. Vous pouvez reprendre sans risque : les élèves déjà créés seront ignorés, aucun reçu ne sera créé en double."
+              : "Rien n'a été enregistré pour ce lot. Corrigez le problème, puis reprenez."}
+          </p>
         </Message>
       )}
       {avance.erreur && !avance.enCours && (

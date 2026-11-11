@@ -115,8 +115,11 @@ describe("lireOption", () => {
 });
 
 describe("ressembleAUneFormule", () => {
-  it("repère =, + et @ en tête", () => {
+  it("repère =, +, - et @ en tête", () => {
     expect(ressembleAUneFormule("=1+1")).toBe(true);
+    expect(ressembleAUneFormule("-1+1")).toBe(true);
+    expect(ressembleAUneFormule("\tcmd")).toBe(true);
+    expect(ressembleAUneFormule("Jean-Pierre")).toBe(false);
     expect(ressembleAUneFormule("+221")).toBe(true);
     expect(ressembleAUneFormule("@moi")).toBe(true);
     expect(ressembleAUneFormule("Awa")).toBe(false);
@@ -149,7 +152,7 @@ describe("analyserReprise", () => {
     expect(erreurs[2]).toContain("Total versé (scolarité) invalide");
     expect(erreurs[3]).toContain("Sexe « X » invalide");
     expect(erreurs[4]).toContain("Date de naissance invalide");
-    expect(erreurs[5]).toContain("=, + ou @");
+    expect(erreurs[5]).toContain("=, +, - ou @");
     expect(a.compteurs.erreurs).toBe(6);
   });
 

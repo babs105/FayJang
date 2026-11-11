@@ -1,6 +1,7 @@
 // Reprise de l'existant : contrôle de forme du fichier (classes, articles, élèves), puis chiffrage de chaque élève
 // (reprise-repartition.ts). Produit l'aperçu ligne par ligne affiché à l'école avant tout import. N'écrit rien.
 import { formatPeriode, moisScolaires } from "@/lib/dates";
+import { DEBUT_FORMULE } from "@/lib/export-sur";
 import { normaliserTelephone } from "@/lib/telephone";
 import type { Cellule, ClasseurBrut, FeuilleBrute } from "@/lib/reprise-lecture";
 import { COLONNES_REQUISES, normaliser, reconnaitreEntetes, typeFeuille, type TypeFeuille } from "@/lib/reprise-colonnes";
@@ -80,9 +81,10 @@ export function telephoneCellule(c: Cellule): string | null {
   return t && /^\+\d{9,15}$/.test(t) ? t : null;
 }
 
-/** Un texte qui commence par =, + ou @ deviendrait une formule dans un export Excel : refusé */
+/** Un texte qui commence par =, +, - ou @ (ou une tabulation, un retour chariot) deviendrait une formule dans un
+ *  export Excel : refusé. Même expression que l'export (celluleTexte), qui reste la défense principale. */
 export function ressembleAUneFormule(s: string): boolean {
-  return /^[=+@]/.test(s);
+  return DEBUT_FORMULE.test(s);
 }
 
 const SEXES: Record<string, "M" | "F"> = {
@@ -379,7 +381,7 @@ export function analyserReprise(classeur: ClasseurBrut, ctx: ContexteReprise): A
       const nom = texteCellule(cellule("classe"), 60);
       if (!nom) erreurs.push("Nom de la classe manquant.");
       else if (nom.length > 40) erreurs.push("Nom de la classe trop long (40 caractères au maximum).");
-      else if (ressembleAUneFormule(nom)) erreurs.push("Le nom de la classe ne doit pas commencer par =, + ou @.");
+      else if (ressembleAUneFormule(nom)) erreurs.push("Le nom de la classe ne doit pas commencer par =, +, - ou @.");
       const niveauBrut = texteCellule(cellule("niveau"));
       const niveau = choix(NIVEAUX, cellule("niveau")) ?? null;
       const frais = montantCellule(cellule("frais"));
@@ -474,7 +476,7 @@ export function analyserReprise(classeur: ClasseurBrut, ctx: ContexteReprise): A
       else if (!enBase && dansFichier?.etat === "erreur") erreurs.push(`La classe « ${classe} » est en erreur dans la feuille « Classes ».`);
       if (!libelle) erreurs.push("Libellé manquant.");
       else if (libelle.length > 60) erreurs.push("Libellé trop long (60 caractères au maximum).");
-      else if (ressembleAUneFormule(libelle)) erreurs.push("Le libellé ne doit pas commencer par =, + ou @.");
+      else if (ressembleAUneFormule(libelle)) erreurs.push("Le libellé ne doit pas commencer par =, +, - ou @.");
       if (!nature) erreurs.push(natureBrute ? `Nature « ${natureBrute} » inconnue (unique ou mensuel).` : "Nature manquante (unique ou mensuel).");
       if (prix === null || prix === "invalide" || prix > 99_999_999) erreurs.push("Prix unitaire manquant ou invalide (nombre entier en FCFA).");
       if (quantiteBrute === "invalide" || (typeof quantiteBrute === "number" && quantiteBrute > 99)) erreurs.push("Quantité par défaut invalide (0 à 99).");
@@ -556,7 +558,7 @@ export function analyserReprise(classeur: ClasseurBrut, ctx: ContexteReprise): A
       else if (parent.length > 80) erreurs.push("Nom du parent trop long (80 caractères au maximum).");
       if (!telBrut) erreurs.push("Téléphone du parent manquant.");
       else if (!telephone) erreurs.push(`Téléphone du parent « ${telBrut} » invalide.`);
-      if ([prenom, nom, parent].some(ressembleAUneFormule)) erreurs.push("Un nom ne doit pas commencer par =, + ou @.");
+      if ([prenom, nom, parent].some(ressembleAUneFormule)) erreurs.push("Un nom ne doit pas commencer par =, +, - ou @.");
 
       // Classe
       const catalogue = catalogues.get(normaliser(classeSaisie));

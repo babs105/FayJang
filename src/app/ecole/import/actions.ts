@@ -28,6 +28,8 @@ export interface Resultat<T = undefined> {
   success: boolean;
   message?: string;
   data?: T;
+  /** Échec après l'envoi à la base : l'écriture a pu avoir lieu ou non (le rejeu reste sûr) */
+  incertain?: boolean;
 }
 
 const SESSION_EXPIREE = "Session expirée : reconnectez-vous à l'Espace École.";
@@ -255,6 +257,8 @@ export async function importerLotReprise(formData: FormData): Promise<Resultat<R
   if (typeof cles === "string") return { success: false, message: cles };
 
   let resultat: ResultatLotReprise | null = null;
+  // Vrai dès que le lot part vers la base : avant, rien n'a pu être écrit
+  let envoye = false;
   try {
     const r = await analyserComplet(ecoleId, formData, false);
     if (!r.success || !r.data) return { success: false, message: r.message };
@@ -279,19 +283,21 @@ export async function importerLotReprise(formData: FormData): Promise<Resultat<R
     resultat = { crees: 0, ignores: dejaPresents, montant: 0, recus: 0, refuses };
     if (lot.length > 0) {
       const supabase = createClientEcole(ecoleId);
+      envoye = true;
       const { data, error } = await supabase.rpc("importer_reprise", { p_eleves: lot as unknown as Json, p_mode: mode });
+      // Refus explicite de la base : la fonction est atomique, rien n'est écrit pour ce lot
       if (error) return { success: false, message: messageErreur("import/lot", error, "Import du lot impossible pour le moment, réessayez.") };
       const lignes = lireRetour(data);
-      if (!lignes) return { success: false, message: "Réponse inattendue de la base : vérifiez la liste des élèves avant de reprendre." };
+      if (!lignes) return { success: false, incertain: true, message: "Réponse inattendue de la base : vérifiez la liste des élèves avant de reprendre." };
       const somme = resumerRetour(lignes);
       resultat = { ...somme, ignores: somme.ignores + dejaPresents, refuses };
     }
     return { success: true, data: resultat };
   } catch (err) {
     if (err instanceof ErreurFichier) return { success: false, message: err.message };
-    return { success: false, message: messageErreur("import/lot", err, "Import du lot impossible pour le moment, réessayez.") };
+    return { success: false, incertain: envoye, message: messageErreur("import/lot", err, "Import du lot impossible pour le moment, réessayez.") };
   } finally {
-    // Une exception après l'écriture ne doit pas laisser l'écran sur d'anciennes données
-    revalidatePath("/ecole");
+    // Une exception après l'écriture ne doit pas laisser l'écran sur d'anciennes données ; rien à rafraîchir sinon
+    if (envoye) revalidatePath("/ecole");
   }
 }

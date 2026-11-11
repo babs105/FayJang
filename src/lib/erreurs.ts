@@ -9,6 +9,17 @@ export class ErreurAffichable extends Error {}
 /** Codes levés par nos fonctions et triggers SQL, au message écrit en français pour l'utilisateur */
 const CODES_METIER = new Set(["FJ403", "FJ404", "FJ412", "FJ422", "FJ429"]);
 
+/**
+ * Nom de la contrainte CHECK violée (erreur Postgres 23514), ou null. Sert à choisir un message précis sans
+ * chercher un mot dans le texte : « date_depart » peut figurer dans le nom d'une autre contrainte.
+ */
+export function contrainteViolee(err: unknown): string | null {
+  const e = err as { code?: unknown; message?: unknown; details?: unknown } | null;
+  if (!e || e.code !== "23514") return null;
+  const texte = `${typeof e.message === "string" ? e.message : ""} ${typeof e.details === "string" ? e.details : ""}`;
+  return /constraint "([a-z0-9_]+)"/i.exec(texte)?.[1] ?? null;
+}
+
 /** Traduit une erreur en message lisible. `doublon` : message pour une valeur déjà utilisée (23505) */
 export function messageErreur(
   contexte: string,

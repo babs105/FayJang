@@ -124,7 +124,7 @@ export default async function EcolePage({ searchParams }: PageProps) {
     // Une lecture en échec ne doit pas afficher une école vide ni des soldes faux
     if (err instanceof LectureTropLongue) {
       console.error("[ecole/page] lecture des données : trop de lignes");
-      return <ErreurBase migrationManquante={false} />;
+      return <ErreurBase migrationManquante={false} tropDeLignes />;
     }
     const code = typeof (err as { code?: unknown })?.code === "string" ? (err as { code: string }).code : "";
     console.error("[ecole/page] lecture des données :", code || "erreur");
@@ -225,7 +225,7 @@ export default async function EcolePage({ searchParams }: PageProps) {
   );
 }
 
-function ErreurBase({ migrationManquante }: { migrationManquante: boolean }) {
+function ErreurBase({ migrationManquante, tropDeLignes = false }: { migrationManquante: boolean; tropDeLignes?: boolean }) {
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
       <div className="max-w-md bg-white border border-neutral-200 rounded-3xl p-6 text-sm text-neutral-700 space-y-2">
@@ -233,7 +233,9 @@ function ErreurBase({ migrationManquante }: { migrationManquante: boolean }) {
         <p>
           {migrationManquante
             ? "La base n'est pas à jour : relancez supabase/schema.sql dans l'éditeur SQL Supabase."
-            : "Réessayez dans un instant. Si le problème persiste, contactez le support FayJàng."}
+            : tropDeLignes
+              ? "Votre école dépasse le nombre de lignes que cette page peut afficher. Vos données sont intactes : contactez le support FayJàng."
+              : "Réessayez dans un instant. Si le problème persiste, contactez le support FayJàng."}
         </p>
       </div>
     </div>

@@ -169,7 +169,14 @@ export function repartirReprise(e: EntreeRepartition): ResultatRepartition {
       const quantite = choisies[0]?.quantite ?? def.quantiteDefaut;
       return quantite < 1 ? [] : [{ id: `a${rang}`, rang, def, quantite, debut: null, fin: null }];
     }
-    const periodes = choisies.length ? [...choisies].sort((a, b) => ((a.debut ?? "") < (b.debut ?? "") ? -1 : 1)) : [null];
+    // Deux périodes qui se suivent sans mois d'arrêt (novembre-décembre puis janvier) ne font qu'une ligne de service
+    const periodes: ({ debut?: string | null; fin?: string | null } | null)[] = [];
+    for (const o of [...choisies].sort((a, b) => ((a.debut ?? "") < (b.debut ?? "") ? -1 : 1))) {
+      const avant = periodes[periodes.length - 1];
+      if (avant?.fin && o.debut && tous.indexOf(avant.fin) + 1 === tous.indexOf(o.debut)) avant.fin = o.fin ?? null;
+      else periodes.push({ debut: o.debut, fin: o.fin });
+    }
+    if (!periodes.length) periodes.push(null);
     return periodes.map((o, k) => ({ id: `a${rang}p${k}`, rang, def, quantite: 1, debut: o?.debut ?? null, fin: o?.fin ?? null }));
   });
   const calcul = (r: (typeof retenus)[number], moisDebut: string | null, moisFin: string | null): ArticleCalcul => ({

@@ -6,7 +6,7 @@ import { getEcoleId, hashCode } from "@/lib/ecole-session";
 import { createClientEcole } from "@/lib/supabase/server";
 import { generateToken, todayDakar } from "@/lib/config";
 import { isAnneeScolaireValide, isDateValide, moisScolaires } from "@/lib/dates";
-import { messageErreur } from "@/lib/erreurs";
+import { contrainteViolee, messageErreur } from "@/lib/erreurs";
 import { MODES_PAIEMENT, NIVEAUX } from "@/lib/libelles";
 import { empreintePaiements, lignesPourRpc, messageAnnulation, lireCleEncaissement, lireResultatEncaissement } from "@/lib/encaissement";
 import { lignesAEncaisser, paiementLibreAutorise, situationInscription, verifierReglages, type LigneEncaissement } from "@/lib/scolarite";
@@ -24,6 +24,7 @@ export interface Resultat<T = undefined> {
 }
 
 const SESSION_EXPIREE = "Session expirée : reconnectez-vous à l'Espace École.";
+const DATE_NAISSANCE_FUTURE = "La date de naissance ne peut pas être dans le futur.";
 
 async function session() {
   const ecoleId = await getEcoleId();
@@ -224,12 +225,10 @@ export async function inscrireEleve(saisie: SaisieInscription): Promise<Resultat
   const s = await session();
   if (!s) return { success: false, message: SESSION_EXPIREE };
 
+  // Identifiants mal formés refusés ici plutôt que par une erreur Postgres générique
   const classeId = texte(saisie.classe_id, 40);
-  if (!classeId) return { success: false, message: "Choisissez une classe." };
-  // Réinscription : un identifiant mal formé est refusé ici plutôt que par une erreur Postgres générique
-  if (saisie.eleve_id && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(saisie.eleve_id)) {
-    return { success: false, message: "Élève introuvable." };
-  }
+  if (!estUuid(classeId)) return { success: false, message: "Choisissez une classe." };
+  if (saisie.eleve_id && !estUuid(saisie.eleve_id)) return { success: false, message: "Élève introuvable." };
   const reduction = montant(saisie.reduction_mensuelle || 0);
   if (reduction === null) return { success: false, message: "Réduction invalide." };
   const reglement = saisie.payer_inscription ? lireMode(saisie.mode, saisie.reference) : null;
@@ -249,6 +248,9 @@ export async function inscrireEleve(saisie: SaisieInscription): Promise<Resultat
     if (!prenom || !nom) return { success: false, message: "Prénom et nom de l'élève obligatoires." };
     if (!parentNom || !telephone || !/^\+\d{9,15}$/.test(telephone)) {
       return { success: false, message: "Nom et téléphone du parent obligatoires (ex : 77 123 45 67)." };
+    }
+    if (isDateValide(saisie.date_naissance) && saisie.date_naissance > todayDakar()) {
+      return { success: false, message: DATE_NAISSANCE_FUTURE };
     }
     identite = {
       p_prenom: prenom,
@@ -297,7 +299,7 @@ export async function inscrireEleve(saisie: SaisieInscription): Promise<Resultat
         moisDebutServices,
       });
       if ("lignes" in calcul) lignes = calcul.lignes;
-      else if (!calcul.erreur.startsWith("Rien à encaisser")) return { success: false, message: calcul.erreur };
+      else if (!calcul.rienAEncaisser) return { success: false, message: calcul.erreur };
     }
 
     const { data, error } = await s.supabase.rpc("inscrire_eleve", {
@@ -446,11 +448,13 @@ export async function modifierInscription(
   if (Object.keys(maj).length === 0) return { success: true };
   const { error } = await s.supabase.from("inscriptions").update(maj).eq("id", id).eq("ecole_id", s.ecoleId);
   if (error) {
-    if (error.code === "23514") {
-      if (`${error.message} ${error.details ?? ""}`.includes("date_depart"))
-        return { success: false, message: "La date de départ n'est possible que pour un élève en abandon ou transféré." };
+    // Message choisi d'après le nom exact de la contrainte ; une contrainte inconnue garde le message générique
+    const contrainte = contrainteViolee(error);
+    if (contrainte === "inscriptions_date_depart_check")
+      return { success: false, message: "La date de départ n'est possible que pour un élève en abandon ou transféré." };
+    // « inscriptions_check » : nom donné par Postgres au CHECK de table (reduction_mensuelle <= mensualite)
+    if (contrainte && /^inscriptions_(check\d*|reduction_mensuelle_check)$/.test(contrainte))
       return { success: false, message: "La réduction ne peut pas dépasser la mensualité." };
-    }
     return { success: false, message: messageErreur("inscriptions", error) };
   }
   revalidatePath("/ecole");
@@ -469,6 +473,7 @@ export async function modifierEleve(
   const telephone = normaliserTelephone(champs.parent_telephone);
   if (!prenom || !nom) return { success: false, message: "Prénom et nom obligatoires." };
   if (!parentNom || !telephone || !/^\+\d{9,15}$/.test(telephone)) return { success: false, message: "Parent : nom et téléphone valides obligatoires." };
+  if (isDateValide(champs.date_naissance) && champs.date_naissance > todayDakar()) return { success: false, message: DATE_NAISSANCE_FUTURE };
 
   try {
     const parentId = await trouverOuCreerParent(s.supabase, s.ecoleId, parentNom, telephone);

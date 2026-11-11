@@ -1,4 +1,4 @@
-import { choixALinscription, lignesAEncaisser, situationInscription, type ArticleCalcul, type CalendrierEcole } from "@/lib/scolarite";
+import { RIEN_A_ENCAISSER, choixALinscription, lignesAEncaisser, situationInscription, type ArticleCalcul, type CalendrierEcole } from "@/lib/scolarite";
 import type { Classe, Ecole, NatureArticle } from "@/types/database";
 
 /** Ligne du catalogue d'une classe, telle que lue dans articles_classe */
@@ -59,7 +59,7 @@ export type LignePaiementInscription = {
  * mois, réglage de l'école) et frais uniques retenus, nets de la réduction. Calcul sur une inscription virtuelle
  * (tarifs de la classe, aucun paiement) avec le même code que l'encaissement depuis la fiche. La base ne recalcule
  * pas : elle vérifie seulement que chaque ligne ne dépasse pas le dû. Les services mensuels (transport…) ne sont
- * pas encaissés à l'inscription. Erreur « Rien à encaisser… » si rien n'est dû.
+ * pas encaissés à l'inscription. Si rien n'est dû : erreur avec `rienAEncaisser: true`.
  */
 export function lignesPaiementInscription(entree: {
   classe: Pick<Classe, "frais_inscription" | "mensualite" | "mensualite_dernier_mois">;
@@ -70,7 +70,7 @@ export function lignesPaiementInscription(entree: {
   articles: ArticleRetenu[];
   /** Début des services mensuels (YYYY-MM-01), null s'il n'y en a pas */
   moisDebutServices: string | null;
-}): { lignes: LignePaiementInscription[]; total: number } | { erreur: string } {
+}): { lignes: LignePaiementInscription[]; total: number } | { erreur: string; rienAEncaisser?: true } {
   const { classe, reduction, ecole, aujourdhui, catalogue, articles, moisDebutServices } = entree;
   const virtuels: ArticleCalcul[] = [];
   for (const retenu of articles) {
@@ -97,7 +97,8 @@ export function lignesPaiementInscription(entree: {
   };
   const situation = situationInscription(inscription, [], ecole, aujourdhui, virtuels);
   const calcul = lignesAEncaisser(situation, choixALinscription(situation));
-  if ("erreur" in calcul) return { erreur: calcul.erreur };
+  // Rien n'est dû à l'inscription : ce n'est pas un refus, l'appelant inscrit sans reçu
+  if ("erreur" in calcul) return calcul.erreur === RIEN_A_ENCAISSER ? { erreur: calcul.erreur, rienAEncaisser: true } : { erreur: calcul.erreur };
   const lignes = calcul.lignes.map((l) => ({
     type: l.type,
     mois: l.mois,

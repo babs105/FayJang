@@ -341,6 +341,24 @@ describe("repartirReprise : service arrêté puis repris (parité)", () => {
     expect(!r.ok && r.erreur).toContain("après le départ");
   });
 
+  it("fusionne deux périodes qui se suivent sans mois d'arrêt, sans changer les montants", () => {
+    const base: EntreeRepartition = {
+      anneeScolaire: "2026-2027", aujourdhui: "2027-06-15", ecole: R(), tarifs: { frais: 0, mensualite: 0, dernierMois: null }, reduction: null,
+      catalogue: [CATALOGUE_CM2A[1]], statut: "active", dateDepart: null, verseScolarite: 0, verseArticles: 10000,
+      options: [{ libelle: "Transport", quantite: null, debut: "2026-11-01", fin: "2026-12-01" }, { libelle: "Transport", quantite: null, debut: "2027-01-01", fin: "2027-02-01" }],
+    };
+    const r = ok(repartirReprise(base));
+    expect(r.articles.map((a) => [a.moisDebut, a.moisFin])).toEqual([["2026-11-01", "2027-02-01"]]);
+    expect(r.paiements.map((p) => [p.mois, p.articleIndex])).toEqual([["2026-11-01", 0], ["2026-12-01", 0]]);
+    verifierParite(base, r);
+    // Même dû qu'une seule période saisie d'un bloc
+    const bloc = ok(repartirReprise({ ...base, options: [{ libelle: "Transport", quantite: null, debut: "2026-11-01", fin: "2027-02-01" }] }));
+    expect(r.resume).toEqual(bloc.resume);
+    // La seconde période encore en cours : la ligne fusionnée reste ouverte
+    const ouvert = ok(repartirReprise({ ...base, options: [base.options[0], { libelle: "Transport", quantite: null, debut: "2027-01-01" }] }));
+    expect(ouvert.articles.map((a) => [a.moisDebut, a.moisFin])).toEqual([["2026-11-01", null]]);
+  });
+
   it("refuse des périodes qui se chevauchent", () => {
     const r = repartirReprise({
       anneeScolaire: "2026-2027", aujourdhui: "2027-06-15", ecole: R(), tarifs: { frais: 0, mensualite: 0, dernierMois: null }, reduction: null,

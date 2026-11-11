@@ -369,6 +369,9 @@ export function trancheAvecMois(situation: Situation, moisChoisis: string[]): Tr
   return { mois: ligne.mois, montant, libelle: libelleTranche(ligne, ligne.paye, montant)! };
 }
 
+/** Message de lignesAEncaisser quand tout ce qui est choisi est déjà payé (comparé par les appelants, jamais recopié) */
+export const RIEN_A_ENCAISSER = "Rien à encaisser : ce qui est choisi est déjà payé.";
+
 /** Ce que l'administration coche à l'encaissement */
 export interface ChoixEncaissement {
   inscription?: boolean;
@@ -416,7 +419,7 @@ export function lignesAEncaisser(
     if (ligne.reste > 0)
       lignes.push({ type: "autre", mois: ligne.mois, article_id: ligne.article_id, montant: ligne.reste, libelle: ligne.libelle });
   }
-  if (lignes.length === 0) return { erreur: "Rien à encaisser : ce qui est choisi est déjà payé." };
+  if (lignes.length === 0) return { erreur: RIEN_A_ENCAISSER };
 
   const partiel = choix.montant != null && choix.montant > 0;
   if (partiel) {
