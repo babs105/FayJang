@@ -35,19 +35,6 @@ _Aucun chantier en attente._
   le nettoyage de tests. *Estimé : 1 h. Croise : mise en production avec de
   vrais reçus.*
 
-- [ ] **Erreur 23514 de `modifierInscription` reconnue par sous-chaîne** — la contrainte de la date
-  de départ est repérée par « date_depart » dans le message ; toute autre contrainte CHECK future
-  afficherait le message de la réduction. Correctif : tester les noms complets des contraintes.
-  *Estimé : 10 min. Croise : prochaine modification de `modifierInscription`.* (review tranche 2, 2026-11-08)
-
-- [ ] **`classe_id` et date de naissance non contrôlés à l'inscription** (S7) — `inscrireEleve` ne vérifie
-  pas que `classe_id` est un UUID, ni qu'une date de naissance n'est pas dans le futur : le message reste
-  générique (« Opération impossible… ») ou la date future est acceptée. `eleve_id` est contrôlé depuis la
-  tranche 2. Le 31 février relève de l'entrée « Dates saisies » ci-dessus. Correctif : regex UUID avec
-  « Choisissez une classe. » et `date_naissance <= todayDakar()`. *Estimé : 15 min. Croise : prochaine
-  tranche sur la fiche élève.*
-  (review security tranche 1 « inscription atomique », 2026-11-10)
-
 - [ ] **Message ambigu pour une classe désactivée** — `inscrire_eleve` (bloc v1.7 de
   `supabase/schema/05-migrations.sql`) répond « Choisissez une classe. » pour une classe désactivée comme
   pour une classe inexistante. Correctif : « Classe introuvable ou désactivée. », sans distinguer une classe
@@ -68,22 +55,10 @@ _Aucun chantier en attente._
   de `inscrire_eleve`.* (review database tranche 2 « inscription atomique », 2026-11-10 ; la partie « libellé du
   catalogue sans plafond » est réglée par le CHECK `articles_classe_libelle_longueur`, bloc v1.9, commit `29d748e`)
 
-- [ ] **Confirmation de changement d'année trompeuse** — `parametres-panel.tsx` demande « Les classes seront
-  reprises » même quand la nouvelle année a déjà ses classes (aucune copie, l'école le découvre après coup par le
-  message « existent déjà »). Correctif : adapter le texte du `confirm()` (ou dire « si la nouvelle année n'a pas
-  encore de classes »). *Estimé : 10 min. Croise : prochaine retouche de l'onglet Paramètres.*
-  (test preview « opérations atomiques », 2026-11-10)
-
 - [ ] **Version unique des fonctions v1.9 à v1.11 à vérifier en base** — après application du schéma :
   `SELECT oid::regprocedure FROM pg_proc WHERE proname IN ('enregistrer_classe', 'enregistrer_parametres',
   'inscrire_eleve');` doit renvoyer trois lignes (PGRST203 sinon). Vérifié en base locale, pas encore sur Supabase.
   *Estimé : 2 min. Croise : mise en production de « opérations atomiques ».* (2026-11-10)
-
-- [ ] **« Rien à encaisser » reconnu par son texte** (S7) — `inscrireEleve` repère ce cas avec
-  `calcul.erreur.startsWith("Rien à encaisser")` ; si le libellé de `lignesAEncaisser` change, une inscription sans
-  rien à payer serait refusée à tort (rien créé). Correctif : indicateur explicite renvoyé par
-  `lignesPaiementInscription`. *Estimé : 15 min. Croise : prochaine évolution de `lignesAEncaisser`.*
-  (review security tranche 2 « inscription atomique », 2026-11-10)
 
 - [ ] **Verrou de lot absent de `inscrire_eleve`** (M4) — `encaisser_paiement` prend `pg_advisory_xact_lock` sur
   `(école, lot_id)`, pas `inscrire_eleve` : un même `lot_id` partagé entre les deux fonctions en parallèle n'est pas
@@ -101,11 +76,6 @@ _Aucun chantier en attente._
   déclenche un parsing exceljs et environ 7 lectures paginées ; une école connectée peut les enchaîner. Correctif :
   limite par école (ex. 10 analyses par 10 min), réutilisable pour l'import réel. *Estimé : 1 h. Croise : tranche 5
   de l'import.* (review security tranche 1 « reprise de l'existant », 2026-11-11)
-
-- [ ] **Périodes contiguës d'un service gardées en deux lignes** — « Transport (11/2026-12/2026) ; Transport
-  (01/2027) » donne deux lignes de service là où une seule suffirait. Sans effet sur les montants. Correctif possible :
-  fusionner les périodes contiguës dans `repartirReprise`, ou avertir. *Estimé : 20 min. Croise : tranche 5.*
-  (review database tranche 2 « périodes de service », 2026-11-11)
 
 - [ ] **`bodySizeLimit: "3mb"` vaut pour toutes les Server Actions** — `next.config.ts` : Next 15 n'a pas de réglage
   par action, le corps (3 Mo au lieu de 1) est mis en mémoire avant le contrôle de session. Risque faible, accepté
@@ -159,40 +129,18 @@ _Aucun chantier en attente._
   `inscrire_eleve` (bloc v1.19) ou factoriser le matricule. *Estimé : 1 h. Croise : factorisation du matricule.*
   (review database tranche 5 « reprise de l'existant », 2026-11-11)
 
-- [ ] **Message d'échec d'un lot d'import trop affirmatif** — `reprise-panel.tsx` affiche « Rien n'a été enregistré
-  pour ce lot » même après une coupure réseau ou une réponse inattendue, où le lot a pu être écrit (le rejeu reste
-  sûr). Correctif : réserver cette phrase à un refus explicite de la base. *Estimé : 30 min.*
-  (review security tranche 5 « reprise de l'existant », 2026-11-11)
-
 - [ ] **Durcissements mineurs de `importer_reprise`** — (1) `jsonb_typeof(..) IS DISTINCT FROM 'array' OR
   jsonb_array_length(..)` dépend de l'ordre d'évaluation du OR (même motif que `inscrire_eleve`) : passer par un
   CASE ; (2) le verrou de `compteurs_recus` est gardé pendant tout le lot : ne pas augmenter `TAILLE_LOT` au-delà
   de 25 ; (3) deux homonymes (même prénom, nom et téléphone) dans le fichier : le second est ignoré sans message de
   ligne ; (4) `revalidatePath` appelé même sans écriture. *Estimé : 45 min.*
+  Points (3) et (4) réglés : l'analyse refuse le second homonyme (« Même élève que la ligne… ») et `revalidatePath`
+  n'est appelé qu'après un envoi à la base (commit `d38b5f1`). Restent (1) et (2), côté SQL.
   (reviews database et security tranche 5 « reprise de l'existant », 2026-11-11)
-
-- [ ] **Reçu PDF : libellés trop larges et nombre de lignes non plafonné** (S13) — `src/lib/recu-pdf.ts` dessine les
-  libellés (jusqu'à 120 caractères) sans mesurer leur largeur : ils chevauchent la colonne Montant ; idem pour le nom
-  de l'élève, la classe et le nom de l'école. Le nombre de pages suit le nombre de lignes du lot sans garde-fou
-  (borné en pratique par la base). Correctif : couper à ~270 pt avec `widthOfTextAtSize` + « ... », et plafonner les
-  lignes (ex. 300). *Estimé : 30 min.* (review security tranche 6 « reprise de l'existant », 2026-11-11)
-
-- [ ] **Totaux SuperAdmin tronqués à 1000 lignes** — `src/app/admin/page.tsx` lit inscriptions et paiements de toutes
-  les écoles sans pagination : au-delà de 1000 lignes, les totaux sont faux sans erreur. Correctif : `toutLire`
-  (`src/lib/lecture-paginee.ts`) maintenant, agrégat SQL plus tard si le nombre d'écoles grandit. *Estimé : 45 min.*
-  (review database tranche 7 « reprise de l'existant », 2026-11-11)
 
 - [ ] **Limite de fréquence sur l'export Excel** (S10) — `/ecole/export` charge toute l'école en mémoire et construit le
   classeur à chaque appel, sans frein pour une école authentifiée (coût limité à ses propres données). Correctif :
   une génération par minute et par école. *Estimé : 1 h.* (review security tranche 7, 2026-11-11)
-
-- [ ] **Détection de formule à l'import incomplète** — `ressembleAUneFormule` (`reprise-validation.ts`) refuse
-  `^[=+@]` mais pas `-`, la tabulation ni le retour chariot. L'export neutralise déjà tout (`celluleTexte`) : défense en
-  profondeur seulement. Correctif : réutiliser la même expression. *Estimé : 15 min.* (review security tranche 7, 2026-11-11)
-
-- [ ] **Écran « Lecture des données impossible » sans cause** — quand l'école dépasse 50 000 lignes
-  (`LectureTropLongue`), la page affiche le même message qu'une panne passagère. Correctif : message dédié
-  (« contactez le support »). *Estimé : 10 min.* (review database tranche 7, 2026-11-11)
 
 ---
 
@@ -319,3 +267,26 @@ _Aucun chantier en attente._
   « Inscription introuvable. » (`src/app/ecole/actions.ts`). Commit `ce9f0b6`. (2026-11-11)
 - [x] **`formatMois` : formateur créé une seule fois** — `FORMAT_MOIS` au niveau du module (`src/lib/dates.ts`), test
   dans `src/lib/dates.test.ts`. Commit `ce9f0b6`. (2026-11-11)
+- [x] **Contrainte violée de `modifierInscription` reconnue par son nom** — `contrainteViolee()` (`src/lib/erreurs.ts`) lit
+  le nom de la contrainte de l'erreur 23514 : date de départ, réduction, sinon message générique. Le nom automatique
+  de la contrainte de réduction (`inscriptions_check`) n'a pas été vérifié en base. Commit `d38b5f1`. (2026-11-11)
+- [x] **Classe, élève et date de naissance contrôlés à l'inscription** (S7) — `estUuid()` sur `classe_id` et `eleve_id`,
+  date de naissance future refusée à l'inscription et à la modification (`src/app/ecole/actions.ts`). Commit `d38b5f1`. (2026-11-11)
+- [x] **Confirmation de changement d'année exacte** — le texte dit « si cette année n'a pas encore de classes »
+  (`parametres-panel.tsx`). Commit `d38b5f1`. (2026-11-11)
+- [x] **« Rien à encaisser » signalé par un indicateur** (S7) — constante `RIEN_A_ENCAISSER` (`src/lib/scolarite.ts`) et
+  drapeau `rienAEncaisser` renvoyé par `lignesPaiementInscription`, avec test. Commit `d38b5f1`. (2026-11-11)
+- [x] **Périodes contiguës d'un service fusionnées** — `repartirReprise` ne garde qu'une ligne quand deux périodes se
+  suivent sans mois d'arrêt ; montants inchangés (test de parité). Commit `d38b5f1`. (2026-11-11)
+- [x] **Lot d'import à l'issue incertaine** — après une réponse inattendue ou une coupure, l'écran dit que le lot a
+  peut-être été enregistré et qu'on peut le reprendre sans risque ; « Rien n'a été enregistré » est réservé au refus
+  de la base (`import/actions.ts`, `reprise-panel.tsx`). Commit `d38b5f1`. (2026-11-11)
+- [x] **Reçu PDF : textes coupés et détail plafonné** (S13) — école, élève, classe et libellés coupés avec « ... » par
+  `widthOfTextAtSize` ; au-delà de 300 lignes, le reste est regroupé en « Autres lignes (n) », total exact
+  (`src/lib/recu-pdf.ts`, tests dans `recu-pdf.test.ts`). Contrôlé sur un reçu de test, pas en preview. Commit `d38b5f1`. (2026-11-11)
+- [x] **Totaux SuperAdmin lus en entier** — `toutLire` dans `src/app/admin/page.tsx`, bandeau si les totaux sont
+  indisponibles. Commit `d38b5f1`. (2026-11-11)
+- [x] **Détection de formule à l'import alignée sur l'export** — `ressembleAUneFormule` réutilise `DEBUT_FORMULE`
+  (`src/lib/export-sur.ts`) : =, +, -, @, tabulation, retour chariot. Commit `d38b5f1`. (2026-11-11)
+- [x] **Écran dédié quand l'école dépasse le nombre de lignes** — message « contactez le support » distinct de la panne
+  passagère (`src/app/ecole/page.tsx`). Commit `d38b5f1`. (2026-11-11)
