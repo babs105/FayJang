@@ -21,14 +21,7 @@
 
 ## Chantiers (feature-scale, à planifier avec architect)
 
-- [x] **Encaissement d'un mois hors période du service** (H4) — `encaisser_paiement` (bloc v1.8) accepte, pour un
-  article mensuel, n'importe quel mois de l'année sans le comparer à `mois_debut` ni à `mois_fin` : un service arrêté
-  en novembre peut encore être encaissé pour mars, ce qui repousse ensuite le dernier mois payé au-delà de l'arrêt.
-  Décision métier à prendre (refus en base FJ412, ou simple avertissement à l'école ; recommandation du reviewer :
-  refus). Correctif : après la lecture de `v_art`, refuser si `v_mois < mois_debut` ou `v_mois > mois_fin`, dans un
-  nouveau bloc en fin de `05-migrations.sql`. *Estimé : 1 h. Croise : services mensuels, arrêt de service.*
-  (review database tranche 1 « intégrité des données », 2026-11-10)
-  **Résolu** : refus FJ412 en base, bloc v1.16 de `encaisser_paiement` (tranche 3 « reprise de l'existant », 2026-11-11, schéma appliqué).
+_Aucun chantier en attente._
 
 ---
 
@@ -47,7 +40,6 @@
   `Referrer-Policy` compte : l'URL de la page parent contient le token. Correctif :
   `headers()` dans `next.config.ts`. *Estimé : 1 h. Croise : prochaine tranche sur /p/[token].*
 
-
 - [ ] **Dates saisies : 31 février accepté** — `isDateValide` (`src/lib/dates.ts`) accepte une date
   inexistante (ex. 2026-02-31) ; corrigé pour la date de départ (contrôle par aller-retour dans
   `modifierInscription`), mais pas pour la date de naissance (`inscrireEleve`, `modifierEleve`).
@@ -58,14 +50,6 @@
   de départ est repérée par « date_depart » dans le message ; toute autre contrainte CHECK future
   afficherait le message de la réduction. Correctif : tester les noms complets des contraintes.
   *Estimé : 10 min. Croise : prochaine modification de `modifierInscription`.* (review tranche 2, 2026-11-08)
-
-- [x] **Formules Excel non neutralisées dans l'export** — les noms d'élève et de parent saisis
-  librement peuvent commencer par `=`, `+`, `-` ou `@` et être interprétés comme formules à
-  l'ouverture (`src/app/ecole/export/route.ts`). Correctif : préfixer d'une apostrophe ces chaînes
-  avant `addRow`. *Estimé : 20 min. Croise : toute évolution de l'export.* (review tranche 3 « départ d'un élève », 2026-11-08)
-  **Résolu** : `celluleTexte` (`src/lib/export-sur.ts`) préfixe d'une apostrophe tout texte libre commençant par =, +, -, @,
-  tabulation ou retour chariot (téléphones +221 laissés tels quels) ; devenu prioritaire avec l'import en masse
-  (tranche 7, 2026-11-11).
 
 - [ ] **`classe_id` et date de naissance non contrôlés à l'inscription** (S7) — `inscrireEleve` ne vérifie
   pas que `classe_id` est un UUID, ni qu'une date de naissance n'est pas dans le futur : le message reste
@@ -123,14 +107,6 @@
   *Estimé : 10 min. Croise : prochaine migration touchant `inscrire_eleve`.*
   (review database tranche 1 « encaissement atomique », 2026-11-10)
 
-- [x] **Espace École limité à 1000 lignes par table** — `src/app/ecole/page.tsx` (et `/ecole/export`) lisent élèves,
-  parents, inscriptions et paiements en une seule requête : PostgREST en renvoie 1000 au plus, la suite est ignorée
-  sans erreur. Une école de plus de 1000 élèves (ou paiements) verrait des listes et des soldes incomplets. Correctif :
-  lecture paginée (`range`), comme `toutLire` de `src/app/ecole/import/actions.ts`. *Estimé : 1 h. Croise : import
-  Excel (écoles de plus de 500 élèves).* (tranche 1 « reprise de l'existant », 2026-11-11)
-  **Résolu** : lectures paginées et `.in()` par paquets de 150 (`src/lib/lecture-paginee.ts`) dans `src/app/ecole/page.tsx` et `/ecole/export` (tranche 7, 2026-11-11). Pagination par curseur sur l'id (une écriture pendant la lecture ne duplique ni ne saute de ligne), plafond
-  de 50 000 lignes ; l'import utilise le même helper.
-
 - [ ] **Commentaires de cellule écrits par openpyxl illisibles par exceljs** — un classeur produit par un outil qui
   écrit ses commentaires comme openpyxl fait échouer `lireClasseur` (« Fichier Excel illisible »). Le modèle n'a plus de
   commentaires ; un fichier enregistré depuis Excel ou LibreOffice n'est pas concerné. Correctif si une école bute
@@ -141,39 +117,6 @@
   déclenche un parsing exceljs et environ 7 lectures paginées ; une école connectée peut les enchaîner. Correctif :
   limite par école (ex. 10 analyses par 10 min), réutilisable pour l'import réel. *Estimé : 1 h. Croise : tranche 5
   de l'import.* (review security tranche 1 « reprise de l'existant », 2026-11-11)
-
-- [x] **`toutLire` tronque en silence au-delà de ~22 000 lignes** (S7) — acceptable pour l'aperçu, pas pour l'écriture :
-  une liste incomplète fausserait la détection des doublons. Correctif : lever une erreur au-delà du plafond et
-  s'appuyer sur une contrainte d'unicité en base. *Estimé : 30 min. Croise : tranche 5 de l'import.*
-  (review security tranche 1 « reprise de l'existant », 2026-11-11 ; relevé aussi par les deux reviews de la tranche 2)
-  **Résolu** : lève une erreur au-delà du plafond ; doublons écartés en base par `importer_reprise` (tranche 5, 2026-11-11).
-
-- [x] **Service mensuel d'un élève parti sans aucun versement** (M-A) — tranché par l'humain : c'est un dû.
-  `repartirReprise` rattache le service, obligatoire ou optionnel, pour le mois du départ, avec l'avertissement
-  « aucun versement, il est dû pour le mois du départ » (l'ancien message « demandé après le départ » disparaît).
-  (review database tranche 2 « reprise de l'existant », 2026-11-11)
-
-- [x] **Article unique de quantité 0 rattaché à l'inscription** (M-B) — `repartirReprise` produit un article prévu à
-  `quantite: 0` (obligatoire à `quantite_defaut` 0, ou optionnel choisi sans quantité) : ligne à 0 F alors que
-  `inscrire_eleve` l'ignore. Correctif : écarter dans `retenus` les uniques de quantité < 1. *Estimé : 15 min.
-  Croise : tranche 5.* (review database tranche 2 « reprise de l'existant », 2026-11-11)
-  **Résolu** : écarté dans `retenus` de `repartirReprise` (tranche 5, 2026-11-11).
-
-- [x] **Début de service hors de l'année pour un import après le dernier mois** (M-C) — un service sans argent
-  reçoit `moisDebut` = mois de l'import, au-delà du dernier mois de l'année : sans effet sur le calcul, mais écrit
-  tel quel en tranche 5. Correctif : plafonner au dernier mois ou ne pas rattacher. *Estimé : 15 min. Croise :
-  tranche 5 (`articles_inscription.mois_debut`).* (review database tranche 2 « reprise de l'existant », 2026-11-11)
-  **Résolu** : service sans versement ni début explicite non rattaché, avec avertissement (tranche 5, 2026-11-11).
-
-- [x] **Rattacher les paiements à la bonne période à l'écriture de la reprise** (H-1, à faire dans la tranche 5) —
-  `PaiementPrevu.articleIndex` (`src/lib/reprise-repartition.ts`) est une position dans `articles` : un service
-  arrêté puis repris a une ligne par période. L'insertion doit garder la correspondance rang → id (fonction SQL avec
-  `WITH ORDINALITY`, ou insertion ligne par ligne), jamais l'ordre des ids renvoyés par un insert groupé, sinon un
-  paiement de février tombe sur la ligne de novembre (arriéré faux). Écrire `mois_debut`/`mois_fin` dès l'INSERT
-  (`proteger_article_inscription` protège ensuite les UPDATE) et ne pas passer par `ajouterArticleInscription`, qui
-  refuse une seconde période « déjà en cours ». Test T5 : paiement de février rattaché à la ligne de février.
-  *Croise : tranche 5.* (review database tranche 2 « périodes de service », 2026-11-11)
-  **Résolu** : une ligne `articles_inscription` par période, `article_index` → id par boucle dans `importer_reprise` (v1.18) ; vérifié en réel (tranche 5, 2026-11-11).
 
 - [ ] **Périodes contiguës d'un service gardées en deux lignes** — « Transport (11/2026-12/2026) ; Transport
   (01/2027) » donne deux lignes de service là où une seule suffirait. Sans effet sur les montants. Correctif possible :
@@ -195,14 +138,6 @@
   Correctif : script SQL à jouer sur une base de test (mois = début, mois = fin, un mois avant, un mois après, bornes
   NULL, rejeu après changement de période). Les noms de mois sont aussi codés en dur dans la fonction SQL, à garder
   alignés avec `dates.ts`. *Estimé : 1 h. Croise : tranche 5.* (review database tranche 3 « reprise de l'existant », 2026-11-11)
-
-- [x] **Boucle de création des classes sans garde ni durée maximale** (S13) — `importerClassesReprise`
-  (`src/app/ecole/import/actions.ts`) : jusqu'à 200 appels `enregistrer_classe` séquentiels hors `try/catch`. Une
-  exception réseau ou le timeout de la fonction Vercel fait perdre le compte rendu des classes déjà créées et saute
-  `revalidatePath` (l'état reste sain : le rejeu les voit « déjà présentes »). Correctif : `try/catch` par classe
-  (échec poussé dans `echecs`), `revalidatePath` dans un `finally`, `maxDuration` explicite ; même schéma pour la
-  boucle des élèves. *Estimé : 20 min. Croise : tranche 5.* (reviews security et database tranche 4, 2026-11-11)
-  **Résolu** : `try/catch` par classe, `revalidatePath` dans un `finally`, `maxDuration = 60` (tranche 5, 2026-11-11).
 
 - [ ] **Réanalyse complète du fichier à chaque clic** (S10/S13) — créer les classes relance `analyser()` deux fois
   (action puis aperçu recalculé) : parse de 2 Mo et lecture de tous les élèves et parents de l'école. Chemin
@@ -244,13 +179,6 @@
   (deadlock 40P01, le lot échoue et se rejoue). Correctif : faire prendre `matricule:` avant le parent par
   `inscrire_eleve` (bloc v1.19) ou factoriser le matricule. *Estimé : 1 h. Croise : factorisation du matricule.*
   (review database tranche 5 « reprise de l'existant », 2026-11-11)
-
-- [x] **Versements repris comptés dans les totaux de caisse** (M3) — les reçus de reprise portent `paye_le` = jour
-  de l'import et un mode choisi (espèces, virement ou chèque) : tout total par jour, mois ou mode (tableau de bord,
-  export) est gonflé. Seul discriminant : `encaisse_par = 'Reprise de l''existant'`. Correctif : exclure ces reçus des
-  totaux de caisse, ou ajouter un mode `reprise`. *Estimé : 2 h. Croise : tableau de bord, export, tranche 6.*
-  (review database tranche 5 « reprise de l'existant », 2026-11-11)
-  **Résolu** : `totauxCaisse` (`src/lib/caisse.ts`) : reprise exclue du jour, du mois, des modes et des derniers paiements, comptée dans l'année (« dont … repris ») ; onglet Paiements : reprise seulement dans « Toute l'année », avec un badge ; export : statut « Reprise de l'existant » (tranche 7, 2026-11-11).
 
 - [ ] **Message d'échec d'un lot d'import trop affirmatif** — `reprise-panel.tsx` affiche « Rien n'a été enregistré
   pour ce lot » même après une coupure réseau ou une réponse inattendue, où le lot a pu être écrit (le rejeu reste
@@ -372,3 +300,28 @@
 - [x] **`updated_at` sur eleves, classes, inscriptions, parents et articles_inscription** (M1) — bloc v1.15, rattrapé
   à `created_at` ; valeur du client ignorée, UPDATE sans changement sans effet. Affiché dans la fiche élève côté École
   seulement (« Dernière modification »), ni page parent ni export. Commit `b340119`. (2026-11-10)
+- [x] **Service mensuel encaissé hors de sa période** (H4) — `encaisser_paiement` (bloc v1.16) refuse en FJ412 un mois
+  hors de `[mois_debut, mois_fin]` d'un service mensuel (bornes NULL = année entière), après le rejeu ; message
+  « Transport : mars 2027 est hors de la période du service (…) ». Commit `af25822`. (2026-11-11)
+- [x] **Service d'un élève parti sans aucun versement : c'est un dû** (M-A) — tranché par l'humain : `repartirReprise`
+  rattache le service, obligatoire ou optionnel, pour le mois du départ, avec un avertissement. Commit `0c83e9d`. (2026-11-11)
+- [x] **Reprise de l'existant : rattachement exact des articles et des paiements** (H-1, M-B, M-C) — `importer_reprise`
+  (bloc v1.18) écrit une ligne `articles_inscription` par période d'un service (arrêté puis repris), `mois_debut` /
+  `mois_fin` à l'INSERT, et rattache chaque paiement à sa ligne par `article_index` (boucle, jamais l'ordre d'un insert
+  groupé) ; un frais unique de quantité 0 n'est pas rattaché ; un service sans versement ni début explicite qui
+  commencerait après la fin de l'année non plus. Vérifié en réel (élève « Repris », Transport octobre puis novembre).
+  Commit `fb07b06`. (2026-11-11)
+- [x] **Import robuste aux coupures et aux grosses écoles** (S7, S13) — lecture complète qui refuse au-delà du plafond au
+  lieu de tronquer (doublons écartés aussi en base par `importer_reprise`) ; boucles de création des classes et des
+  élèves protégées (`try/catch`, `revalidatePath` dans un `finally`, `maxDuration = 60`). Commits `fb07b06`, `4d1dad0`.
+  (2026-11-11)
+- [x] **Espace École et export lus en entier** — lecture par curseur sur l'id (`src/lib/lecture-paginee.ts`), `.in()`
+  par paquets de 150 inscriptions, plafond de 50 000 lignes : plus de liste ni de solde tronqué à 1000 lignes, et une
+  écriture pendant la lecture ne duplique ni ne saute de ligne. L'import utilise le même helper. Commit `4d1dad0`. (2026-11-11)
+- [x] **Reçus de reprise hors des totaux de caisse** — `totauxCaisse` (`src/lib/caisse.ts`) : la reprise ne compte ni
+  dans le jour, ni dans le mois, ni par mode, ni dans les derniers paiements ; elle compte dans l'année (« dont …
+  repris »). Onglet Paiements : seulement dans « Toute l'année », avec un badge ; export : statut « Reprise de
+  l'existant ». Commit `4d1dad0`. (2026-11-11)
+- [x] **Formules Excel neutralisées dans l'export** — `celluleTexte` (`src/lib/export-sur.ts`) préfixe d'une apostrophe
+  tout texte libre commençant par =, +, -, @, tabulation ou retour chariot (téléphones +221 laissés tels quels).
+  Commit `4d1dad0`. (2026-11-11)
