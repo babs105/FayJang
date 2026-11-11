@@ -108,13 +108,12 @@ texte = [
     ("", None),
     ("Élèves", "h"),
     ("• Même téléphone de parent = même parent : les frères et sœurs partagent un seul lien de suivi.", None),
-    ("• « Articles optionnels » : articles non obligatoires pris par l'élève, séparés par « ; » (ex : Transport ; Cantine).", None),
-    ("  Les articles obligatoires sont ajoutés d'office. Quantité différente : « Tenue x3 ».", None),
-    ("• « Début des options » : mois où l'élève a commencé ses services mensuels (ex : 01/2027 ou janvier).", None),
-    ("  Vide : le service est dû depuis la rentrée s'il a reçu de l'argent, sinon à partir du mois de l'import.", None),
-    ("  Un service commencé un autre mois que les autres : « Transport ; Cantine (03/2027) ».", None),
-    ("  Un service arrêté : début et fin entre parenthèses, « Transport (11/2026-01/2027) » ou « Transport (novembre à janvier) ».", None),
-    ("  Arrêté puis repris : une fois par période, « Transport (11/2026-12/2026) ; Transport (02/2027) ». Les mois d'arrêt ne sont pas dus.", None),
+    ("• « Articles optionnels » : articles non obligatoires pris par l'élève, séparés par « ; ». Les obligatoires sont ajoutés d'office.", None),
+    ("  Toute l'année : « Transport ».   Quantité différente : « Tenue x3 ».", None),
+    ("  Depuis un mois : « Transport (11/2026) ».   De novembre à janvier : « Transport (11/2026-01/2027) ».", None),
+    ("  Arrêté puis repris : « Transport (11/2026-12/2026) ; Transport (02/2027) ». Les mois d'arrêt ne sont pas dus.", None),
+    ("  Plusieurs services : « Transport (11/2026) ; Cantine (03/2027) ».", None),
+    ("  Sans mois : le service court depuis la rentrée s'il a reçu de l'argent, sinon il est dû à partir du mois de l'import.", None),
     ("• Statut « abandon » ou « transfert » : « Date de départ » obligatoire, pas dans le futur. Vide = élève actif.", None),
     ("• « Matricule ancien » : unique dans l'école ; il évite qu'un élève soit importé deux fois.", None),
     ("• Un élève déjà présent dans FayJàng est ignoré et signalé : rien n'est modifié.", None),
@@ -218,8 +217,7 @@ cols = [
     ("Nom du parent", 18, "Parent ou tuteur."),
     ("Téléphone du parent", 17, "Ex : 77 123 45 67. Même numéro = même parent (frères et sœurs)."),
     ("Total versé (scolarité)", 16, "Tout ce qui a été payé cette année en inscription et mensualités. Vide = rien."),
-    ("Articles optionnels", 26, "Options séparées par « ; » (ex : Transport ; Cantine). Période d'un service : Transport (11/2026-01/2027). Repris : Transport (11/2026-12/2026) ; Transport (02/2027)."),
-    ("Début des options", 13, "Mois où l'élève a commencé ses services mensuels (ex : 01/2027). Vide = depuis la rentrée s'il a payé, sinon mois de l'import."),
+    ("Articles optionnels", 30, "Séparés par « ; ». Toute l'année : Transport. Depuis novembre : Transport (11/2026). De novembre à janvier : Transport (11/2026-01/2027). Repris : Transport (11/2026-12/2026) ; Transport (02/2027)."),
     ("Total versé (articles)", 15, "Tout ce qui a été payé en articles et services. Vide = rien."),
     ("Réduction mensuelle", 13, "Remise en FCFA sur chaque mensualité. Vide = 0."),
     ("Sexe", 7, "M ou F."),
@@ -231,40 +229,40 @@ cols = [
     ("Reste scolarité (calculé)", 16, "Rouge = total versé supérieur au dû : à corriger. Ne pas remplir."),
 ]
 entete(we, cols, {"Prénom", "Nom", "Classe", "Nom du parent", "Téléphone du parent"})
-# Colonnes : A Prénom · B Nom · C Classe · D Parent · E Téléphone · F Versé scolarité · G Options · H Début des options
-# I Versé articles · J Réduction · K Sexe · L Naissance · M Matricule · N Statut · O Départ · P Total dû · Q Reste
-for i in (16, 17):
+# Colonnes : A Prénom · B Nom · C Classe · D Parent · E Téléphone · F Versé scolarité · G Options (avec leurs périodes)
+# H Versé articles · I Réduction · J Sexe · K Naissance · L Matricule · M Statut · N Départ · O Total dû · P Reste
+for i in (15, 16):
     we.cell(row=1, column=i).fill = PatternFill("solid", fgColor="6B7280")
 eleves = [
-    ["Awa", "Diop", "CM2 A", "Moussa Diop", "77 123 45 67", 62000, "Transport ; Cantine", None, 42000, None, "F", date(2015, 3, 12), "2024-118", None, None],
-    ["Ibrahima", "Diop", "CE1", "Moussa Diop", "+221771234567", 30000, None, None, 9000, 2000, "M", date(2018, 9, 2), "2025-031", None, None],
-    ["Fatou", "Ndiaye", "CE1", "Aminata Sow", "78 765 43 21", 10000, None, None, None, None, "F", date(2018, 1, 20), "2025-044", "abandon", date(2026, 11, 5)],
-    ["Moussa", "Fall", "6e A", "Awa Fall", "76 222 33 44", 50000, None, None, 15000, None, "M", date(2014, 6, 5), "2023-210", "transfert", date(2026, 10, 31)],
-    ["Khady", "Sarr", "Petite section", "Ousmane Sarr", "70 111 22 33", None, "Goûter", None, None, None, "F", date(2022, 4, 18), None, None, None],
-    ["Ndeye", "Gueye", "Terminale S", "Mamadou Gueye", "77 999 88 77", 310000, None, None, None, None, "F", date(2008, 11, 30), "2019-007", None, None],
-    ["Mariama", "Ba", "CM2 A", "Aïssatou Ba", "78 444 55 66", 100000, None, None, 16000, None, "F", date(2015, 8, 9), "2024-131", None, None],
-    ["Cheikh", "Mbaye", "CM2 A", "Fatou Mbaye", "00221 77 555 66 77", 55000, "Transport ; Étude du soir ; Tenue x3", None, 32000, None, "M", date(2015, 2, 14), None, None, None],
-    ["Bineta", "Sy", "CM2 A", "Ousmane Sy", "76 333 44 55", 55000, "Transport", "11/2026", 21000, None, "F", date(2015, 5, 21), None, None, None],
+    ["Awa", "Diop", "CM2 A", "Moussa Diop", "77 123 45 67", 62000, "Transport ; Cantine", 42000, None, "F", date(2015, 3, 12), "2024-118", None, None],
+    ["Ibrahima", "Diop", "CE1", "Moussa Diop", "+221771234567", 30000, None, 9000, 2000, "M", date(2018, 9, 2), "2025-031", None, None],
+    ["Fatou", "Ndiaye", "CE1", "Aminata Sow", "78 765 43 21", 10000, None, None, None, "F", date(2018, 1, 20), "2025-044", "abandon", date(2026, 11, 5)],
+    ["Moussa", "Fall", "6e A", "Awa Fall", "76 222 33 44", 50000, None, 15000, None, "M", date(2014, 6, 5), "2023-210", "transfert", date(2026, 10, 31)],
+    ["Khady", "Sarr", "Petite section", "Ousmane Sarr", "70 111 22 33", None, "Goûter", None, None, "F", date(2022, 4, 18), None, None, None],
+    ["Ndeye", "Gueye", "Terminale S", "Mamadou Gueye", "77 999 88 77", 310000, None, None, None, "F", date(2008, 11, 30), "2019-007", None, None],
+    ["Mariama", "Ba", "CM2 A", "Aïssatou Ba", "78 444 55 66", 100000, None, 16000, None, "F", date(2015, 8, 9), "2024-131", None, None],
+    ["Cheikh", "Mbaye", "CM2 A", "Fatou Mbaye", "00221 77 555 66 77", 55000, "Transport ; Étude du soir ; Tenue x3", 32000, None, "M", date(2015, 2, 14), None, None, None],
+    ["Bineta", "Sy", "CM2 A", "Ousmane Sy", "76 333 44 55", 55000, "Transport (11/2026)", 21000, None, "F", date(2015, 5, 21), None, None, None],
 ]
-lignes(we, eleves, 17, {6: MONEY, 9: MONEY, 10: MONEY, 12: "DD/MM/YYYY", 15: "DD/MM/YYYY", 16: MONEY, 17: MONEY, 5: "@", 8: "@", 13: "@"})
+lignes(we, eleves, 16, {6: MONEY, 8: MONEY, 9: MONEY, 11: "DD/MM/YYYY", 14: "DD/MM/YYYY", 15: MONEY, 16: MONEY, 5: "@", 12: "@"})
 TOT = f"Classes!$F$2:$F${N+1}"
 for r in range(2, N + 2):
-    o = we.cell(row=r, column=16, value=(
+    o = we.cell(row=r, column=15, value=(
         f'=IF(C{r}="","",IFERROR(INDEX({TOT},MATCH(C{r},{CLASSES},0))'
-        f'-IF(J{r}="",0,J{r})*Classes!$I$2,"classe ?"))'))
-    p = we.cell(row=r, column=17, value=f'=IF(ISNUMBER(P{r}),P{r}-IF(F{r}="",0,F{r}),"")')
+        f'-IF(I{r}="",0,I{r})*Classes!$I$2,"classe ?"))'))
+    p = we.cell(row=r, column=16, value=f'=IF(ISNUMBER(O{r}),O{r}-IF(F{r}="",0,F{r}),"")')
     for c in (o, p):
         c.fill = GRIS
         c.font = EX if r <= len(eleves) + 1 else Font(name=F)
-we.conditional_formatting.add(f"Q2:Q{N+1}", FormulaRule(formula=['AND(ISNUMBER(Q2),Q2<0)'], fill=ROUGE))
-we.conditional_formatting.add(f"P2:P{N+1}", FormulaRule(formula=['P2="classe ?"'], fill=ROUGE))
+we.conditional_formatting.add(f"P2:P{N+1}", FormulaRule(formula=['AND(ISNUMBER(P2),P2<0)'], fill=ROUGE))
+we.conditional_formatting.add(f"O2:O{N+1}", FormulaRule(formula=['O2="classe ?"'], fill=ROUGE))
 liste(we, f"C2:C{N+1}", formule=CLASSES, msg="Classe inconnue : la créer dans la feuille « Classes ».")
-liste(we, f"K2:K{N+1}", formule="Listes!$B$2:$B$3")
-liste(we, f"N2:N{N+1}", formule="Listes!$C$2:$C$4")
-entier(we, f"F2:F{N+1}"); entier(we, f"I2:J{N+1}")
+liste(we, f"J2:J{N+1}", formule="Listes!$B$2:$B$3")
+liste(we, f"M2:M{N+1}", formule="Listes!$C$2:$C$4")
+entier(we, f"F2:F{N+1}"); entier(we, f"H2:I{N+1}")
 dv = DataValidation(type="date", operator="between", formula1="DATE(1990,1,1)", formula2="DATE(2030,12,31)",
                     allow_blank=True, showErrorMessage=True, error="Saisir une date valide.")
-we.add_data_validation(dv); dv.add(f"L2:L{N+1}"); dv.add(f"O2:O{N+1}")
+we.add_data_validation(dv); dv.add(f"K2:K{N+1}"); dv.add(f"N2:N{N+1}")
 
 # ---------- Cas d'exemple ----------
 wx = wb.create_sheet("Cas d'exemple")
@@ -288,9 +286,9 @@ cas = [
     ("Cheikh Mbaye", "Trois options dont une quantité (Tenue x3).",
      "Scolarité 55 000 : inscription + octobre + novembre. Articles 32 000 : tenue ×3 24 000, transport d'octobre 5 000, étude d'octobre 3 000. "
      "Arriéré : transport et étude de novembre = 8 000."),
-    ("Bineta Sy", "Transport pris en cours d'année : « Début des options » = 11/2026.",
+    ("Bineta Sy", "Transport pris en cours d'année : « Articles optionnels » = Transport (11/2026).",
      "Scolarité 55 000 : inscription + octobre + novembre. Articles 21 000 : tenue ×2 16 000, transport de novembre 5 000 (octobre non dû). "
-     "Arriéré : 0. Sans la colonne, le transport aurait été rangé sur octobre et novembre aurait paru impayé."),
+     "Arriéré : 0. Sans le mois, le transport aurait été rangé sur octobre et novembre aurait paru impayé."),
     ("Arrêt et reprise", "Transport (5 000 F) pris de novembre à décembre, arrêté en janvier, repris de février à mars, arrêté en avril, repris en mai. "
      "« Articles optionnels » = Transport (11/2026-12/2026) ; Transport (02/2027-03/2027) ; Transport (05/2027). Import le 15 juin, 20 000 versés en articles.",
      "Les 20 000 paient novembre, décembre, février et mars. Janvier et avril ne sont jamais dus. Arriéré transport : mai et juin = 10 000."),

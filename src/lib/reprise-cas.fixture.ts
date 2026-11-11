@@ -51,7 +51,7 @@ export interface CasReprise {
     dateDepart: string | null;
     /**
      * Options choisies ; quantite null = quantité par défaut ; debut = premier mois dû d'un service mensuel donné par
-     * le fichier (colonne « Début des options » ou « Cantine (03/2027) »), absent ou null = règle par défaut
+     * le fichier (« Cantine (03/2027) » dans « Articles optionnels »), absent ou null = règle par défaut
      */
     options: { libelle: string; quantite: number | null; debut?: string | null }[];
   };
@@ -261,7 +261,7 @@ export const CAS_REPRISE: CasReprise[] = [
   },
   {
     nom: "Bineta Sy",
-    description: "Transport pris en cours d'année : « Début des options » = 11/2026",
+    description: "Transport pris en cours d'année : « Transport (11/2026) »",
     ...BASE,
     reglages: SANS_REGLAGE,
     classe: CM2A,

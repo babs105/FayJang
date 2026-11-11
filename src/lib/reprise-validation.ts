@@ -609,7 +609,7 @@ export function analyserReprise(classeur: ClasseurBrut, ctx: ContexteReprise): A
         else if (depart < ctx.premierMois) erreurs.push(`Date de départ avant le début de l'année scolaire ${ctx.anneeScolaire}.`);
       }
 
-      // Mois de début des services : colonne « Début des options », ou « Cantine (03/2027) » pour un service
+      // Période des services, écrite à côté du service : « Cantine (03/2027) », « Transport (11/2026-01/2027) »
       const moisImport = `${ctx.aujourdhui.slice(0, 7)}-01`;
       const moisDepart = typeof depart === "string" && depart !== "invalide" ? `${depart.slice(0, 7)}-01` : null;
       const lireDebut = (c: Cellule, origine: string): string | null => {
@@ -625,7 +625,6 @@ export function analyserReprise(classeur: ClasseurBrut, ctx: ContexteReprise): A
         else return lu;
         return null;
       };
-      const debutColonne = lireDebut(cellule("debutOptions"), "Début des options");
       const lirePeriodeOption = (texte: string, origine: string): { debut: string; fin: string | null } | null => {
         const p = lirePeriode(texte, moisAnnee);
         if (p === "invalide") {
@@ -710,7 +709,7 @@ export function analyserReprise(classeur: ClasseurBrut, ctx: ContexteReprise): A
           options.push({
             libelle: article.libelle,
             quantite,
-            debut: article.nature === "mensuel" ? (periode?.debut ?? debutColonne) : null,
+            debut: article.nature === "mensuel" ? (periode?.debut ?? null) : null,
             fin: article.nature === "mensuel" ? (periode?.fin ?? null) : null,
           });
         }
@@ -731,9 +730,6 @@ export function analyserReprise(classeur: ClasseurBrut, ctx: ContexteReprise): A
             }
           }
         }
-      }
-      if (debutColonne && !options.some((o) => o.debut !== null)) {
-        avert.push("« Début des options » ignoré : aucun service mensuel n'est choisi dans « Articles optionnels ».");
       }
 
       if (catalogue?.ecart) erreurs.push(catalogue.ecart);

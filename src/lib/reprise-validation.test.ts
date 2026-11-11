@@ -408,23 +408,17 @@ describe("separerDebut", () => {
   });
 });
 
-describe("analyserReprise : début des options", () => {
+describe("analyserReprise : mois de début d'un service", () => {
   const CATALOGUE: Cellule[][] = [
     ["CM2 A", "Tenue", "unique", 8000, 2, "oui"],
     ["CM2 A", "Transport", "mensuel", 5000, 1, "non"],
     ["CM2 A", "Cantine", "mensuel", 10000, 1, "non"],
     ["CM2 A", "Bus (matin)", "mensuel", 2000, 1, "non"],
   ];
-  const ENTETES = [...ENTETES_ELEVES, "Début des options"];
-  const avecDebut = (modifs: Partial<Record<string, Cellule>>, debut: Cellule): Cellule[] => [...eleve(modifs), debut];
-  const analyser = (lignes: Cellule[][]) => {
-    const c = classeur([], { articles: CATALOGUE });
-    c.feuilles[3].lignes = [ENTETES, ...lignes];
-    return analyserReprise(c, CTX);
-  };
+  const analyser = (lignes: Cellule[][]) => analyserReprise(classeur(lignes, { articles: CATALOGUE }), CTX);
 
-  it("applique la colonne aux services mensuels choisis, pas aux frais uniques", () => {
-    const a = analyser([avecDebut({ options: "Transport ; Cantine ; Tenue x3", art: 46000 }, "11/2026")]);
+  it("lit le mois écrit à côté de chaque service, pas sur un frais unique", () => {
+    const a = analyser([eleve({ options: "Transport (11/2026) ; Cantine (novembre) ; Tenue x3", art: 46000 })]);
     expect(a.eleves[0].erreurs).toEqual([]);
     expect(a.eleves[0].options).toEqual([
       { libelle: "Transport", quantite: null, debut: "2026-11-01", fin: null },
@@ -433,34 +427,35 @@ describe("analyserReprise : début des options", () => {
     ]);
   });
 
-  it("laisse un service préciser son propre mois", () => {
-    const a = analyser([avecDebut({ options: "Transport ; Cantine (novembre)" }, "10/2026")]);
-    expect(a.eleves[0].options.map((o) => o.debut)).toEqual(["2026-10-01", "2026-11-01"]);
+  it("laisse un service sans mois suivre la règle par défaut", () => {
+    const a = analyser([eleve({ options: "Transport ; Cantine (10/2026)" })]);
+    expect(a.eleves[0].options.map((o) => o.debut)).toEqual([null, "2026-10-01"]);
   });
 
   it("garde un libellé de catalogue qui contient des parenthèses", () => {
-    const a = analyser([avecDebut({ options: "Bus (matin)" }, null)]);
+    const a = analyser([eleve({ options: "Bus (matin)" })]);
     expect(a.eleves[0].options).toEqual([{ libelle: "Bus (matin)", quantite: null, debut: null, fin: null }]);
   });
 
   it("refuse un mois hors de l'année, après l'import ou après le départ", () => {
     const a = analyser([
-      avecDebut({ options: "Transport" }, "08/2026"),
-      avecDebut({ prenom: "B", options: "Transport" }, "01/2027"),
-      avecDebut({ prenom: "C", options: "Transport", statut: "abandon", depart: "31/10/2026" }, "11/2026"),
-      avecDebut({ prenom: "D", options: "Transport" }, "plus tard"),
-      avecDebut({ prenom: "E", options: "Tenue (11/2026)" }, null),
+      eleve({ options: "Transport (08/2026)" }),
+      eleve({ prenom: "B", options: "Transport (01/2027)" }),
+      eleve({ prenom: "C", options: "Transport (11/2026)", statut: "abandon", depart: "31/10/2026" }),
+      eleve({ prenom: "D", options: "Transport (plus tard)" }),
+      eleve({ prenom: "E", options: "Tenue (11/2026)" }),
     ]);
     expect(a.eleves[0].erreurs[0]).toContain("dans l'année scolaire");
     expect(a.eleves[1].erreurs[0]).toContain("après le mois de l'import");
     expect(a.eleves[2].erreurs[0]).toContain("après le départ");
-    expect(a.eleves[3].erreurs[0]).toContain("mois illisible");
+    expect(a.eleves[3].erreurs[0]).toContain("période illisible");
     expect(a.eleves[4].erreurs[0]).toContain("un frais unique n'a pas de mois de début");
   });
 
-  it("avertit quand la colonne est remplie sans service mensuel", () => {
-    const a = analyser([avecDebut({ options: null }, "11/2026")]);
-    expect(a.eleves[0].avertissements.join(" ")).toContain("« Début des options » ignoré");
+  it("ignore une ancienne colonne « Début des options » : seul le mois à côté du service compte", () => {
+    const c = classeur([], { articles: CATALOGUE });
+    c.feuilles[3].lignes = [[...ENTETES_ELEVES, "Début des options"], [...eleve({ options: "Transport" }), "11/2026"]];
+    expect(analyserReprise(c, CTX).eleves[0].options[0].debut).toBeNull();
   });
 });
 
