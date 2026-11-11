@@ -3,7 +3,7 @@
 > **Fichier généré automatiquement.** Ne pas éditer à la main.
 > Régénérer : `bash scripts/schema-index.sh`
 
-**Total : 2290 lignes.**
+**Total : 2545 lignes.**
 
 ## Tables
 
@@ -31,7 +31,7 @@
 - `echanger_acces_ecole` — L270
 - `echanger_jeton_parent` — L332
 - `effacer_tentatives` — L227
-- `encaisser_paiement` — L1276
+- `encaisser_paiement` — L2300 **(active)** · remplace L1276
 - `enregistrer_classe` — L1538
 - `enregistrer_parametres` — L1973
 - `hacher_code_bcrypt` — L257
@@ -122,6 +122,7 @@
 - L2103 : v1.13 : un service mensuel ne s'arrête pas avant son dernier mois payé (remplace proteger_article_inscription, v1.5).
 - L2159 : v1.14 : un article d'élève vient du catalogue de SA classe (remplace verifier_meme_ecole, v1.5).
 - L2252 : v1.15 : date de dernière modification (updated_at) sur eleves, classes, inscriptions, parents et
+- L2293 : v1.16 : un service mensuel ne s'encaisse que dans sa période (finding H4 du BACKLOG).
 
 ## Notes pour l'agent
 

@@ -178,6 +178,12 @@
   reprise prend ~30 s. Correctif : formateur créé une fois au niveau du module. *Estimé : 15 min. Croise : prochaine
   tranche qui touche `dates.ts`.* (tranche 2 « reprise de l'existant », 2026-11-11)
 
+- [ ] **Test de non-régression SQL du contrôle de période** (H4) — le refus FJ412 d'un service mensuel hors
+  `[mois_debut, mois_fin]` (`encaisser_paiement` v1.16) n'a aucun test automatique (Vitest ne couvre que `src/lib`).
+  Correctif : script SQL à jouer sur une base de test (mois = début, mois = fin, un mois avant, un mois après, bornes
+  NULL, rejeu après changement de période). Les noms de mois sont aussi codés en dur dans la fonction SQL, à garder
+  alignés avec `dates.ts`. *Estimé : 1 h. Croise : tranche 5.* (review database tranche 3 « reprise de l'existant », 2026-11-11)
+
 
 ---
 
