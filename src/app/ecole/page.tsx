@@ -47,7 +47,7 @@ export default async function EcolePage({ searchParams }: PageProps) {
       .order("nom"),
     supabase
       .from("eleves")
-      .select("id, matricule, prenom, nom, sexe, date_naissance, parent_id, created_at, updated_at")
+      .select("id, matricule, matricule_ancien, prenom, nom, sexe, date_naissance, parent_id, created_at, updated_at")
       .eq("ecole_id", ecoleId)
       .eq("is_active", true)
       .order("nom"),
@@ -120,6 +120,7 @@ export default async function EcolePage({ searchParams }: PageProps) {
     return {
       id: e.id,
       matricule: e.matricule,
+      matricule_ancien: e.matricule_ancien,
       prenom: e.prenom,
       nom: e.nom,
       sexe: e.sexe,

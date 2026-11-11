@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { AlertTriangle, CheckCircle2, Download, FileSpreadsheet, Loader2, School } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Download, FileSpreadsheet, Loader2, School, Users } from "lucide-react";
 import { cn, formatFCFA } from "@/lib/utils";
 import { formatDate, formatPeriode } from "@/lib/dates";
 import { LIBELLE_NIVEAU, LIBELLE_STATUT_INSCRIPTION } from "@/lib/libelles";
 import { Badge, Bouton, Carte, Kpi, Message } from "@/components/ui";
 import type { ApercuReprise, EleveApercu } from "@/lib/reprise-validation";
-import { analyserFichierReprise, importerClassesReprise, type ResultatClasses } from "./actions";
+import { cleDe, decouper, TAILLE_LOT, type CleEleve, type RefusLigne } from "@/lib/reprise-lots";
+import { analyserFichierReprise, importerClassesReprise, importerLotReprise, type ResultatClasses } from "./actions";
 
 type Filtre = "tous" | "erreur" | "a_creer" | "deja_present";
 
@@ -19,6 +20,28 @@ const ETAT_ELEVE: Record<EleveApercu["etat"], { libelle: string; ton: "vert" | "
 
 const montant = (n: number | null) => (n === null ? "—" : formatFCFA(n));
 
+const MODES_REPRISE = [
+  ["especes", "Espèces"],
+  ["virement", "Virement"],
+  ["cheque", "Chèque"],
+] as const;
+
+/** Avancement de l'import des élèves ; conservé en entier si un lot échoue, pour reprendre sans rien perdre */
+interface Avancement {
+  lots: CleEleve[][];
+  /** Index du prochain lot à envoyer */
+  prochain: number;
+  crees: number;
+  ignores: number;
+  montant: number;
+  recus: number;
+  refuses: RefusLigne[];
+  /** Lignes du fichier laissées de côté (en erreur) au lancement */
+  laissees: number;
+  enCours: boolean;
+  erreur: string | null;
+}
+
 export function ReprisePanel() {
   const [apercu, setApercu] = useState<ApercuReprise | null>(null);
   const [nomFichier, setNomFichier] = useState("");
@@ -26,6 +49,9 @@ export function ReprisePanel() {
   const [filtre, setFiltre] = useState<Filtre>("tous");
   const [isPending, startTransition] = useTransition();
   const [creation, setCreation] = useState<{ message: string; data?: ResultatClasses; ok: boolean } | null>(null);
+  const [avance, setAvance] = useState<Avancement | null>(null);
+  const [laisseDeCote, setLaisseDeCote] = useState(false);
+  const [mode, setMode] = useState<(typeof MODES_REPRISE)[number][0]>("especes");
   // Fichier analysé, renvoyé tel quel au serveur pour la création (le serveur le relit, il ne croit pas l'aperçu)
   const fichierRef = useRef<File | null>(null);
   // Avant le chargement de React, un envoi partirait en GET classique (nom du fichier dans l'URL, rien d'analysé)
@@ -43,6 +69,8 @@ export function ReprisePanel() {
     setMessage(null);
     setApercu(null);
     setCreation(null);
+    setAvance(null);
+    setLaisseDeCote(false);
     startTransition(async () => {
       const r = await analyserFichierReprise(formData);
       if (!r.success || !r.data) setMessage(r.message ?? "Lecture du fichier impossible.");
@@ -70,6 +98,72 @@ export function ReprisePanel() {
       // Aperçu recalculé : les classes créées deviennent « déjà présentes » et leurs élèves sont chiffrés
       const a = await analyserFichierReprise(formData);
       if (a.success && a.data) setApercu(a.data);
+    });
+  }
+
+  /** Envoie les lots un par un à partir de `depuis`. Un lot en échec arrête la boucle ; le compte rendu reste affiché. */
+  async function importerLots(depart: Avancement) {
+    const fichier = fichierRef.current;
+    if (!fichier) return;
+    let a: Avancement = { ...depart, enCours: true, erreur: null };
+    setAvance(a);
+    while (a.prochain < a.lots.length) {
+      const formData = new FormData();
+      formData.append("fichier", fichier);
+      formData.append("mode", mode);
+      formData.append("cles", JSON.stringify(a.lots[a.prochain]));
+      try {
+        const r = await importerLotReprise(formData);
+        if (!r.success || !r.data) {
+          a = { ...a, enCours: false, erreur: r.message ?? "Ce lot n'a pas pu être importé." };
+          break;
+        }
+        a = {
+          ...a,
+          prochain: a.prochain + 1,
+          crees: a.crees + r.data.crees,
+          ignores: a.ignores + r.data.ignores,
+          montant: a.montant + r.data.montant,
+          recus: a.recus + r.data.recus,
+          refuses: [...a.refuses, ...r.data.refuses],
+        };
+        setAvance(a);
+      } catch {
+        // Connexion coupée : le lot en cours a pu être écrit ou non, le rejeu ignore les élèves déjà créés
+        a = { ...a, enCours: false, erreur: "Connexion interrompue pendant l'envoi. Cliquez sur « Reprendre » : les élèves déjà créés seront ignorés." };
+        break;
+      }
+    }
+    a = { ...a, enCours: false };
+    setAvance(a);
+    // Aperçu recalculé : les élèves créés deviennent « déjà présents »
+    try {
+      const formData = new FormData();
+      formData.append("fichier", fichier);
+      const n = await analyserFichierReprise(formData);
+      if (n.success && n.data) setApercu(n.data);
+    } catch {
+      /* l'aperçu sera rafraîchi au prochain envoi du fichier */
+    }
+  }
+
+  function lancerImport() {
+    if (!apercu) return;
+    const aCreer = apercu.eleves.filter((e) => e.etat === "a_creer");
+    const n = aCreer.length;
+    const erreurs = apercu.compteurs.erreurs;
+    if (erreurs > 0 && !laisseDeCote) return;
+    const libelleMode = MODES_REPRISE.find(([id]) => id === mode)?.[1].toLowerCase();
+    if (
+      !window.confirm(
+        `Importer ${n} élève${n > 1 ? "s" : ""} dans FayJàng ? Chaque élève ayant déjà versé reçoit un reçu « Reprise de l'existant » (${libelleMode}). Les élèves déjà présents ne sont pas modifiés.`
+      )
+    ) {
+      return;
+    }
+    void importerLots({
+      lots: decouper(aCreer.map(cleDe), TAILLE_LOT),
+      prochain: 0, crees: 0, ignores: 0, montant: 0, recus: 0, refuses: [], laissees: erreurs, enCours: true, erreur: null,
     });
   }
 
@@ -162,9 +256,59 @@ export function ReprisePanel() {
               </div>
             )}
             <p className="text-[11px] text-neutral-500">
-              Les montants ci-dessous sont calculés comme FayJàng les affichera après l&apos;import. Prochaine étape (bientôt) : l&apos;import des élèves.
+              Les montants ci-dessous sont calculés comme FayJàng les affichera après l&apos;import.
             </p>
           </Carte>
+
+          {(avance || (apercu.erreursGlobales.length === 0 && apercu.compteurs.classesNouvelles === 0 && apercu.compteurs.aCreer > 0)) && (
+            <Carte className="space-y-3">
+              <h2 className="text-sm font-extrabold text-neutral-900">Importer les élèves</h2>
+              {!avance && (
+                <>
+                  <p className="text-xs text-neutral-600">
+                    {apercu.compteurs.aCreer} élève{apercu.compteurs.aCreer > 1 ? "s" : ""} seront créés par lots de {TAILLE_LOT}, avec leur parent, leur inscription,
+                    leurs articles et un reçu « Reprise de l&apos;existant » pour ce qu&apos;ils ont déjà versé. Si l&apos;envoi s&apos;arrête, vous pourrez reprendre :
+                    les élèves déjà créés sont ignorés.
+                  </p>
+                  <label className="block text-xs font-bold text-neutral-700">
+                    Mode de paiement des reçus de reprise
+                    <select
+                      value={mode}
+                      onChange={(e) => setMode(e.target.value as typeof mode)}
+                      className="mt-1 block w-full sm:w-64 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs font-normal"
+                    >
+                      {MODES_REPRISE.map(([id, libelle]) => (
+                        <option key={id} value={id}>
+                          {libelle}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="block text-[11px] font-normal text-neutral-500 mt-1">
+                      Wave, Orange Money et Free Money ne sont pas proposés : ils exigent la référence de chaque transaction, qu&apos;un total repris n&apos;a pas.
+                    </span>
+                  </label>
+                  {apercu.compteurs.erreurs > 0 && (
+                    <label className="flex items-start gap-2 text-xs text-neutral-700">
+                      <input type="checkbox" checked={laisseDeCote} onChange={(e) => setLaisseDeCote(e.target.checked)} className="mt-0.5" />
+                      <span>
+                        {apercu.compteurs.erreurs > 1 ? (
+                          <>
+                            Je laisse de côté les <b>{apercu.compteurs.erreurs}</b> lignes en erreur : elles ne seront pas importées.
+                          </>
+                        ) : (
+                          <>Je laisse de côté la ligne en erreur : elle ne sera pas importée.</>
+                        )}
+                      </span>
+                    </label>
+                  )}
+                  <Bouton onClick={lancerImport} disabled={isPending || (apercu.compteurs.erreurs > 0 && !laisseDeCote)}>
+                    <Users className="w-4 h-4" /> Importer {apercu.compteurs.aCreer} élève{apercu.compteurs.aCreer > 1 ? "s" : ""}
+                  </Bouton>
+                </>
+              )}
+              {avance && <SuiviImport avance={avance} onReprendre={() => void importerLots(avance)} />}
+            </Carte>
+          )}
 
           {(apercu.classes.length > 0 || creation) && (
             <Carte className="space-y-2">
@@ -390,6 +534,67 @@ export function ReprisePanel() {
         </>
       )}
     </>
+  );
+}
+
+function SuiviImport({ avance, onReprendre }: { avance: Avancement; onReprendre: () => void }) {
+  const total = avance.lots.length;
+  const fini = avance.prochain >= total && !avance.erreur;
+  const pct = total === 0 ? 100 : Math.round((avance.prochain / total) * 100);
+  return (
+    <div className="space-y-3">
+      {!fini && (
+        <div>
+          <div className="flex justify-between text-[11px] text-neutral-600 mb-1">
+            <span>
+              Lot {Math.min(avance.prochain + (avance.enCours ? 1 : 0), total)} sur {total}
+            </span>
+            <span>{pct} %</span>
+          </div>
+          <div className="h-2 rounded-full bg-neutral-100 overflow-hidden" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+            <div className="h-full bg-jang-600 transition-all" style={{ width: `${pct}%` }} />
+          </div>
+        </div>
+      )}
+      {avance.enCours && (
+        <p className="text-xs text-neutral-600 flex items-center gap-1.5">
+          <Loader2 className="w-3.5 h-3.5 animate-spin" /> Import en cours, ne fermez pas cette page.
+        </p>
+      )}
+      {avance.erreur && (
+        <Message ok={false}>
+          <p className="font-bold">Le lot {avance.prochain + 1} sur {total} n&apos;a pas été importé.</p>
+          <p>{avance.erreur}</p>
+          <p className="mt-1">Rien n&apos;a été enregistré pour ce lot. Corrigez le problème, puis reprenez.</p>
+        </Message>
+      )}
+      {avance.erreur && !avance.enCours && (
+        <Bouton onClick={onReprendre}>
+          <Loader2 className="w-4 h-4" /> Reprendre
+        </Bouton>
+      )}
+      {(fini || avance.erreur || avance.crees > 0) && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <Kpi label="Élèves créés" valeur={String(avance.crees)} ton="vert" />
+          <Kpi label="Ignorés" valeur={String(avance.ignores)} detail="déjà présents" />
+          <Kpi label="Total encaissé" valeur={formatFCFA(avance.montant)} detail={`${avance.recus} reçu${avance.recus > 1 ? "s" : ""} de reprise`} />
+          <Kpi label="Laissées de côté" valeur={String(avance.laissees + avance.refuses.length)} detail="lignes non importées" ton={avance.laissees + avance.refuses.length ? "rouge" : undefined} />
+        </div>
+      )}
+      {avance.refuses.length > 0 && (
+        <details className="text-xs">
+          <summary className="cursor-pointer font-bold text-red-700">{avance.refuses.length} ligne(s) refusée(s) au moment de l&apos;import</summary>
+          <ul className="mt-1 space-y-0.5 text-[11px] text-red-700">
+            {avance.refuses.slice(0, 100).map((r, i) => (
+              <li key={i}>
+                Ligne {r.ligne} : {r.message}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+      {fini && <Message ok>Import terminé. Retrouvez les élèves dans l&apos;onglet « Élèves » de l&apos;Espace École.</Message>}
+    </div>
   );
 }
 

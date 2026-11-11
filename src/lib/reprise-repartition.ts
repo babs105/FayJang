@@ -166,7 +166,9 @@ export function repartirReprise(e: EntreeRepartition): ResultatRepartition {
     const choisies = e.options.filter((o) => o.libelle === def.libelle);
     if (!def.obligatoire && !choisies.length) return [];
     if (def.nature === "unique") {
-      return [{ id: `a${rang}`, rang, def, quantite: choisies[0]?.quantite ?? def.quantiteDefaut, debut: null, fin: null }];
+      // Un frais unique de quantité 0 n'est pas rattaché (comme inscrire_eleve) : M-B du backlog
+      const quantite = choisies[0]?.quantite ?? def.quantiteDefaut;
+      return quantite < 1 ? [] : [{ id: `a${rang}`, rang, def, quantite, debut: null, fin: null }];
     }
     const periodes = choisies.length ? [...choisies].sort((a, b) => ((a.debut ?? "") < (b.debut ?? "") ? -1 : 1)) : [null];
     return periodes.map((o, k) => ({ id: `a${rang}p${k}`, rang, def, quantite: 1, debut: o?.debut ?? null, fin: o?.fin ?? null }));
@@ -280,7 +282,9 @@ export function repartirReprise(e: EntreeRepartition): ResultatRepartition {
   const moisImport = `${aujourdhui.slice(0, 7)}-01`;
   const articles: ArticlePrevu[] = [];
   const articlesFinaux: ArticleCalcul[] = [];
-  for (const r of retenus) {
+  // Position d'un article dans `retenus` -> position dans `articles` (un service non rattaché disparaît de la liste)
+  const nouvelleIndex = new Map<number, number>();
+  for (const [position, r] of retenus.entries()) {
     let debut: string | null = null;
     let fin: string | null = null;
     if (r.def.nature === "mensuel") {
@@ -292,7 +296,14 @@ export function repartirReprise(e: EntreeRepartition): ResultatRepartition {
         debut = fin;
         avertissements.push(`« ${r.def.libelle} » : aucun versement, il est dû pour le mois du départ.`);
       }
+      // Import après le dernier mois de l'année, service sans versement ni début donné : rien n'est dû, on ne le
+      // rattache pas plutôt que d'écrire un début hors de l'année (M-C du backlog)
+      if (debut > dernier) {
+        avertissements.push(`« ${r.def.libelle} » : l'année scolaire est terminée et le service n'a aucun versement, il n'est pas rattaché.`);
+        continue;
+      }
     }
+    nouvelleIndex.set(position, articles.length);
     articles.push({
       libelle: r.def.libelle, nature: r.def.nature, prix: r.def.prix, quantite: r.quantite,
       obligatoire: r.def.obligatoire, moisDebut: debut, moisFin: fin,
@@ -319,7 +330,7 @@ export function repartirReprise(e: EntreeRepartition): ResultatRepartition {
   paiements.push(...paiementsArticles);
 
   // ----- Seconde passe : ce que l'app affichera après l'import -----
-  // `articles` suit `retenus` ligne pour ligne : articleIndex désigne la même ligne dans les deux
+  // À ce stade articleIndex désigne la position dans `retenus` ; il est converti en position dans `articles` au retour
   const sit = situationInscription(
     ins,
     paiements.map((p) => ({
@@ -336,5 +347,7 @@ export function repartirReprise(e: EntreeRepartition): ResultatRepartition {
     sit.articles.every((l) => l.paye <= l.du);
   if (!coherent) return { ok: false, erreur: "Répartition impossible : les montants versés ne correspondent pas au dû calculé. Vérifiez la ligne." };
 
-  return { ok: true, paiements, articles, resume: { arriere: sit.arriere, resteAnnee: sit.resteAnnee, totalPaye: sit.totalPaye }, avertissements };
+  // `articles` ne contient plus que les services rattachés : articleIndex devient une position dans ce tableau
+  const paiementsFinaux = paiements.map((p) => (p.articleIndex === null ? p : { ...p, articleIndex: nouvelleIndex.get(p.articleIndex)! }));
+  return { ok: true, paiements: paiementsFinaux, articles, resume: { arriere: sit.arriere, resteAnnee: sit.resteAnnee, totalPaye: sit.totalPaye }, avertissements };
 }
