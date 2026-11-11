@@ -519,6 +519,7 @@ export async function encaisserPaiement(saisie: SaisiePaiement): Promise<Resulta
   const s = await session();
   if (!s) return { success: false, message: SESSION_EXPIREE };
 
+  if (!estUuid(saisie.inscription_id)) return { success: false, message: "Inscription introuvable." };
   const reglement = lireMode(saisie.mode, saisie.reference);
   if (typeof reglement === "string") return { success: false, message: reglement };
   const vide = saisie.montant === undefined || saisie.montant === null || String(saisie.montant).trim() === "";

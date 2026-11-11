@@ -7,7 +7,10 @@ export function todayDakar(now: Date = new Date()): string {
 }
 
 export function isDateValide(date: string | null | undefined): date is string {
-  return Boolean(date && /^\d{4}-\d{2}-\d{2}$/.test(date) && !isNaN(Date.parse(date)));
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+  // Aller-retour ISO : une date inexistante (31 février) serait reportée au mois suivant, donc refusée
+  const d = new Date(`${date}T00:00:00Z`);
+  return !isNaN(d.getTime()) && d.toISOString().slice(0, 10) === date;
 }
 
 /** Année scolaire au format « 2026-2027 » */
@@ -42,11 +45,12 @@ export function echeanceDuMois(mois: string, jourEcheance: number): string {
   return `${mois.slice(0, 8)}${String(jourEcheance).padStart(2, "0")}`;
 }
 
+// Créé une seule fois : formatMois est appelé pour chaque libellé de situationInscription
+const FORMAT_MOIS = new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric", timeZone: "UTC" });
+
 /** Ex: « octobre 2026 » */
 export function formatMois(mois: string): string {
-  return new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric", timeZone: "UTC" }).format(
-    new Date(`${mois.slice(0, 7)}-01T12:00:00Z`)
-  );
+  return FORMAT_MOIS.format(new Date(`${mois.slice(0, 7)}-01T12:00:00Z`));
 }
 
 /** Ex: « oct. » */

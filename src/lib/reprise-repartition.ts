@@ -5,7 +5,6 @@
 import { echeanceDuMois, moisScolaires } from "@/lib/dates";
 import { libellePaiement } from "@/lib/libelles";
 import {
-  libelleArticle,
   libelleTranche,
   mensualiteDernierMois,
   mensualiteNette,
