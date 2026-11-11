@@ -76,7 +76,7 @@ export default async function EcolePage({ searchParams }: PageProps) {
     ? await Promise.all([
         supabase
           .from("paiements")
-          .select("id, inscription_id, lot_id, numero_recu, type, mois, montant, mode, reference, libelle, paye_le, annule, motif_annulation, article_id")
+          .select("id, inscription_id, lot_id, numero_recu, type, mois, montant, mode, reference, libelle, paye_le, annule, motif_annulation, article_id, encaisse_par")
           .eq("ecole_id", ecoleId)
           .in("inscription_id", idsInscriptions)
           .order("created_at", { ascending: false }),
@@ -160,6 +160,7 @@ export default async function EcolePage({ searchParams }: PageProps) {
       paye_le: p.paye_le,
       annule: p.annule,
       motif_annulation: p.motif_annulation,
+      encaisse_par: p.encaisse_par,
       eleve_id: e?.eleveId ?? "",
       eleve_nom: e?.nom ?? "Élève retiré",
       classe_nom: e?.classe ?? "",

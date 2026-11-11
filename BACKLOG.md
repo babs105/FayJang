@@ -248,6 +248,12 @@
   ligne ; (4) `revalidatePath` appelé même sans écriture. *Estimé : 45 min.*
   (reviews database et security tranche 5 « reprise de l'existant », 2026-11-11)
 
+- [ ] **Reçu PDF : libellés trop larges et nombre de lignes non plafonné** (S13) — `src/lib/recu-pdf.ts` dessine les
+  libellés (jusqu'à 120 caractères) sans mesurer leur largeur : ils chevauchent la colonne Montant ; idem pour le nom
+  de l'élève, la classe et le nom de l'école. Le nombre de pages suit le nombre de lignes du lot sans garde-fou
+  (borné en pratique par la base). Correctif : couper à ~270 pt avec `widthOfTextAtSize` + « ... », et plafonner les
+  lignes (ex. 300). *Estimé : 30 min.* (review security tranche 6 « reprise de l'existant », 2026-11-11)
+
 ---
 
 ## Décisions tranchées (ne plus rouvrir)

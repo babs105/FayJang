@@ -1,8 +1,9 @@
 import "server-only";
 import type { SupabaseServeur } from "@/lib/supabase/server";
+import { estRecuDeReprise } from "@/lib/reprise-recu";
 import type { DonneesRecu } from "@/lib/recu-pdf";
 
-const CHAMPS_LIGNE = "numero_recu, type, mois, montant, mode, reference, libelle, paye_le, annule, inscription_id, lot_id, created_at";
+const CHAMPS_LIGNE = "numero_recu, type, mois, montant, mode, reference, libelle, paye_le, annule, inscription_id, lot_id, encaisse_par, created_at";
 
 /**
  * Lit tout ce qu'il faut pour un reçu avec le client fourni (École ou parent) : la RLS décide de ce qui est
@@ -47,6 +48,7 @@ export async function lireDonneesRecu(supabase: SupabaseServeur, ecoleId: string
     payeLe: p.paye_le,
     mode: p.mode,
     reference: p.reference,
+    reprise: estRecuDeReprise(p.encaisse_par),
     annule: lignes.every((l) => l.annule),
     lignes: lignes.map((l) => ({ type: l.type, mois: l.mois, libelle: l.libelle, montant: l.montant, annule: l.annule })),
     eleve,

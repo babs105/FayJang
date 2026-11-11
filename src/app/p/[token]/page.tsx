@@ -5,6 +5,7 @@ import { echangerJetonParent } from "@/lib/supabase/server";
 import { todayDakar } from "@/lib/config";
 import { formatDate, formatMois, formatMoisCourt } from "@/lib/dates";
 import { LIBELLE_MODE, libellePaiement } from "@/lib/libelles";
+import { estRecuDeReprise } from "@/lib/reprise-recu";
 import { regrouperParRecu, resumeRecu } from "@/lib/regrouper-recus";
 import { situationInscription, type StatutMois } from "@/lib/scolarite";
 import { cn, formatFCFA } from "@/lib/utils";
@@ -51,7 +52,7 @@ export default async function ParentPage({ params }: { params: Promise<{ token: 
     idsIns.length
       ? supabase
           .from("paiements")
-          .select("id, inscription_id, lot_id, numero_recu, type, mois, montant, mode, libelle, paye_le, annule, article_id")
+          .select("id, inscription_id, lot_id, numero_recu, type, mois, montant, mode, libelle, paye_le, annule, article_id, encaisse_par")
           .eq("ecole_id", ecoleId)
           .in("inscription_id", idsIns)
           .order("paye_le", { ascending: false })
@@ -180,7 +181,7 @@ export default async function ParentPage({ params }: { params: Promise<{ token: 
                         <p className="text-xs font-bold">
                           {resumeRecu(r.lignes)} · {formatFCFA(r.total)}
                         </p>
-                        <p className="text-[10px] text-neutral-500">{formatDate(p.paye_le)} · {LIBELLE_MODE[p.mode]} · {p.numero_recu}</p>
+                        <p className="text-[10px] text-neutral-500">{formatDate(p.paye_le)} · {LIBELLE_MODE[p.mode]} · {p.numero_recu}{estRecuDeReprise(p.encaisse_par) && " · Reprise de l'existant"}</p>
                       </div>
                     );
                     const lien = (
