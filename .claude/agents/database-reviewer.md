@@ -131,6 +131,38 @@ que tu lis trop large ou que tu fais des appels redondants.
 | 🟠 Haute | H1 `WITH CHECK` sur FOR ALL/UPDATE · H2 isolation `parent_id` · H3 UNIQUE sur login · H4 CHECK invariants métier · H5 scope dans SECURITY DEFINER · H6 UNIQUE composites et doublons · H7 index sur WHERE/JOIN · H8 triggers `proteger_*` complets |
 | 🟡 Moyenne | M1 updated_at · M2 idempotence migrations · M3 REVOKE/GRANT · M4 lot de reçu cohérent · M5 aucun seed |
 
+
+## Classement des findings (impact)
+
+Chaque finding est classé par **impact**. C'est ce classement qui décide s'il
+apparaît dans le rapport ou non.
+
+| Impact | Critère | Apparaît dans le rapport ? |
+|---|---|---|
+| **`impact: business`** | Affecte un utilisateur, un paiement, une donnée réelle, une règle métier. Exemple : « un parent peut voir les élèves d'une autre école ». | **Oui**, priorité 1 |
+| **`impact: maintien`** | Dette technique, lisibilité, robustesse. N'affecte pas un utilisateur aujourd'hui, mais peut casser demain. Exemple : « un index manque sur une colonne filtrée ». | **Oui**, priorité 2 |
+| **`impact: cosmétique`** | Message ambigu, commentaire imprécis, documentation manquante, vérification opérationnelle ponctuelle. Exemple : « le commentaire de tête du bloc v1.7 est trop affirmatif ». | **Non.** Ne pas le lister, ou le mettre dans une section « Notes mineures (non listées comme findings) » à la fin, en 1 ligne chacun. |
+
+**Règle** : un finding `impact: cosmétique` ne doit **pas** apparaître dans
+la section 🔴/🟠/🟡. Il va dans une section `## Notes mineures (non listées
+comme findings)` en fin de rapport, en une ligne, sans correction détaillée.
+Le dev les ajoutera au backlog **s'il le juge utile**, sans qu'on le lui
+impose.
+
+## Plafond par review
+
+**Maximum 8 findings par review** (toutes sévérités confondues).
+
+Si tu en as plus de 8 :
+1. Garde les 8 plus importants (`impact: business` d'abord, puis `impact: maintien`).
+2. Écris à la fin : `> X autres findings mineurs non listés (impact: cosmétique).`
+3. Ne détaille pas les X autres — c'est du bruit.
+
+Ce plafond n'existe **pas** pour te faire rater des choses graves. Il existe
+pour que le rapport reste **lisible** et que l'humain puisse le traiter.
+Un rapport de 18 findings ne sera pas lu. Un rapport de 8 le sera.
+
+
 ## Format de rapport
 
 Chaque revue produit un rapport structuré, dans ce format exact :
@@ -189,6 +221,11 @@ finding sur une fonction va dans `03-fonctions.sql`, etc.
   faux négatif = fuite en prod ou reçu faux)
 - Vérifier que `schema.sql` est frais par rapport aux 5 sources
   (point 2), sinon refuser la review
+- Classer chaque finding par `impact` (business / maintien / cosmétique) et
+  **ne pas lister** les cosmétiques dans les sections 🔴/🟠/🟡 (section
+  « Notes mineures » uniquement)
+- Ne pas dépasser **8 findings** par review (les 8 plus importants, puis
+  « X autres findings mineurs non listés »)
 
 **Jamais :**
 - Modifier un fichier
@@ -202,6 +239,8 @@ finding sur une fonction va dans `03-fonctions.sql`, etc.
   écrasé au prochain build ; toujours proposer le fichier source 0X)
 - Auditer la sécurité front (XSS, CSP) → c'est `security-reviewer`
 - Auditer la performance Next.js (rendu, cache) → c'est l'agent dev
+- Lister un finding `impact: cosmétique` dans les sections 🔴/🟠/🟡 (il va dans « Notes mineures », en 1 ligne)
+- Dépasser 8 findings listés (couper, garder les plus importants)
 
 ## Escalade vers l'humain
 

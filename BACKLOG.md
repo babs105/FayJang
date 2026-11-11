@@ -21,13 +21,6 @@
 
 ## Chantiers (feature-scale, à planifier avec architect)
 
-- [ ] **Opérations multi-étapes non atomiques** — `enregistrerClasse` (classe puis
-  catalogue ligne par ligne) et la copie d'année de `enregistrerParametres` : en cas
-  d'échec au milieu, l'état reste partiel ; les rollbacks côté code ne couvrent pas tout.
-  Correctif : une RPC SQL transactionnelle par opération, sur le modèle de
-  `inscrire_eleve` (bloc v1.7). *Estimé : 1 jour. Croise : import Excel.*
-
-
 - [ ] **Encaissement d'un mois hors période du service** (H4) — `encaisser_paiement` (bloc v1.8) accepte, pour un
   article mensuel, n'importe quel mois de l'année sans le comparer à `mois_debut` ni à `mois_fin` : un service arrêté
   en novembre peut encore être encaissé pour mars, ce qui repousse ensuite le dernier mois payé au-delà de l'arrêt.
@@ -53,13 +46,6 @@
   `Referrer-Policy` compte : l'URL de la page parent contient le token. Correctif :
   `headers()` dans `next.config.ts`. *Estimé : 1 h. Croise : prochaine tranche sur /p/[token].*
 
-- [ ] **Node.js 20 en local** — `@supabase/supabase-js` annonce la fin du support de
-  Node 20. Vercel est déjà en 26.x. *Estimé : 15 min. Croise : prochaine mise à jour des dépendances.*
-
-- [ ] **Rotation des secrets de développement** — la clé de signature JWT et
-  `ECOLE_SESSION_SECRET` du `.env.local` ont été affichés en clair dans un terminal
-  le 2026-11-07. Ne pas les réutiliser en production. *Estimé : 15 min. Croise :
-  configuration de la production Vercel.*
 
 - [ ] **Dates saisies : 31 février accepté** — `isDateValide` (`src/lib/dates.ts`) accepte une date
   inexistante (ex. 2026-02-31) ; corrigé pour la date de départ (contrôle par aller-retour dans
@@ -97,46 +83,28 @@
   *Estimé : 15 min. Croise : import Excel des élèves (inscriptions en masse).*
   (review database tranche 1 « inscription atomique », 2026-11-10)
 
-- [ ] **Prix d'article sans plafond et produit calculé en `int`** (H4) — ni `articles_classe.prix_unitaire` ni
-  `articles_inscription.prix_unitaire` n'ont de borne haute ; dans `inscrire_eleve`, `ai.prix_unitaire * ai.quantite`
-  peut dépasser l'entier 32 bits (erreur 22003, message générique, tout est annulé). Correctif :
-  `ai.prix_unitaire::bigint * ai.quantite` et `CHECK (prix_unitaire <= 99999999)` NOT VALID dans
-  `05-migrations.sql`. *Estimé : 20 min. Croise : catalogue de frais de classe.*
-  (review database tranche 2 « inscription atomique », 2026-11-10)
-
 - [ ] **Message FJ422 unique pour l'encaissement à l'inscription** — une ligne mal formée, un montant au-delà du
-  dû ou un libellé trop long donnent tous « Montant à encaisser incohérent avec le tarif, réessayez. » ; le libellé
-  du catalogue (`articles_classe.libelle`) n'a pas de plafond en base (coupé à 120 côté serveur). Correctif :
-  CHECK de longueur sur le libellé du catalogue et messages distincts. *Estimé : 30 min. Croise : feature
-  « paramètres de classe ».* (review database tranche 2 « inscription atomique », 2026-11-10)
+  dû ou un libellé trop long donnent tous « Montant à encaisser incohérent avec le tarif, réessayez. » dans
+  `inscrire_eleve`. Correctif : messages distincts selon la cause. *Estimé : 20 min. Croise : prochaine évolution
+  de `inscrire_eleve`.* (review database tranche 2 « inscription atomique », 2026-11-10 ; la partie « libellé du
+  catalogue sans plafond » est réglée par le CHECK `articles_classe_libelle_longueur`, bloc v1.9, commit `29d748e`)
 
-- [ ] **Commentaire de tête du bloc v1.7 trop affirmatif** — il dit que chaque ligne correspond à « un élément
-  réellement dû », alors que pour une mensualité la base vérifie seulement « mois de l'année, ≤ dû du mois » (un
-  mois payé d'avance reste accepté). Correctif : reformuler le commentaire. *Estimé : 5 min. Croise : prochaine
-  évolution de `inscrire_eleve`.* (review database tranche 2 « inscription atomique », 2026-11-10)
+- [ ] **Confirmation de changement d'année trompeuse** — `parametres-panel.tsx` demande « Les classes seront
+  reprises » même quand la nouvelle année a déjà ses classes (aucune copie, l'école le découvre après coup par le
+  message « existent déjà »). Correctif : adapter le texte du `confirm()` (ou dire « si la nouvelle année n'a pas
+  encore de classes »). *Estimé : 10 min. Croise : prochaine retouche de l'onglet Paramètres.*
+  (test preview « opérations atomiques », 2026-11-10)
 
-- [ ] **Tarif modifié entre le calcul et l'enregistrement de l'inscription** — l'action lit les tarifs puis
-  appelle `inscrire_eleve` : si le tarif baisse entre les deux, la base refuse (FJ422, « réessayez ») ; s'il monte,
-  le reçu est inférieur au dû et le solde apparaît en reste. Sans danger, rien à corriger : à documenter.
-  *Estimé : 10 min (doc). Croise : modification des tarifs en cours d'année.*
-  (review database tranche 2 « inscription atomique », 2026-11-10)
-
-- [ ] **Version unique de `inscrire_eleve` à vérifier en base** — après application du schéma, s'assurer qu'une
-  seule signature existe : `SELECT oid::regprocedure FROM pg_proc WHERE proname = 'inscrire_eleve';` doit renvoyer
-  une ligne (une surcharge donnerait l'erreur PostgREST PGRST203). *Estimé : 2 min. Croise : mise en production
-  de « inscription atomique ».* (review database tranche 2 « inscription atomique », 2026-11-10)
+- [ ] **Version unique des fonctions v1.9 à v1.11 à vérifier en base** — après application du schéma :
+  `SELECT oid::regprocedure FROM pg_proc WHERE proname IN ('enregistrer_classe', 'enregistrer_parametres',
+  'inscrire_eleve');` doit renvoyer trois lignes (PGRST203 sinon). Vérifié en base locale, pas encore sur Supabase.
+  *Estimé : 2 min. Croise : mise en production de « opérations atomiques ».* (2026-11-10)
 
 - [ ] **« Rien à encaisser » reconnu par son texte** (S7) — `inscrireEleve` repère ce cas avec
   `calcul.erreur.startsWith("Rien à encaisser")` ; si le libellé de `lignesAEncaisser` change, une inscription sans
   rien à payer serait refusée à tort (rien créé). Correctif : indicateur explicite renvoyé par
   `lignesPaiementInscription`. *Estimé : 15 min. Croise : prochaine évolution de `lignesAEncaisser`.*
   (review security tranche 2 « inscription atomique », 2026-11-10)
-
-- [ ] **Rejeu d'encaissement : mode et référence non comparés** (S7) — `encaisser_paiement` (bloc v1.8) accepte
-  un rejeu de la même clé avec un autre mode de paiement ou une autre référence et renvoie le reçu initial sans le
-  signaler. Sans risque (même école, même élève). Correctif : comparer aussi `mode` / `reference`, ou documenter le
-  comportement. *Estimé : 15 min. Croise : prochaine évolution de `encaisser_paiement`.*
-  (review security tranche 1 « encaissement atomique », 2026-11-10)
 
 - [ ] **`inscription_id` non validé en UUID dans `encaisserPaiement`** (S7) — un identifiant malformé part en
   base et revient en erreur 22P02, interceptée par `messageErreur` (message générique, aucune fuite). Correctif :
@@ -149,22 +117,6 @@
   *Estimé : 10 min. Croise : prochaine migration touchant `inscrire_eleve`.*
   (review database tranche 1 « encaissement atomique », 2026-11-10)
 
-- [ ] **Encaissements d'une école sérialisés par le compteur de reçus** (M5) — `numeroter_recu` met à jour la ligne
-  unique `compteurs_recus` (école, année) : tous les encaissements d'une école attendent le commit du précédent.
-  Acceptable à l'échelle d'une école ; ne pas allonger les transactions d'encaissement. *Estimé : à mesurer.
-  Croise : montée en charge.* (review database tranche 1 « encaissement atomique », 2026-11-10)
-
-- [ ] **Version unique de `encaisser_paiement` à vérifier en base** — après application du schéma :
-  `SELECT oid::regprocedure FROM pg_proc WHERE proname = 'encaisser_paiement';` doit renvoyer une ligne (PGRST203
-  sinon). *Estimé : 2 min. Croise : mise en production de « encaissement atomique ».*
-  (plan architect « encaissement atomique », 2026-11-10)
-
-- [ ] **Annulation : messages « introuvable » / « déjà annulé » et lecture du lot hors verrou** (S7) — `annulerPaiement`
-  lit le reçu sans filtrer `annule=false` (un reçu déjà annulé donne « Ce reçu est déjà annulé. », un reçu inconnu
-  « Paiement introuvable. », sans fuite entre écoles) et lit `lot_id` avant l'UPDATE sans verrou (sans effet de
-  sécurité : l'UPDATE reste filtré par `ecole_id` et `annule=false`). Correctif éventuel : documenter, ou lire et
-  annuler en une requête. *Estimé : 15 min. Croise : prochaine évolution de l'annulation.*
-  (review security tranche 3 « encaissement atomique », 2026-11-10)
 
 ---
 
@@ -219,6 +171,27 @@
 - [x] **Paiement libre refusé pour un élève parti, aussi en base** — `encaisser_paiement` refuse un paiement libre
   si l'inscription n'est pas active (FJ412). Couvre le seul chemin d'encaissement ; la policy RLS `ecole_encaisse`
   n'a pas changé. Commit `013056d`. (2026-11-10)
+- [x] **Version unique de `encaisser_paiement` à vérifier en base** — après application du schéma :
+  `SELECT oid::regprocedure FROM pg_proc WHERE proname = 'encaisser_paiement';` doit renvoyer une ligne (PGRST203
+  sinon). *Estimé : 2 min. Croise : mise en production de « encaissement atomique ».*
+  (plan architect « encaissement atomique », 2026-11-10)
+- [X] **Version unique de `inscrire_eleve` à vérifier en base** — après application du schéma, s'assurer qu'une
+  seule signature existe : `SELECT oid::regprocedure FROM pg_proc WHERE proname = 'inscrire_eleve';` doit renvoyer
+  une ligne (une surcharge donnerait l'erreur PostgREST PGRST203). *Estimé : 2 min. Croise : mise en production
+  de « inscription atomique ».* (review database tranche 2 « inscription atomique », 2026-11-10)
+- [x] **Opérations multi-étapes atomiques** — `enregistrer_classe` (bloc v1.9) : classe et catalogue en une seule
+  transaction, classe verrouillée en FOR NO KEY UPDATE ; `enregistrer_parametres` (bloc v1.11) : réglages et copie
+  des classes actives + catalogue vers la nouvelle année en une seule transaction, école verrouillée (FOR NO KEY
+  UPDATE), sérialisée avec la création de classe. Année cible ayant déjà des classes : aucune copie, l'école est
+  prévenue. SECURITY INVOKER, `ecole_id` du JWT. Tranche 1 : commit `29d748e` ; tranche 2 : commit `2132b6d` ;
+  merge `2f254f8`. (2026-11-10)
+- [x] **Prix d'article plafonné et produit prix × quantité en bigint** (H4) — CHECK NOT VALID
+  `prix_unitaire <= 99999999` sur `articles_classe` (v1.9) et `articles_inscription` (v1.10) ; `inscrire_eleve`
+  redéfinie (v1.10) avec `ai.prix_unitaire::bigint * ai.quantite`. Commit `29d748e`. (2026-11-10)
+- [x] **Article retiré du catalogue pendant une inscription** — `inscrire_eleve` (v1.10) lit la classe en FOR SHARE :
+  elle attend la fin d'un `enregistrer_classe` sur la même classe au lieu de lire un catalogue en cours de
+  modification. Testé à deux sessions. Commit `29d748e`. (review database tranche 1 « opérations atomiques »,
+  2026-11-10)
 - [x] **Fin d'un service jamais avant son dernier mois payé, tenue par la base** — `proteger_article_inscription`
   (bloc v1.13) refuse en FJ412 un `mois_fin` antérieur au dernier mois payé non annulé, quel que soit le chemin ;
   l'inscription est verrouillée en tête de fonction (comme `encaisser_paiement`). Commit `4b4eb76`. (2026-11-10)

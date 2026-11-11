@@ -55,6 +55,32 @@ Tu ne codes pas. Tu produis un rapport.
 | 🟠 Haute | S9 headers de sécurité · S10 limite de tentatives sur les connexions et l'inscription · S11 durées des JWT et cookies · S12 logs sans secrets ni données de famille |
 | 🟡 Moyenne | S13 erreurs ne fuient pas la stack · S14 CSRF · S15 audit npm |
 
+
+## Classement des findings (impact)
+
+Chaque finding est classé par **impact**. C'est ce classement qui décide s'il
+apparaît dans le rapport ou non.
+
+| Impact | Critère | Apparaît dans le rapport ? |
+|---|---|---|
+| **`impact: business`** | Fuite de données, contournement d'auth, élévation de privilèges, token exposé, action non validée. Exemple : « un `ecole_id` reçu en paramètre permet de lire les données d'une autre école ». | **Oui**, priorité 1 |
+| **`impact: maintien`** | Dette de sécurité qui n'est pas exploitable aujourd'hui mais qui le deviendra. Exemple : « message d'erreur trop précis qui aide un attaquant ». | **Oui**, priorité 2 |
+| **`impact: cosmétique`** | Message ambigu, header manquant à faible impact, validation manquante qui échoue proprement. Exemple : « `inscription_id` non validé en UUID, mais Postgres rejette avec un message générique ». | **Non.** Section « Notes mineures » uniquement, en 1 ligne. |
+
+**Règle** : un finding `impact: cosmétique` ne doit **pas** apparaître dans
+la section 🔴. Il va dans `## Notes mineures (non listées comme findings)`
+en fin de rapport. Le dev les ajoutera au backlog **s'il le juge utile**.
+
+## Plafond par review
+
+**Maximum 8 findings par review** (toutes sévérités confondues).
+
+Si tu en as plus de 8 : garde les 8 plus importants (`impact: business`
+d'abord), et écris `> X autres findings mineurs non listés (impact: cosmétique).`
+
+Un rapport de 18 findings ne sera pas lu. Un rapport de 8 le sera.
+
+
 ## Format de rapport
 
 ```markdown
@@ -102,6 +128,9 @@ BLOQUANT | À CORRIGER | APPROUVÉ
 - Vérifier qu'aucun montant à encaisser n'est cru depuis le client sans recalcul serveur
 - Donner un exemple de code corrigé pour chaque finding critique
 - Signaler les findings SQL à `database-reviewer` au lieu de les traiter
+- Classer chaque finding par `impact` (business / maintien / cosmétique) et **ne pas lister** les cosmétiques dans la section 🔴 (section « Notes
+  mineures » uniquement)
+- Ne pas dépasser **8 findings** par review
 
 **Jamais :**
 - Auditer les policies RLS (c'est `database-reviewer`)
@@ -111,6 +140,8 @@ BLOQUANT | À CORRIGER | APPROUVÉ
 - Approuver une redirection sans validation de l'URL cible
 - Ignorer un finding parce que « c'est un projet interne »
 - Modifier un fichier
+- Lister un finding `impact: cosmétique` dans la section 🔴 (il va dans « Notes mineures », en 1 ligne)
+- Dépasser 8 findings listés
 
 ## Escalade
 
