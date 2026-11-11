@@ -196,6 +196,57 @@
   authentifié, risque de charge seulement. À revoir si l'import s'ouvre à d'autres rôles. *Estimé : 30 min.*
   (review security tranche 4, 2026-11-11)
 
+- [ ] **Factoriser le calcul du matricule FayJàng** — `importer_reprise` (v1.18) recopie le calcul de `inscrire_eleve`
+  (préfixe de l'année, plus grand numéro + 1, même verrou `matricule:…`). Un changement de format doit être fait aux
+  deux endroits. Correctif : une fonction SQL `prochain_matricule(ecole, annee)` appelée par les deux. *Estimé :
+  45 min. Croise : toute modification du format de matricule.* (tranche 5 « reprise de l'existant », 2026-11-11)
+
+- [ ] **Mode de paiement des reçus de reprise limité à espèces, virement, chèque** — Wave, Orange Money et Free Money
+  sont refusés par `importer_reprise` (règle I5 : référence de transaction obligatoire, qu'un total repris n'a pas).
+  Une école qui a tout encaissé par mobile money choisit un autre mode, approximatif ; la mention « Reprise de
+  l'existant » sur le PDF (tranche 6) lève l'ambiguïté. Décision métier si besoin d'un mode « Non précisé ».
+  (tranche 5 « reprise de l'existant », 2026-11-11)
+
+- [ ] **Import : le fichier est relu et réanalysé à chaque lot de 25** — `importerLotReprise` renvoie le fichier (2 Mo
+  au plus) et refait l'aperçu complet, y compris la lecture des élèves et parents de l'école : 80 lots pour 2000
+  élèves. Fonctionnel, coûteux. Correctif possible : stocker l'analyse (table temporaire ou cache signé) et ne relire
+  que les élèves du lot. *Estimé : 2 h. Croise : gros fichiers.* (tranche 5 « reprise de l'existant », 2026-11-11)
+
+- [ ] **`importer_reprise` ne vérifie pas la présence des articles obligatoires** — la base garantit l'appartenance au
+  catalogue, les quantités, les périodes et les plafonds, mais pas que tous les articles obligatoires de la classe sont
+  rattachés (le serveur TypeScript le garantit via `repartirReprise`, et un service sans début après la fin de
+  l'année est volontairement non rattaché). Un appel direct à la fonction pourrait omettre un obligatoire. Risque
+  limité à l'école elle-même. *Estimé : 30 min.* (tranche 5 « reprise de l'existant », 2026-11-11)
+
+- [ ] **Test de non-régression SQL de `importer_reprise`** — Vitest ne couvre pas le SQL. Script à jouer sur une base
+  de test : lot de 26 refusé, doublon rejoué (0 création), plafond dépassé (lot annulé en entier), service repris
+  (paiement de février sur la ligne de février), élève sans versement (aucun numéro consommé). *Estimé : 1 h 30.*
+  (tranche 5 « reprise de l'existant », 2026-11-11)
+
+- [ ] **Ordre des verrous inscription / import** (H5) — `inscrire_eleve` verrouille le parent puis `matricule:` ;
+  `importer_reprise` garde `matricule:` pendant tout le lot. Le parent existant n'est plus verrouillé par l'import
+  (ON CONFLICT DO NOTHING), il reste le cas très rare d'un même nouveau téléphone créé en même temps des deux côtés
+  (deadlock 40P01, le lot échoue et se rejoue). Correctif : faire prendre `matricule:` avant le parent par
+  `inscrire_eleve` (bloc v1.19) ou factoriser le matricule. *Estimé : 1 h. Croise : factorisation du matricule.*
+  (review database tranche 5 « reprise de l'existant », 2026-11-11)
+
+- [ ] **Versements repris comptés dans les totaux de caisse** (M3) — les reçus de reprise portent `paye_le` = jour
+  de l'import et un mode choisi (espèces, virement ou chèque) : tout total par jour, mois ou mode (tableau de bord,
+  export) est gonflé. Seul discriminant : `encaisse_par = 'Reprise de l''existant'`. Correctif : exclure ces reçus des
+  totaux de caisse, ou ajouter un mode `reprise`. *Estimé : 2 h. Croise : tableau de bord, export, tranche 6.*
+  (review database tranche 5 « reprise de l'existant », 2026-11-11)
+
+- [ ] **Message d'échec d'un lot d'import trop affirmatif** — `reprise-panel.tsx` affiche « Rien n'a été enregistré
+  pour ce lot » même après une coupure réseau ou une réponse inattendue, où le lot a pu être écrit (le rejeu reste
+  sûr). Correctif : réserver cette phrase à un refus explicite de la base. *Estimé : 30 min.*
+  (review security tranche 5 « reprise de l'existant », 2026-11-11)
+
+- [ ] **Durcissements mineurs de `importer_reprise`** — (1) `jsonb_typeof(..) IS DISTINCT FROM 'array' OR
+  jsonb_array_length(..)` dépend de l'ordre d'évaluation du OR (même motif que `inscrire_eleve`) : passer par un
+  CASE ; (2) le verrou de `compteurs_recus` est gardé pendant tout le lot : ne pas augmenter `TAILLE_LOT` au-delà
+  de 25 ; (3) deux homonymes (même prénom, nom et téléphone) dans le fichier : le second est ignoré sans message de
+  ligne ; (4) `revalidatePath` appelé même sans écriture. *Estimé : 45 min.*
+  (reviews database et security tranche 5 « reprise de l'existant », 2026-11-11)
 
 ---
 

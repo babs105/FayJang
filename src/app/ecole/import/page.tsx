@@ -6,6 +6,8 @@ import { createClientEcole } from "@/lib/supabase/server";
 import { ReprisePanel } from "./reprise-panel";
 
 export const dynamic = "force-dynamic";
+// Les Server Actions de cette page lisent le fichier et écrivent un lot : marge pour un gros fichier
+export const maxDuration = 60;
 
 /** Reprise de l'existant : l'école dépose le fichier Excel de ses élèves et voit l'aperçu avant import */
 export default async function ImportPage() {

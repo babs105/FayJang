@@ -479,3 +479,34 @@ describe("repartirReprise : contrôles préalables", () => {
     expect(repartirReprise({ ...base, statut: "abandon", dateDepart: null }).ok).toBe(false);
   });
 });
+
+describe("repartirReprise : articles rattachés (M-B, M-C du backlog)", () => {
+  const base: EntreeRepartition = {
+    anneeScolaire: "2026-2027", aujourdhui: "2027-06-15", ecole: R(), tarifs: { frais: 25000, mensualite: 15000, dernierMois: null }, reduction: null,
+    catalogue: CATALOGUE_CM2A, statut: "active", dateDepart: null, verseScolarite: 0, verseArticles: 0, options: [],
+  };
+
+  it("M-B : un frais unique de quantité 0 n'est pas rattaché", () => {
+    const catalogue: ArticleCatalogueRep[] = [{ ...CATALOGUE_CM2A[0], quantiteDefaut: 0 }, CATALOGUE_CM2A[1]];
+    const r = ok(repartirReprise({ ...base, catalogue }));
+    expect(r.articles.map((a) => a.libelle)).toEqual([]);
+    // Choisi sans quantité : quantité par défaut 0, donc rien non plus
+    const optionnel = ok(repartirReprise({ ...base, catalogue: [{ ...CATALOGUE_CM2A[0], obligatoire: false, quantiteDefaut: 0 }], options: [{ libelle: "Tenue", quantite: null }] }));
+    expect(optionnel.articles).toEqual([]);
+  });
+
+  it("M-C : import après le dernier mois, service sans versement ni début : non rattaché, jamais de début hors de l'année", () => {
+    const r = ok(repartirReprise({ ...base, aujourdhui: "2027-09-10", options: [{ libelle: "Transport", quantite: null }] }));
+    expect(r.articles.find((a) => a.libelle === "Transport")).toBeUndefined();
+    expect(r.avertissements.join(" ")).toContain("Transport");
+    for (const a of r.articles) if (a.moisDebut) expect(a.moisDebut <= "2027-06-01").toBe(true);
+  });
+
+  it("un article non rattaché ne décale pas articleIndex des suivants", () => {
+    // Tenue (index 0) obligatoire à quantité 0 écartée : le paiement de cantine désigne bien la cantine
+    const catalogue: ArticleCatalogueRep[] = [{ ...CATALOGUE_CM2A[0], quantiteDefaut: 0 }, CATALOGUE_CM2A[2]];
+    const r = ok(repartirReprise({ ...base, catalogue, verseArticles: 10000, options: [{ libelle: "Cantine", quantite: null, debut: "2026-10-01" }] }));
+    const p = r.paiements.find((x) => x.type === "autre")!;
+    expect(r.articles[p.articleIndex!].libelle).toBe("Cantine");
+  });
+});

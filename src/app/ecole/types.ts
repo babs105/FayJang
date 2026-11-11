@@ -59,6 +59,8 @@ export interface PaiementVue {
 export interface EleveVue {
   id: string;
   matricule: string;
+  /** Numéro de l'ancien système (reprise de l'existant), lecture seule */
+  matricule_ancien: string | null;
   prenom: string;
   nom: string;
   sexe: "M" | "F" | null;

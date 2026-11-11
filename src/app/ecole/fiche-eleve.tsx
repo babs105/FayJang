@@ -175,6 +175,7 @@ export function FicheEleve({
       <div className="space-y-5">
         <div className="flex flex-wrap items-center gap-2 text-xs text-neutral-600">
           <Badge ton="gris">Matricule {eleve.matricule}</Badge>
+          {eleve.matricule_ancien && <Badge ton="gris">Ancien matricule {eleve.matricule_ancien}</Badge>}
           {ins ? (
             <>
               <Badge ton="bleu">{ins.classe_nom}</Badge>
