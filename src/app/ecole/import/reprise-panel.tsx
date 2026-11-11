@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
-import { AlertTriangle, CheckCircle2, Download, FileSpreadsheet, Loader2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { AlertTriangle, CheckCircle2, Download, FileSpreadsheet, Loader2, School } from "lucide-react";
 import { cn, formatFCFA } from "@/lib/utils";
 import { formatDate, formatPeriode } from "@/lib/dates";
 import { LIBELLE_NIVEAU, LIBELLE_STATUT_INSCRIPTION } from "@/lib/libelles";
 import { Badge, Bouton, Carte, Kpi, Message } from "@/components/ui";
 import type { ApercuReprise, EleveApercu } from "@/lib/reprise-validation";
-import { analyserFichierReprise } from "./actions";
+import { analyserFichierReprise, importerClassesReprise, type ResultatClasses } from "./actions";
 
 type Filtre = "tous" | "erreur" | "a_creer" | "deja_present";
 
@@ -25,6 +25,9 @@ export function ReprisePanel() {
   const [message, setMessage] = useState<string | null>(null);
   const [filtre, setFiltre] = useState<Filtre>("tous");
   const [isPending, startTransition] = useTransition();
+  const [creation, setCreation] = useState<{ message: string; data?: ResultatClasses; ok: boolean } | null>(null);
+  // Fichier analysé, renvoyé tel quel au serveur pour la création (le serveur le relit, il ne croit pas l'aperçu)
+  const fichierRef = useRef<File | null>(null);
   // Avant le chargement de React, un envoi partirait en GET classique (nom du fichier dans l'URL, rien d'analysé)
   const [pret, setPret] = useState(false);
   useEffect(() => setPret(true), []);
@@ -39,14 +42,34 @@ export function ReprisePanel() {
     }
     setMessage(null);
     setApercu(null);
+    setCreation(null);
     startTransition(async () => {
       const r = await analyserFichierReprise(formData);
       if (!r.success || !r.data) setMessage(r.message ?? "Lecture du fichier impossible.");
       else {
+        fichierRef.current = fichier;
         setApercu(r.data);
         setNomFichier(fichier.name);
         setFiltre(r.data.compteurs.erreurs > 0 ? "erreur" : "tous");
       }
+    });
+  }
+
+  function creerClasses() {
+    const fichier = fichierRef.current;
+    if (!fichier || !apercu) return;
+    const n = apercu.compteurs.classesNouvelles;
+    if (!window.confirm(`${n > 1 ? `Créer ${n} classes avec leurs articles` : "Créer 1 classe avec ses articles"} dans FayJàng ? Les classes déjà présentes ne sont pas modifiées.`)) return;
+    const formData = new FormData();
+    formData.append("fichier", fichier);
+    setCreation(null);
+    startTransition(async () => {
+      const r = await importerClassesReprise(formData);
+      setCreation({ message: r.message ?? (r.success ? "Classes créées." : "Création impossible."), data: r.data, ok: r.success && !r.data?.echecs.length });
+      if (!r.success) return;
+      // Aperçu recalculé : les classes créées deviennent « déjà présentes » et leurs élèves sont chiffrés
+      const a = await analyserFichierReprise(formData);
+      if (a.success && a.data) setApercu(a.data);
     });
   }
 
@@ -139,13 +162,39 @@ export function ReprisePanel() {
               </div>
             )}
             <p className="text-[11px] text-neutral-500">
-              Les montants ci-dessous sont calculés comme FayJàng les affichera après l&apos;import. Prochaine étape (bientôt) : l&apos;import lui-même.
+              Les montants ci-dessous sont calculés comme FayJàng les affichera après l&apos;import. Prochaine étape (bientôt) : l&apos;import des élèves.
             </p>
           </Carte>
 
-          {apercu.classes.length > 0 && (
+          {(apercu.classes.length > 0 || creation) && (
             <Carte className="space-y-2">
-              <h2 className="text-sm font-extrabold text-neutral-900">Classes ({apercu.classes.length})</h2>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-sm font-extrabold text-neutral-900">Classes ({apercu.classes.length})</h2>
+                {apercu.compteurs.classesNouvelles > 0 && apercu.erreursGlobales.length === 0 && (
+                  <Bouton onClick={creerClasses} disabled={isPending}>
+                    {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <School className="w-4 h-4" />}
+                    Créer {apercu.compteurs.classesNouvelles} classe{apercu.compteurs.classesNouvelles > 1 ? "s" : ""}
+                  </Bouton>
+                )}
+              </div>
+              {apercu.compteurs.classesNouvelles > 0 && (
+                <p className="text-[11px] text-neutral-500">
+                  Première étape de l&apos;import : les classes et leurs articles. Les élèves viendront ensuite.
+                </p>
+              )}
+              {creation && (
+                <Message ok={creation.ok}>
+                  <p className="font-bold">{creation.message}</p>
+                  {creation.data && creation.data.dejaPresentes.length > 0 && (
+                    <p>Déjà présentes, non modifiées : {creation.data.dejaPresentes.join(", ")}.</p>
+                  )}
+                  {creation.data?.echecs.map((e, i) => (
+                    <p key={i}>
+                      {e.nom} : {e.message}
+                    </p>
+                  ))}
+                </Message>
+              )}
               <div className="overflow-x-auto -mx-5 px-5">
                 <table className="w-full text-xs">
                   <thead className="text-left text-neutral-500">
