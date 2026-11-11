@@ -6,6 +6,7 @@ import { createClientEcole } from "@/lib/supabase/server";
 import { todayDakar } from "@/lib/config";
 import { moisScolaires } from "@/lib/dates";
 import { ErreurAffichable, messageErreur } from "@/lib/erreurs";
+import { LectureTropLongue, TAILLE_PAGE, toutLire as toutLirePartage } from "@/lib/lecture-paginee";
 import { verifierReglages } from "@/lib/scolarite";
 import { normaliserTelephone } from "@/lib/telephone";
 import { ErreurFichier, LIMITES, lireClasseur } from "@/lib/reprise-lecture";
@@ -31,19 +32,16 @@ export interface Resultat<T = undefined> {
 
 const SESSION_EXPIREE = "Session expirée : reconnectez-vous à l'Espace École.";
 
-/** Lit toutes les lignes d'une requête, page par page (PostgREST en renvoie 1000 au plus par appel) */
-async function toutLire<T>(
-  requete: (debut: number, fin: number) => PromiseLike<{ data: T[] | null; error: unknown }>
+/** Lecture complète partagée (curseur sur l'id) ; au-delà de ~21 000 lignes, refus lisible plutôt qu'une liste tronquée */
+async function toutLire<T extends { id: string }>(
+  requete: (apresId: string) => PromiseLike<{ data: T[] | null; error: unknown }>
 ): Promise<T[]> {
-  const PAGE = 1000;
-  const tout: T[] = [];
-  for (let debut = 0; ; debut += PAGE) {
-    const { data, error } = await requete(debut, debut + PAGE - 1);
-    if (error) throw error;
-    tout.push(...(data ?? []));
-    if (!data || data.length < PAGE) return tout;
+  try {
+    return await toutLirePartage(requete, 21 * TAILLE_PAGE);
+  } catch (err) {
     // Une liste tronquée fausserait la détection des doublons : on refuse plutôt que de continuer (S7 du backlog)
-    if (debut >= 20 * PAGE) throw new ErreurAffichable("Trop de données dans l'école pour cet import : contactez le support.");
+    if (err instanceof LectureTropLongue) throw new ErreurAffichable("Trop de données dans l'école pour cet import : contactez le support.");
+    throw err;
   }
 }
 
@@ -86,14 +84,16 @@ async function analyserComplet(ecoleId: string, formData: FormData, lirePresents
 
   const annee = ecole.annee_scolaire;
   const [classes, catalogue, inscriptions] = await Promise.all([
-    toutLire((a, b) => supabase.from("classes").select("id, nom, frais_inscription, mensualite, mensualite_dernier_mois, is_active").eq("ecole_id", ecoleId).eq("annee_scolaire", annee).order("id").range(a, b)),
-    toutLire((a, b) =>
-      supabase.from("articles_classe").select("id, classe_id, libelle, nature, obligatoire, prix_unitaire, quantite_defaut").eq("ecole_id", ecoleId).order("ordre").order("id").range(a, b)
+    toutLire((apres) => supabase.from("classes").select("id, nom, frais_inscription, mensualite, mensualite_dernier_mois, is_active").eq("ecole_id", ecoleId).eq("annee_scolaire", annee).gt("id", apres).order("id").limit(TAILLE_PAGE)),
+    toutLire((apres) =>
+      supabase.from("articles_classe").select("id, classe_id, libelle, nature, obligatoire, prix_unitaire, quantite_defaut, ordre").eq("ecole_id", ecoleId).gt("id", apres).order("id").limit(TAILLE_PAGE)
     ),
     lirePresents
-      ? toutLire((a, b) => supabase.from("inscriptions").select("eleve_id").eq("ecole_id", ecoleId).eq("annee_scolaire", annee).order("id").range(a, b))
-      : Promise.resolve([] as { eleve_id: string }[]),
+      ? toutLire((apres) => supabase.from("inscriptions").select("id, eleve_id").eq("ecole_id", ecoleId).eq("annee_scolaire", annee).gt("id", apres).order("id").limit(TAILLE_PAGE))
+      : Promise.resolve([] as { id: string; eleve_id: string }[]),
   ]);
+  // Lecture par curseur (ordre des id) : le catalogue reprend son ordre d'affichage, celui de l'aperçu et de la répartition
+  catalogue.sort((x, y) => x.ordre - y.ordre || (x.id < y.id ? -1 : x.id > y.id ? 1 : 0));
 
   // Élèves déjà inscrits cette année, pour signaler ceux que le fichier contient déjà
   // (lecture de toute l'école puis filtre en mémoire : une liste de 2000 identifiants ne tient pas dans l'URL)
@@ -101,8 +101,8 @@ async function analyserComplet(ecoleId: string, formData: FormData, lirePresents
   const presents: ContexteReprise["eleves"] = [];
   if (lirePresents && idsEleves.size) {
     const [eleves, parents] = await Promise.all([
-      toutLire((a, b) => supabase.from("eleves").select("id, prenom, nom, parent_id").eq("ecole_id", ecoleId).order("id").range(a, b)),
-      toutLire((a, b) => supabase.from("parents").select("id, telephone").eq("ecole_id", ecoleId).order("id").range(a, b)),
+      toutLire((apres) => supabase.from("eleves").select("id, prenom, nom, parent_id").eq("ecole_id", ecoleId).gt("id", apres).order("id").limit(TAILLE_PAGE)),
+      toutLire((apres) => supabase.from("parents").select("id, telephone").eq("ecole_id", ecoleId).gt("id", apres).order("id").limit(TAILLE_PAGE)),
     ]);
     const telephones = new Map(parents.map((p) => [p.id, normaliserTelephone(p.telephone)]));
     for (const e of eleves) {

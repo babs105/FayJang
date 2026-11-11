@@ -8,6 +8,7 @@ import { LIBELLE_MODE, MODES_PAIEMENT, libellePaiement } from "@/lib/libelles";
 import { regrouperParRecu, resumeRecu } from "@/lib/regrouper-recus";
 import { Badge, Carte, champ } from "@/components/ui";
 import type { DonneesEcole } from "./ecole-dashboard-client";
+import { estRecuDeReprise } from "@/lib/reprise-recu";
 
 export function PaiementsPanel({ paiements, aujourdhui, ouvrirEleve }: DonneesEcole & { ouvrirEleve: (id: string) => void }) {
   const [periode, setPeriode] = useState<"jour" | "mois" | "annee">("mois");
@@ -20,6 +21,9 @@ export function PaiementsPanel({ paiements, aujourdhui, ouvrirEleve }: DonneesEc
       paiements.filter((p) => {
         if (!annules && p.annule) return false;
         if (mode && p.mode !== mode) return false;
+        // Un reçu de reprise (versements antérieurs à FayJàng, daté du jour de l'import) n'est pas la caisse
+        // du jour ni du mois : il n'apparaît que dans « Toute l'année »
+        if (periode !== "annee" && estRecuDeReprise(p.encaisse_par)) return false;
         if (periode === "jour") return p.paye_le === aujourdhui;
         if (periode === "mois") return p.paye_le.slice(0, 7) === aujourdhui.slice(0, 7);
         return true;
@@ -117,6 +121,7 @@ export function PaiementsPanel({ paiements, aujourdhui, ouvrirEleve }: DonneesEc
                       </td>
                       <td className="px-4 py-2.5 hidden md:table-cell">
                         {resumeRecu(r.lignes)}
+                        {estRecuDeReprise(p.encaisse_par) && <span className="ml-1"><Badge ton="gris">Reprise de l&apos;existant</Badge></span>}
                         {r.annule && <span className="ml-1"><Badge ton="rouge">Annulé</Badge></span>}
                         {r.annule && r.motif_annulation && <p className="text-[11px] text-neutral-500">{r.motif_annulation}</p>}
                       </td>

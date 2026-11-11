@@ -6,6 +6,7 @@ import { formatDate, formatMois } from "@/lib/dates";
 import { LIBELLE_MODE } from "@/lib/libelles";
 import { regrouperParRecu, resumeRecu } from "@/lib/regrouper-recus";
 import { Carte, Kpi } from "@/components/ui";
+import { estEncaissementDeCaisse, totauxCaisse } from "@/lib/caisse";
 import type { DonneesEcole, Onglet } from "./ecole-dashboard-client";
 
 export function TableauPanel({
@@ -17,22 +18,20 @@ export function TableauPanel({
   allerA,
 }: DonneesEcole & { ouvrirEleve: (id: string) => void; allerA: (o: Onglet) => void }) {
   const inscrits = eleves.filter((e) => e.inscription?.statut === "active");
-  const valides = paiements.filter((p) => !p.annule);
-  // 8 derniers reçus (un encaissement de plusieurs lignes compte pour un seul)
-  const derniersRecus = regrouperParRecu(valides).slice(0, 8);
+  // 8 derniers reçus de caisse (un encaissement de plusieurs lignes compte pour un seul ; reprise de l'existant exclue)
+  const derniersRecus = regrouperParRecu(paiements.filter(estEncaissementDeCaisse)).slice(0, 8);
   const moisCourant = aujourdhui.slice(0, 7);
-  const encaisseMois = valides.filter((p) => p.paye_le.slice(0, 7) === moisCourant).reduce((s, p) => s + p.montant, 0);
-  const encaisseJour = valides.filter((p) => p.paye_le === aujourdhui).reduce((s, p) => s + p.montant, 0);
-  const encaisseAnnee = valides.reduce((s, p) => s + p.montant, 0);
+  // Jour, mois et modes : caisse réelle, sans les versements repris à l'import ; l'année les compte
+  const caisse = totauxCaisse(paiements, aujourdhui);
+  const encaisseMois = caisse.mois;
+  const encaisseJour = caisse.jour;
+  const encaisseAnnee = caisse.annee;
   const totalEchu = eleves.reduce((s, e) => s + (e.situation?.totalEchu ?? 0), 0);
   const arrieres = eleves.reduce((s, e) => s + (e.situation?.arriere ?? 0), 0);
   const recouvre = totalEchu > 0 ? Math.round(((totalEchu - arrieres) / totalEchu) * 100) : 100;
   const nbEnRetard = eleves.filter((e) => (e.situation?.arriere ?? 0) > 0).length;
 
-  const parMode = new Map<string, number>();
-  for (const p of valides.filter((p) => p.paye_le.slice(0, 7) === moisCourant)) {
-    parMode.set(p.mode, (parMode.get(p.mode) ?? 0) + p.montant);
-  }
+  const parMode = caisse.parModeMois;
   const top = [...eleves].filter((e) => (e.situation?.arriere ?? 0) > 0).sort((a, b) => b.situation!.arriere - a.situation!.arriere).slice(0, 6);
 
   if (classes.length === 0) {
@@ -52,7 +51,7 @@ export function TableauPanel({
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Kpi label="Élèves inscrits" valeur={String(inscrits.length)} detail={`${classes.filter((c) => c.is_active).length} classes`} />
         <Kpi label={`Encaissé · ${formatMois(`${moisCourant}-01`)}`} valeur={formatFCFA(encaisseMois)} detail={`Aujourd'hui : ${formatFCFA(encaisseJour)}`} ton="vert" />
-        <Kpi label="Taux de recouvrement" valeur={`${recouvre} %`} detail={`${formatFCFA(encaisseAnnee)} encaissés sur l'année`} />
+        <Kpi label="Taux de recouvrement" valeur={`${recouvre} %`} detail={`${formatFCFA(encaisseAnnee)} encaissés sur l'année${caisse.reprise ? `, dont ${formatFCFA(caisse.reprise)} repris` : ""}`} />
         <Kpi label="Arriérés" valeur={formatFCFA(arrieres)} detail={`${nbEnRetard} élève${nbEnRetard > 1 ? "s" : ""} en retard`} ton={arrieres > 0 ? "rouge" : undefined} />
       </div>
 
