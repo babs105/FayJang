@@ -5,6 +5,7 @@ import { Ban, ChevronDown, ChevronRight, Copy, FileText, MessageCircle, Pencil, 
 import { cn, formatFCFA } from "@/lib/utils";
 import { formatDate, formatMois, formatMoisCourt } from "@/lib/dates";
 import { LIBELLE_MODE, LIBELLE_STATUT_INSCRIPTION, MODES_PAIEMENT, libellePaiement } from "@/lib/libelles";
+import { estRecuDeReprise } from "@/lib/reprise-recu";
 import { regrouperParRecu, resumeRecu } from "@/lib/regrouper-recus";
 import { lienWhatsApp, messageLienParent, messageRelance } from "@/lib/whatsapp";
 import { Badge, Bouton, Label, Message, Modal, champ } from "@/components/ui";
@@ -633,6 +634,7 @@ export function FicheEleve({
                         <p className="text-[11px] text-neutral-500">
                           {p.numero_recu} · {formatDate(p.paye_le)} · {LIBELLE_MODE[p.mode]}
                           {p.reference ? ` (${p.reference})` : ""}
+                          {estRecuDeReprise(p.encaisse_par) && <> · <Badge ton="bleu">Reprise de l'existant</Badge></>}
                           {r.annule && <> · <Badge ton="rouge">Annulé</Badge>{r.motif_annulation ? ` ${r.motif_annulation}` : ""}</>}
                         </p>
                       </div>
