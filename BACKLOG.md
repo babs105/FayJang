@@ -154,6 +154,20 @@
   tel quel en tranche 5. Correctif : plafonner au dernier mois ou ne pas rattacher. *Estimé : 15 min. Croise :
   tranche 5 (`articles_inscription.mois_debut`).* (review database tranche 2 « reprise de l'existant », 2026-11-11)
 
+- [ ] **Rattacher les paiements à la bonne période à l'écriture de la reprise** (H-1, à faire dans la tranche 5) —
+  `PaiementPrevu.articleIndex` (`src/lib/reprise-repartition.ts`) est une position dans `articles` : un service
+  arrêté puis repris a une ligne par période. L'insertion doit garder la correspondance rang → id (fonction SQL avec
+  `WITH ORDINALITY`, ou insertion ligne par ligne), jamais l'ordre des ids renvoyés par un insert groupé, sinon un
+  paiement de février tombe sur la ligne de novembre (arriéré faux). Écrire `mois_debut`/`mois_fin` dès l'INSERT
+  (`proteger_article_inscription` protège ensuite les UPDATE) et ne pas passer par `ajouterArticleInscription`, qui
+  refuse une seconde période « déjà en cours ». Test T5 : paiement de février rattaché à la ligne de février.
+  *Croise : tranche 5.* (review database tranche 2 « périodes de service », 2026-11-11)
+
+- [ ] **Périodes contiguës d'un service gardées en deux lignes** — « Transport (11/2026-12/2026) ; Transport
+  (01/2027) » donne deux lignes de service là où une seule suffirait. Sans effet sur les montants. Correctif possible :
+  fusionner les périodes contiguës dans `repartirReprise`, ou avertir. *Estimé : 20 min. Croise : tranche 5.*
+  (review database tranche 2 « périodes de service », 2026-11-11)
+
 - [ ] **`bodySizeLimit: "3mb"` vaut pour toutes les Server Actions** — `next.config.ts` : Next 15 n'a pas de réglage
   par action, le corps (3 Mo au lieu de 1) est mis en mémoire avant le contrôle de session. Risque faible, accepté
   pour l'import (2 Mo + enveloppe multipart). À revoir si Next permet une limite par route, ou passer l'envoi par une
