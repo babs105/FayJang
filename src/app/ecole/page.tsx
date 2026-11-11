@@ -4,6 +4,7 @@ import { getEcoleId } from "@/lib/ecole-session";
 import { getAppBaseUrl, todayDakar } from "@/lib/config";
 import { situationInscription } from "@/lib/scolarite";
 import { derniereModification } from "@/lib/modifications";
+import { LectureTropLongue, TAILLE_PAGE, comparer, toutLire, toutLireParIds } from "@/lib/lecture-paginee";
 import { EcoleDashboardClient } from "./ecole-dashboard-client";
 import type { ClasseVue, EcoleVue, EleveVue, PaiementVue } from "./types";
 
@@ -38,64 +39,98 @@ export default async function EcolePage({ searchParams }: PageProps) {
   if (!ecole) redirect("/ecole/login");
 
   const annee = ecole.annee_scolaire;
-  const lectures = await Promise.all([
-    supabase
-      .from("classes")
-      .select("id, nom, niveau, frais_inscription, mensualite, mensualite_dernier_mois, is_active")
-      .eq("ecole_id", ecoleId)
-      .eq("annee_scolaire", annee)
-      .order("nom"),
-    supabase
-      .from("eleves")
-      .select("id, matricule, matricule_ancien, prenom, nom, sexe, date_naissance, parent_id, created_at, updated_at")
-      .eq("ecole_id", ecoleId)
-      .eq("is_active", true)
-      .order("nom"),
-    supabase.from("parents").select("id, nom, telephone, token, created_at, updated_at").eq("ecole_id", ecoleId),
-    supabase
-      .from("inscriptions")
-      .select("id, eleve_id, classe_id, annee_scolaire, frais_inscription, mensualite, mensualite_dernier_mois, reduction_mensuelle, statut, date_depart, created_at, updated_at")
-      .eq("ecole_id", ecoleId)
-      .eq("annee_scolaire", annee),
-    supabase
-      .from("articles_classe")
-      .select("id, classe_id, libelle, nature, prix_unitaire, quantite_defaut, obligatoire")
-      .eq("ecole_id", ecoleId)
-      .order("ordre"),
-  ]);
-  // Une lecture en échec (colonne absente : schéma pas encore relancé) ne doit pas afficher une école vide
-  const erreurLecture = lectures.find((r) => r.error)?.error;
-  if (erreurLecture) {
-    console.error("[ecole/page] lecture des données :", erreurLecture.code ?? "erreur");
-    return <ErreurBase migrationManquante={["42703", "42P01", "PGRST204", "PGRST202"].includes(erreurLecture.code ?? "")} />;
-  }
-  const [{ data: classes }, { data: eleves }, { data: parents }, { data: inscriptions }, { data: catalogue }] = lectures;
-
-  const idsInscriptions = (inscriptions ?? []).map((i) => i.id);
-  const lecturesSuivi = idsInscriptions.length
-    ? await Promise.all([
+  // Lectures paginées (PostgREST renvoie 1000 lignes au plus) avec un ordre stable terminé par l'id ;
+  // paiements et articles des élèves : par paquets d'inscriptions (2000 identifiants ne tiennent pas dans une URL).
+  let donnees;
+  try {
+    const [classes, eleves, parents, inscriptions, catalogue] = await Promise.all([
+      toutLire((apres) =>
+        supabase
+          .from("classes")
+          .select("id, nom, niveau, frais_inscription, mensualite, mensualite_dernier_mois, is_active")
+          .eq("ecole_id", ecoleId)
+          .eq("annee_scolaire", annee)
+          .gt("id", apres)
+          .order("id")
+          .limit(TAILLE_PAGE)
+      ),
+      toutLire((apres) =>
+        supabase
+          .from("eleves")
+          .select("id, matricule, matricule_ancien, prenom, nom, sexe, date_naissance, parent_id, created_at, updated_at")
+          .eq("ecole_id", ecoleId)
+          .eq("is_active", true)
+          .gt("id", apres)
+          .order("id")
+          .limit(TAILLE_PAGE)
+      ),
+      toutLire((apres) =>
+        supabase.from("parents").select("id, nom, telephone, token, created_at, updated_at").eq("ecole_id", ecoleId)
+          .gt("id", apres)
+          .order("id")
+          .limit(TAILLE_PAGE)
+      ),
+      toutLire((apres) =>
+        supabase
+          .from("inscriptions")
+          .select("id, eleve_id, classe_id, annee_scolaire, frais_inscription, mensualite, mensualite_dernier_mois, reduction_mensuelle, statut, date_depart, created_at, updated_at")
+          .eq("ecole_id", ecoleId)
+          .eq("annee_scolaire", annee)
+          .gt("id", apres)
+          .order("id")
+          .limit(TAILLE_PAGE)
+      ),
+      toutLire((apres) =>
+        supabase
+          .from("articles_classe")
+          .select("id, classe_id, libelle, nature, prix_unitaire, quantite_defaut, obligatoire, ordre")
+          .eq("ecole_id", ecoleId)
+          .gt("id", apres)
+          .order("id")
+          .limit(TAILLE_PAGE)
+      ),
+    ]);
+    const idsInscriptions = inscriptions.map((i) => i.id);
+    const [paiementsLus, articlesEleves] = await Promise.all([
+      toutLireParIds(idsInscriptions, (paquet, apres) =>
         supabase
           .from("paiements")
-          .select("id, inscription_id, lot_id, numero_recu, type, mois, montant, mode, reference, libelle, paye_le, annule, motif_annulation, article_id, encaisse_par")
+          .select("id, inscription_id, lot_id, numero_recu, type, mois, montant, mode, reference, libelle, paye_le, annule, motif_annulation, article_id, encaisse_par, created_at")
           .eq("ecole_id", ecoleId)
-          .in("inscription_id", idsInscriptions)
-          .order("created_at", { ascending: false }),
+          .in("inscription_id", paquet)
+          .gt("id", apres)
+          .order("id")
+          .limit(TAILLE_PAGE)
+      ),
+      toutLireParIds(idsInscriptions, (paquet, apres) =>
         supabase
           .from("articles_inscription")
           .select("id, inscription_id, libelle, nature, prix_unitaire, quantite, obligatoire, mois_debut, mois_fin, created_at, updated_at")
           .eq("ecole_id", ecoleId)
-          .in("inscription_id", idsInscriptions)
-          .order("created_at"),
-      ])
-    : null;
-  // Paiements ou articles illisibles : des soldes faux seraient affichés, on s'arrête
-  const erreurSuivi = lecturesSuivi?.find((r) => r.error)?.error;
-  if (erreurSuivi) {
-    console.error("[ecole/page] lecture des paiements et articles :", erreurSuivi.code ?? "erreur");
-    return <ErreurBase migrationManquante={["42703", "42P01", "PGRST204", "PGRST202"].includes(erreurSuivi.code ?? "")} />;
+          .in("inscription_id", paquet)
+          .gt("id", apres)
+          .order("id")
+          .limit(TAILLE_PAGE)
+      ),
+    ]);
+    // Lecture par curseur (ordre des id) : l'ordre d'affichage est refait ici, départagé par l'id
+    classes.sort((x, y) => comparer(x.nom, y.nom, x.id, y.id));
+    eleves.sort((x, y) => comparer(x.nom, y.nom, x.id, y.id));
+    catalogue.sort((x, y) => x.ordre - y.ordre || comparer("", "", x.id, y.id));
+    paiementsLus.sort((x, y) => comparer(y.created_at, x.created_at, y.id, x.id)); // du plus récent au plus ancien
+    articlesEleves.sort((x, y) => comparer(x.created_at, y.created_at, x.id, y.id));
+    donnees = { classes, eleves, parents, inscriptions, catalogue, paiements: paiementsLus, articlesEleves };
+  } catch (err) {
+    // Une lecture en échec ne doit pas afficher une école vide ni des soldes faux
+    if (err instanceof LectureTropLongue) {
+      console.error("[ecole/page] lecture des données : trop de lignes");
+      return <ErreurBase migrationManquante={false} />;
+    }
+    const code = typeof (err as { code?: unknown })?.code === "string" ? (err as { code: string }).code : "";
+    console.error("[ecole/page] lecture des données :", code || "erreur");
+    return <ErreurBase migrationManquante={["42703", "42P01", "PGRST204", "PGRST202"].includes(code)} />;
   }
-  const paiements = lecturesSuivi?.[0].data ?? [];
-  const articlesEleves = lecturesSuivi?.[1].data ?? [];
+  const { classes, eleves, parents, inscriptions, catalogue, paiements, articlesEleves } = donnees;
   const articlesParInscription = new Map<string, Array<NonNullable<typeof articlesEleves>[number]>>();
   for (const a of articlesEleves ?? []) {
     articlesParInscription.set(a.inscription_id, [...(articlesParInscription.get(a.inscription_id) ?? []), a]);
