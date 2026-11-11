@@ -184,6 +184,18 @@
   NULL, rejeu après changement de période). Les noms de mois sont aussi codés en dur dans la fonction SQL, à garder
   alignés avec `dates.ts`. *Estimé : 1 h. Croise : tranche 5.* (review database tranche 3 « reprise de l'existant », 2026-11-11)
 
+- [ ] **Boucle de création des classes sans garde ni durée maximale** (S13) — `importerClassesReprise`
+  (`src/app/ecole/import/actions.ts`) : jusqu'à 200 appels `enregistrer_classe` séquentiels hors `try/catch`. Une
+  exception réseau ou le timeout de la fonction Vercel fait perdre le compte rendu des classes déjà créées et saute
+  `revalidatePath` (l'état reste sain : le rejeu les voit « déjà présentes »). Correctif : `try/catch` par classe
+  (échec poussé dans `echecs`), `revalidatePath` dans un `finally`, `maxDuration` explicite ; même schéma pour la
+  boucle des élèves. *Estimé : 20 min. Croise : tranche 5.* (reviews security et database tranche 4, 2026-11-11)
+
+- [ ] **Réanalyse complète du fichier à chaque clic** (S10/S13) — créer les classes relance `analyser()` deux fois
+  (action puis aperçu recalculé) : parse de 2 Mo et lecture de tous les élèves et parents de l'école. Chemin
+  authentifié, risque de charge seulement. À revoir si l'import s'ouvre à d'autres rôles. *Estimé : 30 min.*
+  (review security tranche 4, 2026-11-11)
+
 
 ---
 
