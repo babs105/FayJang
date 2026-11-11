@@ -77,8 +77,10 @@ function recalcul(e: EntreeRepartition, a: Ok) {
     id: `x${i}`, libelle: x.libelle, nature: x.nature, prix_unitaire: x.prix, quantite: x.quantite, obligatoire: x.obligatoire,
     mois_debut: x.moisDebut, mois_fin: x.moisFin,
   }));
-  const id = (libelle: string | null) => articles.find((x) => x.libelle === libelle)?.id ?? null;
-  const paiements = a.paiements.map((p) => ({ type: p.type, mois: p.mois, montant: p.montant, annule: false, article_id: id(p.article) }));
+  // Un service repris a une ligne par période : le paiement désigne sa ligne par articleIndex
+  const paiements = a.paiements.map((p) => ({
+    type: p.type, mois: p.mois, montant: p.montant, annule: false, article_id: p.articleIndex !== null ? `x${p.articleIndex}` : null,
+  }));
   return {
     avant: situationInscription(ins, [], e.ecole, e.aujourdhui, articles),
     apres: situationInscription(ins, paiements, e.ecole, e.aujourdhui, articles),
@@ -259,6 +261,93 @@ describe("repartirReprise : services qui commencent en cours d'année (parité)"
     const e = depuisCas(CAS_REPRISE.find((c) => c.nom === "Bineta Sy")!);
     const r = repartirReprise({ ...e, statut: "abandon", dateDepart: "2026-11-05", options: [{ libelle: "Transport", quantite: null, debut: "2026-12-01" }] });
     expect(!r.ok && r.erreur).toContain("après le départ");
+  });
+});
+
+describe("repartirReprise : service arrêté puis repris (parité)", () => {
+  // Transport de novembre à décembre, de février à mars, puis depuis mai ; cantine arrêtée fin janvier
+  const OPTIONS: EntreeRepartition["options"] = [
+    { libelle: "Transport", quantite: null, debut: "2026-11-01", fin: "2026-12-01" },
+    { libelle: "Transport", quantite: null, debut: "2027-02-01", fin: "2027-03-01" },
+    { libelle: "Transport", quantite: null, debut: "2027-05-01", fin: null },
+    { libelle: "Cantine", quantite: null, debut: "2026-10-01", fin: "2027-01-01" },
+  ];
+  const cas: [string, string, "active" | "abandon", string | null][] = [
+    ["actif, import en juin", "2027-06-15", "active", null],
+    ["parti en mai", "2027-06-15", "abandon", "2027-05-20"],
+  ];
+  for (const [nom, aujourdhui, statut, dateDepart] of cas) {
+    it(`balayage des versés : ${nom}`, { timeout: 30000 }, () => {
+      const e: EntreeRepartition = {
+        anneeScolaire: "2026-2027", aujourdhui, ecole: R(), tarifs: { frais: 25000, mensualite: 15000, dernierMois: null }, reduction: null,
+        catalogue: CATALOGUE_CM2A, statut, dateDepart, verseScolarite: 40000, verseArticles: 0, options: OPTIONS,
+      };
+      const sans = ok(repartirReprise(e));
+      expect(sans.articles.filter((a) => a.libelle === "Transport").map((a) => [a.moisDebut, a.moisFin])).toEqual([
+        ["2026-11-01", "2026-12-01"], ["2027-02-01", "2027-03-01"], ["2027-05-01", dateDepart ? "2027-05-01" : null],
+      ]);
+      const { avant } = recalcul(e, sans);
+      const dueArt = avant.articles.reduce((s, l) => s + l.du, 0);
+      // Tenue 16 000 ; transport 2 + 2 + (2 ou 1) mois ; cantine 4 mois
+      expect(dueArt).toBe(16000 + (dateDepart ? 5 : 6) * 5000 + 4 * 10000);
+      for (let verse = 0; verse <= dueArt; verse += 2500) {
+        const entree = { ...e, verseArticles: verse };
+        const r = ok(repartirReprise(entree));
+        // Jamais de transport en janvier ni en avril, ni de cantine après janvier
+        for (const p of r.paiements) {
+          if (p.article === "Transport") expect(["2027-01-01", "2027-04-01"]).not.toContain(p.mois);
+          if (p.article === "Cantine") expect(p.mois! <= "2027-01-01").toBe(true);
+        }
+        verifierParite(entree, r);
+      }
+      expect(repartirReprise({ ...e, verseArticles: dueArt + 1 }).ok).toBe(false);
+    });
+  }
+
+  it("20 000 F de transport : novembre, décembre, février, mars payés ; mai et juin en arriéré", () => {
+    const r = ok(repartirReprise({
+      anneeScolaire: "2026-2027", aujourdhui: "2027-06-15", ecole: R(), tarifs: { frais: 0, mensualite: 0, dernierMois: null }, reduction: null,
+      catalogue: [CATALOGUE_CM2A[1]], statut: "active", dateDepart: null, verseScolarite: 0, verseArticles: 20000, options: OPTIONS.slice(0, 3),
+    }));
+    expect(r.paiements.map((p) => p.mois)).toEqual(["2026-11-01", "2026-12-01", "2027-02-01", "2027-03-01"]);
+    expect(r.resume.arriere).toBe(10000);
+    expect(r.resume.resteAnnee).toBe(10000); // année d'octobre à juin : rien après juin
+  });
+
+  const PARTI_EN_MARS: EntreeRepartition = {
+    anneeScolaire: "2026-2027", aujourdhui: "2027-06-15", ecole: R(), tarifs: { frais: 0, mensualite: 0, dernierMois: null }, reduction: null,
+    catalogue: [CATALOGUE_CM2A[1]], statut: "abandon", dateDepart: "2027-03-10", verseScolarite: 0, verseArticles: 0,
+    options: [
+      { libelle: "Transport", quantite: null, debut: "2026-11-01", fin: "2026-12-01" },
+      { libelle: "Transport", quantite: null, debut: "2027-02-01", fin: "2027-03-01" },
+    ],
+  };
+
+  it("parti : une période qui finit au mois du départ est acceptée et reste due jusqu'au départ", () => {
+    const r = ok(repartirReprise(PARTI_EN_MARS));
+    expect(r.articles.map((a) => [a.moisDebut, a.moisFin])).toEqual([["2026-11-01", "2026-12-01"], ["2027-02-01", "2027-03-01"]]);
+    // Rien versé, import après le départ : novembre, décembre, février, mars en arriéré
+    expect(r.resume.arriere).toBe(20000);
+    expect(r.paiements).toEqual([]);
+    verifierParite(PARTI_EN_MARS, r);
+    const avec = { ...PARTI_EN_MARS, verseArticles: 15000 };
+    const r2 = ok(repartirReprise(avec));
+    expect(r2.paiements.map((p) => [p.mois, p.articleIndex])).toEqual([["2026-11-01", 0], ["2026-12-01", 0], ["2027-02-01", 1]]);
+    verifierParite(avec, r2);
+  });
+
+  it("parti : une fin après le mois du départ est refusée", () => {
+    const r = repartirReprise({ ...PARTI_EN_MARS, options: [{ libelle: "Transport", quantite: null, debut: "2027-02-01", fin: "2027-04-01" }] });
+    expect(!r.ok && r.erreur).toContain("après le départ");
+  });
+
+  it("refuse des périodes qui se chevauchent", () => {
+    const r = repartirReprise({
+      anneeScolaire: "2026-2027", aujourdhui: "2027-06-15", ecole: R(), tarifs: { frais: 0, mensualite: 0, dernierMois: null }, reduction: null,
+      catalogue: [CATALOGUE_CM2A[1]], statut: "active", dateDepart: null, verseScolarite: 0, verseArticles: 0,
+      options: [{ libelle: "Transport", quantite: null, debut: "2026-11-01", fin: "2027-02-01" }, { libelle: "Transport", quantite: null, debut: "2027-02-01" }],
+    });
+    expect(!r.ok && r.erreur).toContain("chevauchent");
   });
 });
 

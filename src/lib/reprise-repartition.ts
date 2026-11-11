@@ -45,8 +45,9 @@ export interface EntreeRepartition {
   verseScolarite: number | null;
   verseArticles: number | null;
   /** Options choisies ; quantite null = quantité par défaut ; debut = premier mois (AAAA-MM-01) d'un service mensuel,
-   *  null ou absent = règle par défaut */
-  options: { libelle: string; quantite: number | null; debut?: string | null }[];
+   *  null ou absent = règle par défaut ; fin = dernier mois d'un service arrêté, null ou absent = en cours (ou jusqu'au
+   *  départ). Un service arrêté puis repris est cité une fois par période, chacune avec son début. */
+  options: { libelle: string; quantite: number | null; debut?: string | null; fin?: string | null }[];
 }
 
 export interface PaiementPrevu {
@@ -55,6 +56,8 @@ export interface PaiementPrevu {
   mois: string | null;
   /** Libellé de l'article du catalogue pour le type « autre » */
   article: string | null;
+  /** Type « autre » : position de la ligne dans `articles` (un service repris a une ligne par période) */
+  articleIndex: number | null;
   montant: number;
   /** Texte affiché (« Mensualité de novembre 2026 », « Tenue × 2 », « Tranches 1 à 2/3 de mai 2027 ») */
   libelle: string;
@@ -123,12 +126,29 @@ export function repartirReprise(e: EntreeRepartition): ResultatRepartition {
   const verseArticles = e.verseArticles ?? 0;
   const avertissements: string[] = [];
 
-  // Contrôle défensif du mois de début des services mensuels choisis (la validation du fichier l'a déjà fait)
+  // Contrôle défensif des périodes des services mensuels choisis (la validation du fichier l'a déjà fait)
   for (const o of e.options) {
     const def = e.catalogue.find((a) => a.libelle === o.libelle);
-    if (!o.debut || def?.nature !== "mensuel") continue;
+    if (def?.nature !== "mensuel") continue;
+    if (o.fin && !o.debut) return { ok: false, erreur: `« ${o.libelle} » : une fin de service sans début.` };
+    if (!o.debut) continue;
     if (!tous.includes(o.debut)) return { ok: false, erreur: `Le début de « ${o.libelle} » (${o.debut}) est hors de l'année scolaire ${anneeScolaire}.` };
     if (finService && o.debut > finService) return { ok: false, erreur: `Le début de « ${o.libelle} » (${o.debut.slice(0, 7)}) est après le départ de l'élève.` };
+    if (o.fin) {
+      if (!tous.includes(o.fin)) return { ok: false, erreur: `La fin de « ${o.libelle} » (${o.fin}) est hors de l'année scolaire ${anneeScolaire}.` };
+      if (o.fin < o.debut) return { ok: false, erreur: `« ${o.libelle} » : la fin est avant le début.` };
+      if (finService && o.fin > finService) return { ok: false, erreur: `La fin de « ${o.libelle} » (${o.fin.slice(0, 7)}) est après le départ de l'élève.` };
+    }
+  }
+  for (const def of e.catalogue) {
+    const liste = e.options.filter((o) => o.libelle === def.libelle);
+    if (liste.length < 2) continue;
+    if (def.nature !== "mensuel") return { ok: false, erreur: `« ${def.libelle} » cité deux fois.` };
+    if (liste.some((o) => !o.debut)) return { ok: false, erreur: `« ${def.libelle} » cité plusieurs fois sans période.` };
+    const tri = [...liste].sort((a, b) => (a.debut! < b.debut! ? -1 : 1));
+    for (let k = 1; k < tri.length; k++) {
+      if (!tri[k - 1].fin || tri[k - 1].fin! >= tri[k].debut!) return { ok: false, erreur: `« ${def.libelle} » : les périodes se chevauchent.` };
+    }
   }
 
   const ins = {
@@ -141,13 +161,15 @@ export function repartirReprise(e: EntreeRepartition): ResultatRepartition {
     date_depart: e.dateDepart,
   };
 
-  // Articles retenus : obligatoires et choisis, dans l'ordre du catalogue
+  // Articles retenus : obligatoires et choisis, dans l'ordre du catalogue ; un service repris a une ligne par période
   const retenus = e.catalogue.flatMap((def, rang) => {
-    const option = e.options.find((o) => o.libelle === def.libelle);
-    if (!def.obligatoire && !option) return [];
-    const quantite = def.nature === "unique" ? (option?.quantite ?? def.quantiteDefaut) : 1;
-    const debut = def.nature === "mensuel" ? (option?.debut ?? null) : null;
-    return [{ id: `a${rang}`, rang, def, quantite, debut }];
+    const choisies = e.options.filter((o) => o.libelle === def.libelle);
+    if (!def.obligatoire && !choisies.length) return [];
+    if (def.nature === "unique") {
+      return [{ id: `a${rang}`, rang, def, quantite: choisies[0]?.quantite ?? def.quantiteDefaut, debut: null, fin: null }];
+    }
+    const periodes = choisies.length ? [...choisies].sort((a, b) => ((a.debut ?? "") < (b.debut ?? "") ? -1 : 1)) : [null];
+    return periodes.map((o, k) => ({ id: `a${rang}p${k}`, rang, def, quantite: 1, debut: o?.debut ?? null, fin: o?.fin ?? null }));
   });
   const calcul = (r: (typeof retenus)[number], moisDebut: string | null, moisFin: string | null): ArticleCalcul => ({
     id: r.id,
@@ -166,7 +188,7 @@ export function repartirReprise(e: EntreeRepartition): ResultatRepartition {
     [],
     ecole,
     aujourdhui,
-    retenus.map((r) => calcul(r, r.def.nature === "mensuel" ? (r.debut ?? premier) : null, r.def.nature === "mensuel" ? finService : null))
+    retenus.map((r) => calcul(r, r.def.nature === "mensuel" ? (r.debut ?? premier) : null, r.def.nature === "mensuel" ? (r.fin ?? finService) : null))
   );
 
   // ----- Pool scolarité -----
@@ -249,8 +271,8 @@ export function repartirReprise(e: EntreeRepartition): ResultatRepartition {
     if (pris <= 0) continue;
     resteArt -= pris;
     recoit.add(l.article_id);
-    const def = retenus.find((r) => r.id === l.article_id)!.def;
-    paiementsArticles.push({ type: "autre", mois: l.mois, article: def.libelle, montant: pris, libelle: l.libelle, libelleTranche: null });
+    const index = retenus.findIndex((r) => r.id === l.article_id);
+    paiementsArticles.push({ type: "autre", mois: l.mois, article: retenus[index].def.libelle, articleIndex: index, montant: pris, libelle: l.libelle, libelleTranche: null });
   }
   if (resteArt > 0) return { ok: false, erreur: `Le total versé (articles) dépasse le dû des articles de ${formatFCFA(resteArt)}.` };
 
@@ -263,7 +285,7 @@ export function repartirReprise(e: EntreeRepartition): ResultatRepartition {
     let fin: string | null = null;
     if (r.def.nature === "mensuel") {
       debut = r.debut ?? (recoit.has(r.id) ? premier : moisImport > premier ? moisImport : premier);
-      fin = finService;
+      fin = r.fin ?? finService;
       // Service sans versement, import après le départ : il reste dû pour le mois du départ, obligatoire ou
       // optionnel (décision de l'humain, review database T2, M-A)
       if (fin && debut > fin) {
@@ -282,7 +304,7 @@ export function repartirReprise(e: EntreeRepartition): ResultatRepartition {
   const paiements: PaiementPrevu[] = [];
   const montantIns = parCle.get("ins") ?? 0;
   if (montantIns > 0) {
-    paiements.push({ type: "inscription", mois: null, article: null, montant: montantIns, libelle: libellePaiement({ type: "inscription", mois: null, libelle: null }), libelleTranche: null });
+    paiements.push({ type: "inscription", mois: null, article: null, articleIndex: null, montant: montantIns, libelle: libellePaiement({ type: "inscription", mois: null, libelle: null }), libelleTranche: null });
   }
   for (const m of tous) {
     const montant = parCle.get(m) ?? 0;
@@ -292,16 +314,16 @@ export function repartirReprise(e: EntreeRepartition): ResultatRepartition {
       const info: InfoTranches = { mois: moisTranches, total: moisTranches.length, echues: 0, montant: 0, suggestion: 0, prochaine: null };
       tranche = libelleTranche({ mois: m, du: tarifDe(m), tranches: info }, 0, montant);
     }
-    paiements.push({ type: "mensualite", mois: m, article: null, montant, libelle: libellePaiement({ type: "mensualite", mois: m, libelle: tranche }), libelleTranche: tranche });
+    paiements.push({ type: "mensualite", mois: m, article: null, articleIndex: null, montant, libelle: libellePaiement({ type: "mensualite", mois: m, libelle: tranche }), libelleTranche: tranche });
   }
   paiements.push(...paiementsArticles);
 
   // ----- Seconde passe : ce que l'app affichera après l'import -----
-  const idDe = new Map(retenus.map((r) => [r.def.libelle, r.id]));
+  // `articles` suit `retenus` ligne pour ligne : articleIndex désigne la même ligne dans les deux
   const sit = situationInscription(
     ins,
     paiements.map((p) => ({
-      type: p.type, mois: p.mois, montant: p.montant, annule: false, article_id: p.article ? (idDe.get(p.article) ?? null) : null,
+      type: p.type, mois: p.mois, montant: p.montant, annule: false, article_id: p.articleIndex !== null ? retenus[p.articleIndex].id : null,
     })),
     ecole,
     aujourdhui,

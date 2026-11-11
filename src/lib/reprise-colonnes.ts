@@ -21,7 +21,6 @@ export type ColonneEleve =
   | "telephone"
   | "totalScolarite"
   | "articlesOptionnels"
-  | "debutOptions"
   | "totalArticles"
   | "reduction"
   | "sexe"
@@ -78,7 +77,6 @@ const VARIANTES_ELEVE: Record<ColonneEleve, string[]> = {
     "scolarite versee",
   ],
   articlesOptionnels: ["articles optionnels", "options", "articles", "services"],
-  debutOptions: ["debut des options", "debut options", "debut des services", "mois de debut", "debut du service", "depuis"],
   totalArticles: ["total verse articles", "articles verses", "verse articles", "montant articles"],
   reduction: ["reduction mensuelle", "reduction", "remise", "remise mensuelle"],
   sexe: ["sexe", "genre"],

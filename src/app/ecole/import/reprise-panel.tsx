@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { AlertTriangle, CheckCircle2, Download, FileSpreadsheet, Loader2 } from "lucide-react";
 import { cn, formatFCFA } from "@/lib/utils";
-import { formatDate, formatMois } from "@/lib/dates";
+import { formatDate, formatPeriode } from "@/lib/dates";
 import { LIBELLE_NIVEAU, LIBELLE_STATUT_INSCRIPTION } from "@/lib/libelles";
 import { Badge, Bouton, Carte, Kpi, Message } from "@/components/ui";
 import type { ApercuReprise, EleveApercu } from "@/lib/reprise-validation";
@@ -282,7 +282,7 @@ export function ReprisePanel() {
                               e.matriculeAncien && `matricule ${e.matriculeAncien}`,
                               e.statut !== "active" && `${LIBELLE_STATUT_INSCRIPTION[e.statut]}${e.dateDepart ? ` le ${formatDate(e.dateDepart)}` : ""}`,
                               e.reduction && `réduction ${formatFCFA(e.reduction)}/mois`,
-                              e.options.length && `options : ${e.options.map((o) => (o.quantite ? `${o.libelle} ×${o.quantite}` : o.debut ? `${o.libelle} dès ${formatMois(o.debut)}` : o.libelle)).join(", ")}`,
+                              e.options.length && `options : ${e.options.map((o) => (o.quantite ? `${o.libelle} ×${o.quantite}` : o.debut ? `${o.libelle} ${formatPeriode(o)}` : o.libelle)).join(", ")}`,
                             ]
                               .filter(Boolean)
                               .join(" · ")}
