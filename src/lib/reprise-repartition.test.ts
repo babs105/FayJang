@@ -356,10 +356,12 @@ describe("repartirReprise : services d'un élève parti", () => {
     expect(r.articles[0]).toMatchObject({ moisDebut: "2026-10-01", moisFin: "2026-11-01" });
   });
 
-  it("service optionnel sans argent, import après le départ : non rattaché", () => {
+  it("service optionnel sans argent, import après le départ : dû pour le seul mois du départ", () => {
     const r = ok(repartirReprise(parti([transport], 0)));
-    expect(r.articles).toEqual([]);
-    expect(r.avertissements.join(" ")).toContain("Transport");
+    expect(r.articles[0]).toMatchObject({ moisDebut: "2026-11-01", moisFin: "2026-11-01" });
+    expect(r.avertissements.join(" ")).toContain("« Transport » : aucun versement, il est dû pour le mois du départ");
+    // 25 000 + octobre et novembre 30 000 + 5 000
+    expect(r.resume.arriere).toBe(60000);
   });
 
   it("service obligatoire sans argent, import après le départ : dû pour le seul mois du départ", () => {

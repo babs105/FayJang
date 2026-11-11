@@ -264,13 +264,11 @@ export function repartirReprise(e: EntreeRepartition): ResultatRepartition {
     if (r.def.nature === "mensuel") {
       debut = r.debut ?? (recoit.has(r.id) ? premier : moisImport > premier ? moisImport : premier);
       fin = finService;
+      // Service sans versement, import après le départ : il reste dû pour le mois du départ, obligatoire ou
+      // optionnel (décision de l'humain, review database T2, M-A)
       if (fin && debut > fin) {
-        if (!r.def.obligatoire) {
-          avertissements.push(`« ${r.def.libelle} » n'est pas rattaché : le service est demandé après le départ de l'élève.`);
-          continue;
-        }
         debut = fin;
-        avertissements.push(`« ${r.def.libelle} » est obligatoire : il est dû pour le seul mois du départ.`);
+        avertissements.push(`« ${r.def.libelle} » : aucun versement, il est dû pour le mois du départ.`);
       }
     }
     articles.push({

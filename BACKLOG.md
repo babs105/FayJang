@@ -139,11 +139,9 @@
   s'appuyer sur une contrainte d'unicité en base. *Estimé : 30 min. Croise : tranche 5 de l'import.*
   (review security tranche 1 « reprise de l'existant », 2026-11-11 ; relevé aussi par les deux reviews de la tranche 2)
 
-- [ ] **Service mensuel d'un élève parti sans aucun versement : règle à trancher** (M-A) — `repartirReprise`
-  (`src/lib/reprise-repartition.ts`) : un service obligatoire devient dû pour le mois du départ (ex. 10 000 F de
-  transport jamais encaissé), un service optionnel est écarté avec le message erroné « demandé après le départ ».
-  Un élève actif, lui, ne doit rien des mois passés. Option 1 (recommandée, « on paie d'abord ») : ne rien rattacher
-  et avertir ; option 2 : garder et reformuler le message. *Estimé : 30 min. Croise : tranche 5 (écriture).*
+- [x] **Service mensuel d'un élève parti sans aucun versement** (M-A) — tranché par l'humain : c'est un dû.
+  `repartirReprise` rattache le service, obligatoire ou optionnel, pour le mois du départ, avec l'avertissement
+  « aucun versement, il est dû pour le mois du départ » (l'ancien message « demandé après le départ » disparaît).
   (review database tranche 2 « reprise de l'existant », 2026-11-11)
 
 - [ ] **Article unique de quantité 0 rattaché à l'inscription** (M-B) — `repartirReprise` produit un article prévu à
