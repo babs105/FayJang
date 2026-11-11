@@ -1,8 +1,9 @@
 import { readFileSync } from "fs";
 import { join } from "path";
 import ExcelJS from "exceljs";
+import JSZip from "jszip";
 import { describe, expect, it } from "vitest";
-import { controlerFichier, ErreurFichier, lireClasseur, tailleDecompressee, valeurCellule } from "./reprise-lecture";
+import { controlerFichier, ErreurFichier, lireClasseur, tailleDecompressee, valeurCellule, verifierContenu } from "./reprise-lecture";
 import { analyserReprise } from "./reprise-validation";
 
 async function xlsx(remplir: (wb: ExcelJS.Workbook) => void): Promise<Uint8Array> {
@@ -35,6 +36,59 @@ describe("controlerFichier", () => {
     const taille = tailleDecompressee(buf);
     expect(taille).toBeGreaterThan(buf.length);
     expect(() => controlerFichier(buf)).not.toThrow();
+  });
+});
+
+/** Archive zip : chaque fichier rempli de `taille` octets (zéros), très compressibles */
+async function archive(fichiers: Record<string, number>): Promise<Uint8Array> {
+  const zip = new JSZip();
+  for (const [nom, taille] of Object.entries(fichiers)) zip.file(nom, new Uint8Array(taille), { createFolders: false });
+  return zip.generateAsync({ type: "uint8array", compression: "DEFLATE" });
+}
+
+/** Position de la fin du répertoire central (signature 0x06054b50) */
+function finRepertoire(buf: Uint8Array): number {
+  const vue = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  for (let i = buf.length - 22; i >= 0; i--) if (vue.getUint32(i, true) === 0x06054b50) return i;
+  throw new Error("EOCD introuvable");
+}
+
+describe("verifierContenu (archives piégées)", () => {
+  it("refuse une archive qui annonce moins d'entrées qu'elle n'en contient", async () => {
+    // 3 fichiers de 4 Mo : le répertoire n'en déclare qu'un, la pré-vérification ne voit que 4 Mo
+    const buf = await archive({ "a.xml": 4e6, "b.xml": 4e6, "c.xml": 4e6 });
+    const vue = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+    const fin = finRepertoire(buf);
+    vue.setUint16(fin + 8, 1, true);
+    vue.setUint16(fin + 10, 1, true);
+    expect(tailleDecompressee(buf)).toBe(4e6);
+    await expect(verifierContenu(buf)).rejects.toThrow(ErreurFichier);
+  });
+
+  it("refuse une archive dont les tailles annoncées mentent", async () => {
+    const buf = await archive({ "xl/worksheets/sheet1.xml": 20e6 });
+    const vue = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+    const central = vue.getUint32(finRepertoire(buf) + 16, true);
+    vue.setUint32(central + 24, 100, true);
+    expect(tailleDecompressee(buf)).toBe(100);
+    await expect(verifierContenu(buf)).rejects.toThrow("trop volumineux");
+  });
+
+  it("refuse un taux de compression extrême même sous le plafond total", async () => {
+    await expect(verifierContenu(await archive({ "xl/sharedStrings.xml": 5e6 }))).rejects.toThrow("trop volumineux");
+  });
+
+  it("refuse une feuille de plus de 10 000 lignes avant de la charger", async () => {
+    const buf = await xlsx((wb) => {
+      const ws = wb.addWorksheet("Élèves");
+      for (let i = 0; i <= 10_000; i++) ws.addRow([i]);
+    });
+    await expect(lireClasseur(buf)).rejects.toThrow("dépasse 10 000 lignes");
+  });
+
+  it("accepte le modèle publié", async () => {
+    const buf = new Uint8Array(readFileSync(join(process.cwd(), "public/modele-import-ecole.xlsx")));
+    await expect(verifierContenu(buf)).resolves.toBeUndefined();
   });
 });
 

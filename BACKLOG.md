@@ -129,6 +129,16 @@
   dessus : retirer les commentaires avant le chargement, ou message dédié. *Estimé : 1 h. Croise : V2 de l'import
   (fichiers d'école tels quels).* (tranche 1 « reprise de l'existant », 2026-11-11)
 
+- [ ] **Limite de fréquence sur l'analyse du fichier d'import** (S10) — chaque appel à `analyserFichierReprise`
+  déclenche un parsing exceljs et environ 7 lectures paginées ; une école connectée peut les enchaîner. Correctif :
+  limite par école (ex. 10 analyses par 10 min), réutilisable pour l'import réel. *Estimé : 1 h. Croise : tranche 5
+  de l'import.* (review security tranche 1 « reprise de l'existant », 2026-11-11)
+
+- [ ] **`toutLire` tronque en silence au-delà de ~22 000 lignes** (S7) — acceptable pour l'aperçu, pas pour l'écriture :
+  une liste incomplète fausserait la détection des doublons. Correctif : lever une erreur au-delà du plafond et
+  s'appuyer sur une contrainte d'unicité en base. *Estimé : 30 min. Croise : tranche 5 de l'import.*
+  (review security tranche 1 « reprise de l'existant », 2026-11-11)
+
 
 ---
 
