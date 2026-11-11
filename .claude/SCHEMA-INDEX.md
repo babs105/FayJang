@@ -3,7 +3,7 @@
 > **Fichier généré automatiquement.** Ne pas éditer à la main.
 > Régénérer : `bash scripts/schema-index.sh`
 
-**Total : 2100 lignes.**
+**Total : 2290 lignes.**
 
 ## Tables
 
@@ -42,12 +42,13 @@
 - `jwt_role_app` — L176
 - `noter_echec_plafonne` — L198
 - `numeroter_recu` — L786 **(active)** · remplace L417
-- `proteger_article_inscription` — L958
+- `proteger_article_inscription` — L2114 **(active)** · remplace L958
 - `proteger_colonnes_ecole` — L377
 - `proteger_inscription` — L465
 - `proteger_paiement` — L925 **(active)** · remplace L436, L826
 - `session_ecole_valide` — L318
-- `verifier_meme_ecole` — L876 **(active)** · remplace L394, L756
+- `set_updated_at` — L2264
+- `verifier_meme_ecole` — L2176 **(active)** · remplace L394, L756, L876
 
 ## Policies
 
@@ -77,7 +78,7 @@
 - `trg_meme_ecole` sur `inscriptions` — L577
 - `trg_meme_ecole` sur `paiements` — L921 **(active)** · remplace L580
 - `trg_numeroter_recu` sur `paiements` — L589
-- `trg_proteger_article_inscription` sur `articles_inscription` — L977
+- `trg_proteger_article_inscription` sur `articles_inscription` — L2155 **(active)** · remplace L977
 - `trg_proteger_colonnes_ecole` sur `ecoles` — L570
 - `trg_proteger_inscription_maj` sur `inscriptions` — L597
 - `trg_proteger_inscription` sur `inscriptions` — L594
@@ -99,6 +100,7 @@
 - `idx_articles_classe_classe` — L689
 - `idx_articles_inscription_inscription` — L709
 - `idx_paiements_article` — L717
+- `idx_articles_inscription_article_classe` — L2248
 
 ## Contraintes CHECK
 
@@ -117,6 +119,9 @@
 - L1509 : v1.9 : enregistrement d'une classe et de son catalogue en une seule transaction (fonction enregistrer_classe).
 - L1675 : v1.10 : prix d'article plafonné, produit prix × quantité en bigint (finding H4), classe verrouillée à l'inscription.
 - L1961 : v1.11 : paramètres de l'école et passage à l'année suivante en une seule transaction (fonction
+- L2103 : v1.13 : un service mensuel ne s'arrête pas avant son dernier mois payé (remplace proteger_article_inscription, v1.5).
+- L2159 : v1.14 : un article d'élève vient du catalogue de SA classe (remplace verifier_meme_ecole, v1.5).
+- L2252 : v1.15 : date de dernière modification (updated_at) sur eleves, classes, inscriptions, parents et
 
 ## Notes pour l'agent
 

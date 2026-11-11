@@ -28,15 +28,13 @@
   `inscrire_eleve` (bloc v1.7). *Estimé : 1 jour. Croise : import Excel.*
 
 
-- [ ] **`updated_at` absent hors `acces_ecole`** (M1) — aucune trace de la dernière
-  modification d'un élève, d'une classe ou d'une inscription. *Estimé : 2 h. Croise :
-  journal des modifications.*
-
-- [ ] **Invariants des articles tenus seulement par le code** — la base ne vérifie pas
-  que `articles_inscription.article_classe_id` appartient à la classe de l'inscription,
-  ni que `mois_fin` reste ≥ au dernier mois payé (trigger `proteger_article_inscription`,
-  `supabase/schema.sql`). Correctif : contrôles dans `verifier_meme_ecole` et
-  `proteger_article_inscription`. *Estimé : 2 h. Croise : tout import de données.*
+- [ ] **Encaissement d'un mois hors période du service** (H4) — `encaisser_paiement` (bloc v1.8) accepte, pour un
+  article mensuel, n'importe quel mois de l'année sans le comparer à `mois_debut` ni à `mois_fin` : un service arrêté
+  en novembre peut encore être encaissé pour mars, ce qui repousse ensuite le dernier mois payé au-delà de l'arrêt.
+  Décision métier à prendre (refus en base FJ412, ou simple avertissement à l'école ; recommandation du reviewer :
+  refus). Correctif : après la lecture de `v_art`, refuser si `v_mois < mois_debut` ou `v_mois > mois_fin`, dans un
+  nouveau bloc en fin de `05-migrations.sql`. *Estimé : 1 h. Croise : services mensuels, arrêt de service.*
+  (review database tranche 1 « intégrité des données », 2026-11-10)
 
 ---
 
@@ -221,3 +219,14 @@
 - [x] **Paiement libre refusé pour un élève parti, aussi en base** — `encaisser_paiement` refuse un paiement libre
   si l'inscription n'est pas active (FJ412). Couvre le seul chemin d'encaissement ; la policy RLS `ecole_encaisse`
   n'a pas changé. Commit `013056d`. (2026-11-10)
+- [x] **Fin d'un service jamais avant son dernier mois payé, tenue par la base** — `proteger_article_inscription`
+  (bloc v1.13) refuse en FJ412 un `mois_fin` antérieur au dernier mois payé non annulé, quel que soit le chemin ;
+  l'inscription est verrouillée en tête de fonction (comme `encaisser_paiement`). Commit `4b4eb76`. (2026-11-10)
+- [x] **Article d'élève venu du catalogue de sa classe, tenu par la base** — `verifier_meme_ecole` (bloc v1.14)
+  refuse un article d'une autre classe (FJ422), un changement de classe tant que l'élève a des articles de l'ancienne
+  (FJ412) et le déplacement d'une ligne de catalogue déjà attribuée (FJ412) ; lectures verrouillées, index partiel sur
+  `articles_inscription(article_classe_id)`. Option retenue : refus, pas de remplacement automatique des articles.
+  Commit `7ad2109`. (2026-11-10)
+- [x] **`updated_at` sur eleves, classes, inscriptions, parents et articles_inscription** (M1) — bloc v1.15, rattrapé
+  à `created_at` ; valeur du client ignorée, UPDATE sans changement sans effet. Affiché dans la fiche élève côté École
+  seulement (« Dernière modification »), ni page parent ni export. Commit `b340119`. (2026-11-10)

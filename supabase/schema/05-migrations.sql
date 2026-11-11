@@ -1490,3 +1490,193 @@ REVOKE EXECUTE ON FUNCTION public.enregistrer_parametres(TEXT, TEXT, TEXT, TEXT,
     FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.enregistrer_parametres(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, INTEGER, INTEGER, INTEGER, BOOLEAN, INTEGER, INTEGER, INTEGER, BOOLEAN, BOOLEAN)
     TO authenticated;
+
+-- ==============================================================================
+-- v1.13 : un service mensuel ne s'arrête pas avant son dernier mois payé (remplace proteger_article_inscription, v1.5).
+-- La règle était tenue seulement par retirerArticleInscription ; elle l'est désormais par la base, quel que soit le
+-- chemin (application, éditeur SQL, import). Dernier mois payé = max(mois) des paiements non annulés de l'article
+-- (un reçu annulé ne compte plus). Aucun paiement : rien ne bloque. mois_fin NULL (jusqu'à la fin de l'année) :
+-- toujours accepté. Le contrôle ne joue que si mois_fin change : une ligne ancienne déjà en violation reste
+-- modifiable pour ses autres colonnes (FK SET NULL du catalogue, quantité à 0).
+-- Concurrence : sur tout UPDATE, l'inscription est verrouillée (FOR NO KEY UPDATE, même verrou que
+-- encaisser_paiement) en tête de fonction, avant de lire les paiements : un encaissement en cours est terminé et
+-- visible au moment des contrôles (fin de service, et prix/quantité figés dès le premier paiement).
+-- SECURITY INVOKER (comme en v1.5). Bloc final : garder en dernier.
+-- ==============================================================================
+CREATE OR REPLACE FUNCTION public.proteger_article_inscription()
+RETURNS TRIGGER LANGUAGE plpgsql SET search_path = public AS $$
+DECLARE
+    v_dernier DATE;
+BEGIN
+    -- Verrou de l'inscription d'abord (UPDATE) : un encaissement en cours est terminé et visible avant les deux
+    -- contrôles ci-dessous, y compris le tout premier paiement de l'article.
+    IF TG_OP = 'UPDATE' THEN
+        PERFORM 1 FROM public.inscriptions
+        WHERE id = OLD.inscription_id AND ecole_id = OLD.ecole_id
+        FOR NO KEY UPDATE;
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM public.paiements WHERE article_id = OLD.id AND NOT annule) THEN
+        IF TG_OP = 'DELETE' THEN
+            RAISE EXCEPTION 'Cet article a des paiements : arrêtez le service ou annulez les reçus.' USING ERRCODE = 'FJ412';
+        END IF;
+        IF NEW.prix_unitaire IS DISTINCT FROM OLD.prix_unitaire
+           OR NEW.quantite IS DISTINCT FROM OLD.quantite
+           OR NEW.nature IS DISTINCT FROM OLD.nature
+           OR NEW.inscription_id IS DISTINCT FROM OLD.inscription_id
+           OR NEW.mois_debut IS DISTINCT FROM OLD.mois_debut THEN
+            RAISE EXCEPTION 'Article déjà payé : son prix et sa quantité ne changent plus.' USING ERRCODE = 'FJ412';
+        END IF;
+    END IF;
+
+    -- Fin d'un service : jamais avant le dernier mois payé non annulé
+    IF TG_OP = 'UPDATE' AND NEW.mois_fin IS NOT NULL AND NEW.mois_fin IS DISTINCT FROM OLD.mois_fin THEN
+        SELECT max(mois) INTO v_dernier FROM public.paiements
+        WHERE article_id = OLD.id AND ecole_id = OLD.ecole_id AND NOT annule AND mois IS NOT NULL;
+        IF v_dernier IS NOT NULL AND NEW.mois_fin < v_dernier THEN
+            RAISE EXCEPTION 'Ce service est payé jusqu''à % : il ne peut pas s''arrêter avant.', to_char(v_dernier, 'MM/YYYY')
+                USING ERRCODE = 'FJ412';
+        END IF;
+    END IF;
+
+    RETURN COALESCE(NEW, OLD);
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.proteger_article_inscription() FROM PUBLIC, anon, authenticated;
+DROP TRIGGER IF EXISTS trg_proteger_article_inscription ON public.articles_inscription;
+CREATE TRIGGER trg_proteger_article_inscription BEFORE UPDATE OR DELETE ON public.articles_inscription
+    FOR EACH ROW EXECUTE FUNCTION public.proteger_article_inscription();
+
+-- ==============================================================================
+-- v1.14 : un article d'élève vient du catalogue de SA classe (remplace verifier_meme_ecole, v1.5).
+-- L'invariant était tenu seulement par le code (inscrire_eleve, ajouterArticleInscription) ; la base le tient
+-- désormais, quel que soit le chemin (éditeur SQL, import) :
+--  - articles_inscription : un article_classe_id renseigné doit appartenir à la classe de l'inscription (FJ422).
+--    Article sans lien (NULL, retiré du catalogue) : exempté.
+--  - inscriptions : changer classe_id est refusé tant que l'inscription porte des articles liés au catalogue d'une
+--    autre classe (FJ412) ; le futur « changement de classe » devra les retirer ou les remplacer explicitement.
+--  - articles_classe : déplacer une ligne du catalogue vers une autre classe est refusé si des élèves l'ont déjà
+--    (FJ412) ; enregistrer_classe ne déplace jamais une ligne, il la supprime (FK SET NULL) ou la recrée.
+-- Les contrôles « même école » (FJ404) et les branches eleves et paiements sont inchangés. SECURITY DEFINER (comme
+-- en v1.5) : chaque sous-requête filtre ecole_id. Les lignes anciennes ne sont relues que si elles sont modifiées
+-- sur une colonne surveillée par trg_meme_ecole (UPDATE OF … des triggers).
+-- Concurrence : à l'écriture d'un article, l'inscription est verrouillée (FOR NO KEY UPDATE) et la ligne du
+-- catalogue lue en FOR SHARE : un changement de classe ou un déplacement de catalogue simultané attend, puis voit
+-- l'article. Index partiel sur articles_inscription(article_classe_id) : contrôle du déplacement et FK SET NULL.
+-- Bloc final : garder en dernier.
+-- ==============================================================================
+CREATE OR REPLACE FUNCTION public.verifier_meme_ecole()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+    v_classe UUID;
+    v_classe_article UUID;
+BEGIN
+    IF TG_TABLE_NAME = 'eleves' THEN
+        IF NEW.parent_id IS NOT NULL
+           AND NOT EXISTS (SELECT 1 FROM public.parents WHERE id = NEW.parent_id AND ecole_id = NEW.ecole_id) THEN
+            RAISE EXCEPTION 'Parent introuvable dans cette école.' USING ERRCODE = 'FJ404';
+        END IF;
+    ELSIF TG_TABLE_NAME = 'inscriptions' THEN
+        IF NOT EXISTS (SELECT 1 FROM public.eleves WHERE id = NEW.eleve_id AND ecole_id = NEW.ecole_id)
+           OR NOT EXISTS (SELECT 1 FROM public.classes WHERE id = NEW.classe_id AND ecole_id = NEW.ecole_id) THEN
+            RAISE EXCEPTION 'Élève ou classe introuvable dans cette école.' USING ERRCODE = 'FJ404';
+        END IF;
+        -- Changement de classe : pas d'article resté lié au catalogue d'une autre classe
+        IF TG_OP = 'UPDATE' AND NEW.classe_id IS DISTINCT FROM OLD.classe_id
+           AND EXISTS (SELECT 1 FROM public.articles_inscription ai
+                       JOIN public.articles_classe ac ON ac.id = ai.article_classe_id AND ac.ecole_id = NEW.ecole_id
+                       WHERE ai.inscription_id = NEW.id AND ai.ecole_id = NEW.ecole_id
+                         AND ac.classe_id <> NEW.classe_id) THEN
+            RAISE EXCEPTION 'Cet élève a des articles de son ancienne classe : retirez-les avant de changer de classe.'
+                USING ERRCODE = 'FJ412';
+        END IF;
+    ELSIF TG_TABLE_NAME = 'articles_classe' THEN
+        IF NOT EXISTS (SELECT 1 FROM public.classes WHERE id = NEW.classe_id AND ecole_id = NEW.ecole_id) THEN
+            RAISE EXCEPTION 'Classe introuvable dans cette école.' USING ERRCODE = 'FJ404';
+        END IF;
+        -- Ligne du catalogue déplacée vers une autre classe : refusée si des élèves l'ont déjà
+        IF TG_OP = 'UPDATE' AND NEW.classe_id IS DISTINCT FROM OLD.classe_id
+           AND EXISTS (SELECT 1 FROM public.articles_inscription
+                       WHERE article_classe_id = NEW.id AND ecole_id = NEW.ecole_id) THEN
+            RAISE EXCEPTION 'Cet article est déjà attribué à des élèves : il ne change pas de classe.' USING ERRCODE = 'FJ412';
+        END IF;
+    ELSIF TG_TABLE_NAME = 'articles_inscription' THEN
+        -- Inscription verrouillée (même mode que encaisser_paiement et proteger_article_inscription, pas de montée
+        -- de verrou) : un changement de classe concurrent attend, ou est vu.
+        SELECT classe_id INTO v_classe FROM public.inscriptions
+        WHERE id = NEW.inscription_id AND ecole_id = NEW.ecole_id
+        FOR NO KEY UPDATE;
+        IF NOT FOUND THEN
+            RAISE EXCEPTION 'Inscription ou article introuvable dans cette école.' USING ERRCODE = 'FJ404';
+        END IF;
+        IF NEW.article_classe_id IS NOT NULL THEN
+            -- Ligne du catalogue verrouillée en partage : un déplacement concurrent vers une autre classe attend
+            SELECT classe_id INTO v_classe_article FROM public.articles_classe
+            WHERE id = NEW.article_classe_id AND ecole_id = NEW.ecole_id
+            FOR SHARE;
+            IF NOT FOUND THEN
+                RAISE EXCEPTION 'Inscription ou article introuvable dans cette école.' USING ERRCODE = 'FJ404';
+            END IF;
+            -- L'article vient du catalogue de la classe de l'inscription
+            IF v_classe_article IS DISTINCT FROM v_classe THEN
+                RAISE EXCEPTION 'Cet article n''appartient pas au catalogue de la classe de l''élève.' USING ERRCODE = 'FJ422';
+            END IF;
+        END IF;
+    ELSIF TG_TABLE_NAME = 'paiements' THEN
+        IF NOT EXISTS (SELECT 1 FROM public.inscriptions WHERE id = NEW.inscription_id AND ecole_id = NEW.ecole_id) THEN
+            RAISE EXCEPTION 'Inscription introuvable dans cette école.' USING ERRCODE = 'FJ404';
+        END IF;
+        -- Un paiement d'article vise un article de la même inscription
+        IF NEW.article_id IS NOT NULL
+           AND NOT EXISTS (SELECT 1 FROM public.articles_inscription
+                           WHERE id = NEW.article_id AND inscription_id = NEW.inscription_id AND ecole_id = NEW.ecole_id) THEN
+            RAISE EXCEPTION 'Article introuvable pour cet élève.' USING ERRCODE = 'FJ404';
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.verifier_meme_ecole() FROM PUBLIC, anon, authenticated;
+CREATE INDEX IF NOT EXISTS idx_articles_inscription_article_classe
+    ON public.articles_inscription (article_classe_id) WHERE article_classe_id IS NOT NULL;
+
+-- ==============================================================================
+-- v1.15 : date de dernière modification (updated_at) sur eleves, classes, inscriptions, parents et
+-- articles_inscription (finding M1). Pas de journal : seulement la date de la dernière modification réelle.
+--  - Lignes existantes : updated_at = created_at (« aucune modification connue ») ; l'interface n'affiche la date
+--    que si updated_at > created_at. Le rattrapage ne touche que les lignes encore NULL : relancer le schéma ne
+--    change rien.
+--  - Trigger set_updated_at (BEFORE UPDATE) : une valeur envoyée par le client est ignorée ; un UPDATE qui ne change
+--    rien (modifierEleve qui réécrit le parent, ON CONFLICT DO UPDATE de inscrire_eleve) ne bouge pas la date.
+--  - Le trigger est créé après le rattrapage. Son nom (trg_updated_at) le fait passer après trg_meme_ecole et
+--    trg_proteger_* (ordre alphabétique) : un UPDATE refusé par un contrôle ne fait rien.
+-- Hors champ : paiements (immuables, annule_at), ecoles, articles_classe (réécrit en bloc par enregistrer_classe).
+-- Le code de l'Espace École lit la colonne : appliquer ce bloc AVANT de déployer. Bloc final : garder en dernier.
+-- ==============================================================================
+CREATE OR REPLACE FUNCTION public.set_updated_at()
+RETURNS TRIGGER LANGUAGE plpgsql SET search_path = public AS $$
+BEGIN
+    -- La valeur du client ne compte pas : on compare la ligne sans updated_at.
+    -- Comparaison de la ligne entière : toute colonne ajoutée à ces tables doit avoir une égalité (jsonb, pas json).
+    NEW.updated_at := OLD.updated_at;
+    IF NEW IS DISTINCT FROM OLD THEN
+        NEW.updated_at := now();
+    END IF;
+    RETURN NEW;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.set_updated_at() FROM PUBLIC, anon, authenticated;
+
+DO $$
+DECLARE
+    t TEXT;
+BEGIN
+    FOREACH t IN ARRAY ARRAY['eleves', 'classes', 'inscriptions', 'parents', 'articles_inscription'] LOOP
+        EXECUTE format('ALTER TABLE public.%I ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ', t);
+        EXECUTE format('ALTER TABLE public.%I ALTER COLUMN updated_at SET DEFAULT now()', t);
+        EXECUTE format('UPDATE public.%I SET updated_at = created_at WHERE updated_at IS NULL', t);
+        EXECUTE format('ALTER TABLE public.%I ALTER COLUMN updated_at SET NOT NULL', t);
+        EXECUTE format('DROP TRIGGER IF EXISTS trg_updated_at ON public.%I', t);
+        EXECUTE format('CREATE TRIGGER trg_updated_at BEFORE UPDATE ON public.%I FOR EACH ROW EXECUTE FUNCTION public.set_updated_at()', t);
+    END LOOP;
+END $$;

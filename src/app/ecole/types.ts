@@ -76,5 +76,7 @@ export interface EleveVue {
     mensualite_dernier_mois: number | null;
     reduction_mensuelle: number;
   } | null;
+  /** Dernière modification de l'élève, de son inscription, de son parent ou de ses articles (ISO) ; null si jamais modifié */
+  derniere_modification: string | null;
   situation: Situation | null;
 }
