@@ -5,6 +5,10 @@ const nextConfig: NextConfig = {
   // sinon ils écrasent le .next du `npm run dev` lancé à la main
   distDir: process.env.NEXT_DIST_DIR || ".next",
   reactStrictMode: true,
+  experimental: {
+    // Reprise de l'existant : le fichier Excel de l'école (2 Mo au maximum) passe par une Server Action
+    serverActions: { bodySizeLimit: "3mb" },
+  },
 };
 
 export default nextConfig;

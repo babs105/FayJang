@@ -117,6 +117,18 @@
   *Estimé : 10 min. Croise : prochaine migration touchant `inscrire_eleve`.*
   (review database tranche 1 « encaissement atomique », 2026-11-10)
 
+- [ ] **Espace École limité à 1000 lignes par table** — `src/app/ecole/page.tsx` (et `/ecole/export`) lisent élèves,
+  parents, inscriptions et paiements en une seule requête : PostgREST en renvoie 1000 au plus, la suite est ignorée
+  sans erreur. Une école de plus de 1000 élèves (ou paiements) verrait des listes et des soldes incomplets. Correctif :
+  lecture paginée (`range`), comme `toutLire` de `src/app/ecole/import/actions.ts`. *Estimé : 1 h. Croise : import
+  Excel (écoles de plus de 500 élèves).* (tranche 1 « reprise de l'existant », 2026-11-11)
+
+- [ ] **Commentaires de cellule écrits par openpyxl illisibles par exceljs** — un classeur produit par un outil qui
+  écrit ses commentaires comme openpyxl fait échouer `lireClasseur` (« Fichier Excel illisible »). Le modèle n'a plus de
+  commentaires ; un fichier enregistré depuis Excel ou LibreOffice n'est pas concerné. Correctif si une école bute
+  dessus : retirer les commentaires avant le chargement, ou message dédié. *Estimé : 1 h. Croise : V2 de l'import
+  (fichiers d'école tels quels).* (tranche 1 « reprise de l'existant », 2026-11-11)
+
 
 ---
 

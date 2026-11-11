@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, BarChart3, GraduationCap, LogOut, Receipt, School, Settings, Users } from "lucide-react";
+import Link from "next/link";
+import { AlertTriangle, BarChart3, GraduationCap, LogOut, Receipt, School, Settings, Upload, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { logoutEcoleAction } from "./login/actions";
 import { TableauPanel } from "./tableau-panel";
@@ -77,6 +78,13 @@ export function EcoleDashboardClient(props: DonneesEcole & { bienvenue: boolean;
               )}
             </button>
           ))}
+          <Link
+            href="/ecole/import"
+            className="flex items-center gap-1.5 px-3 py-2.5 text-xs font-bold border-b-2 border-transparent whitespace-nowrap text-neutral-500 hover:text-neutral-800 transition"
+          >
+            <Upload className="w-4 h-4" />
+            Importer
+          </Link>
         </nav>
       </header>
 
