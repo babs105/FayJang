@@ -12,6 +12,10 @@ export const MAX_ELEVES = 2000;
 export const MAX_CLASSES = 200;
 /** Plafond du catalogue d'une classe (même borne que enregistrer_classe, bloc v1.9) */
 export const MAX_ARTICLES_CLASSE = 30;
+/** Articles optionnels lus par élève : au-delà, la ligne est en erreur (borne de calcul, review sécurité T2) */
+export const MAX_OPTIONS_ELEVE = 20;
+/** Erreurs gardées par ligne : la ligne est déjà refusée, le reste n'apprend rien et gonfle la réponse */
+export const MAX_ERREURS_LIGNE = 5;
 const MONTANT_MAX = 50_000_000;
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -103,7 +107,8 @@ const NATURES: Record<string, NatureArticle> = {
 const OUI_NON: Record<string, boolean> = { oui: true, o: true, x: true, vrai: true, "1": true, non: false, n: false, faux: false, "0": false };
 
 function choix<T>(table: Record<string, T>, c: Cellule): T | undefined {
-  return table[normaliser(texteCellule(c))];
+  const cle = normaliser(texteCellule(c));
+  return Object.hasOwn(table, cle) ? table[cle] : undefined; // « constructor » ne remonte pas le prototype
 }
 
 /** « Tenue x3 » → { libelle: "Tenue", quantite: 3 } ; sans suffixe : quantite null */
@@ -146,7 +151,7 @@ export function moisCellule(c: Cellule, moisAnnee: string[]): string | null | "i
   const date = dateCellule(s);
   if (date && date !== "invalide") return `${date.slice(0, 7)}-01`;
   const n = normaliser(s).split(" ");
-  const numero = MOIS_NOMS[n[0]];
+  const numero = Object.hasOwn(MOIS_NOMS, n[0]) ? MOIS_NOMS[n[0]] : undefined;
   if (!numero || n.length > 2) return "invalide";
   if (n.length === 2) return /^\d{4}$/.test(n[1]) ? mois(Number(n[1]), numero) : "invalide";
   return moisAnnee.find((x) => Number(x.slice(5, 7)) === numero) ?? "invalide";
@@ -469,8 +474,10 @@ export function analyserReprise(classeur: ClasseurBrut, ctx: ContexteReprise): A
       };
       articles.push(article);
       // Une classe déjà en base garde son catalogue : seul le fichier d'une classe nouvelle le remplit
-      if (article.etat === "nouveau" && nature) {
-        catalogues.get(cleClasse)?.articles.push({
+      // Au-delà du plafond, l'erreur globale suffit : le catalogue ne grossit plus (borne de calcul des élèves)
+      const cat = catalogues.get(cleClasse);
+      if (article.etat === "nouveau" && nature && cat && cat.articles.length <= MAX_ARTICLES_CLASSE) {
+        cat.articles.push({
           libelle, nature, obligatoire: article.obligatoire, prix: article.prix ?? 0, quantiteDefaut: article.quantite,
         });
       }
@@ -486,6 +493,16 @@ export function analyserReprise(classeur: ClasseurBrut, ctx: ContexteReprise): A
   }
 
   // ----- Élèves -----
+  // Libellés normalisés une fois par catalogue (le catalogue ne change plus à partir d'ici)
+  const index = new Map<unknown, Map<string, ArticleCatalogue>>();
+  const chercher = (cat: { articles: ArticleCatalogue[] }, libelle: string) => {
+    let m = index.get(cat);
+    if (!m) {
+      m = new Map(cat.articles.map((a) => [normaliser(a.libelle), a]));
+      index.set(cat, m);
+    }
+    return m.get(normaliser(libelle));
+  };
   const moisAnnee = moisScolaires(ctx.anneeScolaire, ctx.calendrier.mois_debut, ctx.calendrier.nb_mensualites);
   const eleves: EleveApercu[] = [];
   const presentsStricts = new Set(ctx.eleves.map((e) => cleStricte(e.prenom, e.nom, e.telephone)));
@@ -593,9 +610,12 @@ export function analyserReprise(classeur: ClasseurBrut, ctx: ContexteReprise): A
       const optionsBrutes = texteCellule(cellule("articlesOptionnels"), 300);
       if (optionsBrutes && catalogue) {
         const vus = new Set<string>();
-        for (const brut of optionsBrutes.split(";").map((s) => s.trim()).filter(Boolean)) {
+        const pieces = optionsBrutes.split(";").map((s) => s.trim()).filter(Boolean);
+        if (pieces.length > MAX_OPTIONS_ELEVE) erreurs.push(`Trop d'articles optionnels : ${MAX_OPTIONS_ELEVE} au maximum.`);
+        for (const brut of pieces.slice(0, MAX_OPTIONS_ELEVE)) {
+          if (erreurs.length >= MAX_ERREURS_LIGNE) break;
           // Le libellé complet passe d'abord : un article nommé « Pack x3 » ou « Bus (matin) » reste trouvable
-          let article = catalogue.articles.find((a) => normaliser(a.libelle) === normaliser(brut));
+          let article = chercher(catalogue, brut);
           let morceau = brut;
           let debutPropre: string | null = null;
           if (!article) {
@@ -603,13 +623,13 @@ export function analyserReprise(classeur: ClasseurBrut, ctx: ContexteReprise): A
             if (debut !== null) {
               morceau = reste;
               debutPropre = debut;
-              article = catalogue.articles.find((a) => normaliser(a.libelle) === normaliser(reste));
+              article = chercher(catalogue, reste);
             }
           }
           let quantite: number | null = null;
           if (!article) {
             const lu = lireOption(morceau);
-            article = catalogue.articles.find((a) => normaliser(a.libelle) === normaliser(lu.libelle));
+            article = chercher(catalogue, lu.libelle);
             quantite = lu.quantite;
           }
           let debutOption: string | null = null;
@@ -714,7 +734,7 @@ export function analyserReprise(classeur: ClasseurBrut, ctx: ContexteReprise): A
         totalArticles,
         options,
         etat: erreurs.length ? "erreur" : dejaPresent ? "deja_present" : "a_creer",
-        erreurs,
+        erreurs: erreurs.slice(0, MAX_ERREURS_LIGNE),
         avertissements: avert,
         repartition,
       });

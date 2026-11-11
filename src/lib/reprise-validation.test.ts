@@ -462,3 +462,27 @@ describe("analyserReprise : début des options", () => {
     expect(a.eleves[0].avertissements.join(" ")).toContain("« Début des options » ignoré");
   });
 });
+
+describe("analyserReprise : bornes de calcul (review sécurité T2)", () => {
+  it("refuse plus de 20 articles optionnels et plafonne les erreurs d'une ligne", () => {
+    const options = Array.from({ length: 150 }, () => "a").join(";");
+    const a = analyserReprise(classeur([eleve({ options })], { articles: [["CM2 A", "Transport", "mensuel", 5000, 1, "non"]] }), CTX);
+    expect(a.eleves[0].etat).toBe("erreur");
+    expect(a.eleves[0].erreurs[0]).toContain("20 au maximum");
+    expect(a.eleves[0].erreurs.length).toBeLessThanOrEqual(5);
+  });
+
+  it("n'agrandit plus le catalogue d'une classe au-delà du plafond", () => {
+    const articles: Cellule[][] = Array.from({ length: 200 }, (_, i) => ["CM2 A", `Article ${i}`, "unique", 1000, 1, "non"]);
+    const a = analyserReprise(classeur([eleve({ options: "Article 150" })], { articles }), CTX);
+    expect(a.erreursGlobales.join(" ")).toContain("30 articles au maximum");
+    expect(a.eleves[0].erreurs.join(" ")).toContain("absent du catalogue");
+  });
+
+  it("ne confond pas « constructor » avec une valeur connue", () => {
+    const a = analyserReprise(classeur([eleve({ sexe: "constructor", statut: "constructor" })]), CTX);
+    expect(typeof a.eleves[0].sexe).not.toBe("function");
+    expect(typeof a.eleves[0].statut).not.toBe("function");
+    expect(moisCellule("constructor", ["2026-10-01"])).toBe("invalide");
+  });
+});
