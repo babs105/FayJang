@@ -18,6 +18,7 @@ Répondre et écrire en **français** : messages, commentaires de code, libellé
 
 - `npm run dev` : serveur de dev (ou preview `fayjang`, port 3126). L'app exige les clés Supabase de `.env.local`.
 - `npx tsc --noEmit` : vérification des types
+- `npm run lint` : ESLint (`eslint.config.mjs`, règles Next + TypeScript). 0 erreur attendue ; les `any` volontaires restent en avertissement.
 - `npm run build` : à lancer avant tout push, c'est ce que Vercel exécute
 - `npm test` : tests automatiques (Vitest) de la logique pure de `src/lib` (fichiers `*.test.ts` à côté du code). À lancer avant tout push.
 

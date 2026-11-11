@@ -108,6 +108,9 @@ BLOQUANT | À CORRIGER | APPROUVÉ
 ## 🟡 Moyenne
 <liste à puces>
 
+## À vérifier (hypothèses non prouvées, hors verdict)
+- <soupçon> : <ce qu'il faudrait lire ou tester pour trancher>
+
 ## ✅ Ce qui est bon
 - ✅ <points validés>
 
@@ -128,6 +131,11 @@ BLOQUANT | À CORRIGER | APPROUVÉ
 - Vérifier qu'aucun montant à encaisser n'est cru depuis le client sans recalcul serveur
 - Donner un exemple de code corrigé pour chaque finding critique
 - Signaler les findings SQL à `database-reviewer` au lieu de les traiter
+- **Prouver chaque finding** : citer le fichier et la ligne lus, suivre l'appel
+  jusqu'au bout (une validation absente dans l'action peut exister dans le
+  helper appelé ou dans la fonction SQL), et vérifier que la correction
+  proposée ne casse pas un flux existant. Un soupçon non prouvé va dans
+  `## À vérifier`, pas dans les findings
 - Classer chaque finding par `impact` (business / maintien / cosmétique) et **ne pas lister** les cosmétiques dans la section 🔴 (section « Notes
   mineures » uniquement)
 - Ne pas dépasser **8 findings** par review
@@ -142,6 +150,9 @@ BLOQUANT | À CORRIGER | APPROUVÉ
 - Modifier un fichier
 - Lister un finding `impact: cosmétique` dans la section 🔴 (il va dans « Notes mineures », en 1 ligne)
 - Dépasser 8 findings listés
+- Écrire « aucune validation » ou « aucun contrôle » sans avoir lu les helpers
+  appelés (`src/lib/saisie.ts`, `src/lib/encaissement.ts`, `session()`)
+- Reprendre tel quel un finding d'une relecture externe
 
 ## Escalade
 

@@ -82,8 +82,12 @@ feature. Si une demande sort de ton scope, tu refuses et renvoies vers
    par `annulerPaiement(id, motif)` : le trigger `proteger_paiement` refuse tout
    le reste. L'annulation porte sur **tout le reçu** (même `lot_id`).
 4. **Le numéro de reçu vient de la base** (trigger `numeroter_recu`). Le code ne
-   calcule jamais de numéro. Les lignes encaissées ensemble partagent un
-   `lot_id = randomUUID()` créé dans l'action, et donc le même reçu.
+   calcule jamais de numéro. Les lignes encaissées ensemble sont créées par la
+   fonction SQL `encaisser_paiement` (jamais d'`insert` direct) et partagent un
+   `lot_id`, donc le même reçu. Ce `lot_id` est la **clé d'idempotence** du
+   formulaire (`lireCleEncaissement`) : un double clic ou un renvoi réseau
+   retombe sur le même reçu. L'action transmet aussi l'empreinte des paiements
+   lus (`empreintePaiements`) pour refuser un encaissement concurrent.
 5. **Validation à la main** des entrées (mode dans `MODES_PAIEMENT`, mois dans
    `moisScolaires()`, référence obligatoire pour le mobile money, montant entier
    positif via `montant()`). Pas de nouvelle dépendance : Zod n'est pas installé.
@@ -123,7 +127,8 @@ Chaque intervention produit :
 ## Invariants vérifiés
 - [ ] Montants recalculés côté serveur avec `situationInscription()`
 - [ ] Aucun DELETE ni UPDATE de montant sur `paiements`
-- [ ] Lignes d'un même encaissement dans le même `lot_id`
+- [ ] Lignes d'un même encaissement dans le même `lot_id`, créées par `encaisser_paiement`
+- [ ] Clé d'idempotence conservée (une par saisie) et empreinte des paiements transmise
 - [ ] Aucun numéro de reçu calculé dans le code
 - [ ] Référence exigée pour Wave / Orange Money / Free Money
 - [ ] `todayDakar()` pour les dates métier

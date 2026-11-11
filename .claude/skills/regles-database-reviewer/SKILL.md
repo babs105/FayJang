@@ -53,6 +53,28 @@ la base. Une revue qui laisse passer l'un de ces trois points est BLOQUANTE.
 
 ---
 
+## Preuve avant finding (règle de fiabilité)
+
+Un finding faux coûte cher : il part au backlog, il est relu, et son correctif
+peut casser la production (cas réel du 2026-11-11 : un index unique sur
+`(inscription_id, lot_id)` proposé alors qu'un lot a plusieurs lignes et que le
+trigger `numeroter_recu` garantissait déjà l'idempotence). Avant d'écrire un
+finding, **quatre contrôles** :
+
+1. **Lire le code actif**, pas le déduire. « Rien ne bloque X dans le schéma »
+   ne s'écrit qu'après avoir lu les contraintes, les index **et les triggers**
+   de la table (`.claude/SCHEMA-INDEX.md` → version active).
+2. **Citer la preuve** : chaque finding porte le fichier et la ligne lus. Sans
+   ligne citée, ce n'est pas un finding, c'est une hypothèse (section
+   « À vérifier », hors verdict).
+3. **Rejouer le correctif contre l'existant** : la correction proposée doit
+   rester compatible avec les données et les flux actuels (reçu de plusieurs
+   lignes, lot annulé, reprise de l'existant, lignes historiques sans `lot_id`).
+   Écrire en une phrase le cas normal qui continue de passer.
+4. **Relecture externe = hypothèse** : un finding venu d'un autre outil ou
+   d'une relecture extérieure se vérifie comme les autres avant d'entrer dans
+   le rapport, le backlog ou ce skill.
+
 ## 🔴 Critiques (C1-C15) — bloquent le merge
 
 ### C1 — RLS activée sur toute table `public`
@@ -155,9 +177,10 @@ Une ligne ne doit jamais pointer vers la donnée d'une autre école (élève ver
 le parent d'une autre école, inscription vers la classe d'une autre école,
 paiement vers l'inscription d'une autre école). La RLS ne le garantit pas : elle
 contrôle la ligne écrite, pas la ligne référencée. Le trigger `verifier_meme_ecole`
-(version active : bloc final v1.1) le fait, avec **une branche par table** et
-`NEW` lu **uniquement dans sa branche** (PL/pgSQL n'a pas de court-circuit : la
-v1.0 plantait en `42703` en lisant `NEW.parent_id` sur `inscriptions`).
+(version active : **la dernière occurrence dans `schema.sql`**) le fait, avec
+**une branche par table** et `NEW` lu **uniquement dans sa branche** (PL/pgSQL
+n'a pas de court-circuit : la v1.0 plantait en `42703` en lisant `NEW.parent_id`
+sur `inscriptions`).
 
 **Toute nouvelle FK vers une table d'école** doit ajouter sa branche au trigger
 et poser `trg_meme_ecole` sur la nouvelle table.
@@ -195,17 +218,21 @@ Une nouvelle fonction `echanger_*` qui ne vérifie que la ligne principale est u
 
 - **Aucune policy `DELETE`** sur `paiements`, pour aucun rôle.
 - La policy `ecole_annule` (`FOR UPDATE`) n'est sûre **que parce que** le trigger
-  `proteger_paiement` (version active : bloc final v1.4) refuse toute modification
-  hors `annule` / `motif_annulation` / `annule_at` / `encaisse_par`, et toute
-  modification d'un paiement déjà annulé.
+  `proteger_paiement` (version active : **la dernière occurrence dans `schema.sql`**)
+  refuse toute modification hors `annule` / `motif_annulation` / `annule_at` /
+  `encaisse_par`, et toute modification d'un paiement déjà annulé.
 - **Toute nouvelle colonne métier** sur `paiements` doit être ajoutée à la liste
   `IS DISTINCT FROM` de `proteger_paiement` dans le même bloc (voir H8).
 - FK depuis `paiements` : `ON DELETE RESTRICT` (`inscription_id`), jamais `CASCADE`.
   Une inscription qui a des paiements ne se supprime pas (`proteger_inscription`).
+- **Idempotence en base** : portée par le trigger `numeroter_recu` (voir H6 et
+  C13), pas par un index unique. Ne **jamais** proposer d'index unique sur
+  `(inscription_id, lot_id)` : un lot a plusieurs lignes par construction.
 
 ```bash
 grep -n "ON public.paiements FOR DELETE\|ON public.paiements FOR ALL" supabase/schema.sql   # aucun résultat attendu
 grep -n "REFERENCES public.inscriptions(id)" supabase/schema.sql                            # RESTRICT attendu
+grep -n "UNIQUE.*lot_id" supabase/schema.sql                                               # aucun résultat attendu
 ```
 
 ### C11 — Limite de tentatives sur les surfaces de connexion
@@ -255,7 +282,8 @@ REVOKE ALL ON public.compteurs_recus FROM PUBLIC, anon, authenticated;
 ### C13 — Numéro de reçu attribué par la base
 
 - Le numéro `FJ-<année>-<00001>` vient du trigger `numeroter_recu` (version active :
-  bloc final v1.4), compteur `compteurs_recus` par école et par année civile de `paye_le`.
+  **la dernière occurrence dans `schema.sql`**), compteur `compteurs_recus` par école
+  et par année civile de `paye_le`.
 - Les lignes d'un même encaissement partagent `lot_id` et donc le numéro. Un
   `lot_id` n'est réutilisable que **dans la même transaction**
   (`created_at = now()`) et pour **la même inscription** ; sinon `FJ412` / `FJ422`.
@@ -264,10 +292,10 @@ REVOKE ALL ON public.compteurs_recus FROM PUBLIC, anon, authenticated;
 
 ```bash
 grep -rn "numero_recu" src/app/*/actions.ts   # aucun résultat attendu (seules les actions écrivent)
-grep -n "lot_id" src/app/ecole/actions.ts   # randomUUID() créé dans l'action
+grep -n "lot_id\|cle" src/app/ecole/actions.ts   # clé reçue du formulaire (lireCleEncaissement), randomUUID() en secours
 ```
 
-### C14 — Codes d'erreur custom documentés
+### C14 — Codes d'erreur custom documentés, causes jamais reconnues par leur texte
 
 Les `RAISE EXCEPTION ... USING ERRCODE = 'FJxxx'` sont réservés aux erreurs métier
 au message écrit pour l'utilisateur. Liste actuelle : `FJ403` (colonnes réservées
@@ -279,9 +307,30 @@ reçu multi-élèves), `FJ429` (trop de tentatives). Chaque code doit être :
 2. Listé dans `CODES_METIER` de `src/lib/erreurs.ts` (sinon le message est masqué)
 3. Testé en dev
 
+**Un code couvre plusieurs causes, et c'est voulu** : `FJ412` est levé à une
+trentaine d'endroits (reçu déjà émis ou annulé, clé d'encaissement réutilisée,
+encaissement concurrent, montant au-delà du dû, élève parti, article déjà payé,
+classe d'une autre année…). Chaque `RAISE` porte **son propre message en
+français**, que `messageErreur()` affiche tel quel : c'est le message qui dit
+la cause à l'école. Aucun code TypeScript ne branche aujourd'hui sur la cause
+d'un `FJ4xx` (pas de nouvel essai automatique).
+
+- **Ne pas** signaler « `FJ412` fourre-tout » ni réclamer un champ `reason`
+  sur les `RAISE` existants : sans consommateur, ce serait du bruit.
+- **Est un finding** : du code TypeScript qui reconnaît une cause **par le
+  texte** d'un message ou d'une contrainte (`message.includes(...)`,
+  `startsWith(...)`) : il casse en silence quand le libellé change. Correctif
+  dans cet ordre : un code `FJ4xx` dédié, sinon
+  `USING DETAIL = 'reason: <cause>'` lu via `error.details` (jamais affiché),
+  sinon le nom **complet** de la contrainte.
+- **Est un finding** : deux causes différentes levées avec le **même message**,
+  quand l'utilisateur doit agir différemment (recharger et recommencer, ou
+  corriger sa saisie).
+
 ```bash
 grep -n "ERRCODE = 'FJ" supabase/schema.sql
 grep -n "CODES_METIER" src/lib/erreurs.ts
+grep -n "message.*includes(\|message.*startsWith(\|erreur\.startsWith(" src/app/*/actions.ts   # cause reconnue par son texte = finding
 ```
 
 ### C15 — Défense en profondeur : REVOKE ALL + ALTER DEFAULT PRIVILEGES
@@ -366,19 +415,48 @@ SELECT public.jwt_ecole_id(), p_inscription
 WHERE public.jwt_role_app() = 'ecole';
 ```
 
-### H6 — Doublons et UNIQUE composites
+### H6 — Idempotence : garantie en base par un trigger, pas seulement dans la fonction
 
-- Double-clic sur « Encaisser » : chaque appel crée un nouveau `lot_id`, donc un
-  second reçu. Le bouton est désactivé pendant l'envoi (`isPending`) ; une
-  protection serveur (clé d'idempotence) est au backlog. À signaler si une
-  tranche rend le double envoi plus probable.
+Toute clé d'idempotence (clé de rejeu, `lot_id`, `request_id`) doit être
+**garantie par la base** (contrainte ou trigger qui s'applique à tout `INSERT`),
+pas seulement vérifiée dans une fonction : sinon un futur chemin d'écriture
+(script, migration, endpoint) peut créer un doublon.
+
+**Sur `paiements`, c'est déjà le cas, sans index unique** :
+- Un lot = **plusieurs lignes** (plusieurs mois, inscription + mensualité,
+  services, reprise de l'existant) qui partagent `inscription_id` et `lot_id`.
+  Un index unique sur `(inscription_id, lot_id)` casserait tout encaissement
+  de plusieurs lignes : **ne jamais le proposer**.
+- La garantie est le trigger `BEFORE INSERT` `numeroter_recu` (version active) :
+  un `lot_id` déjà présent et inséré par une **transaction précédente**
+  (`created_at <> now()`) lève `FJ412`, quel que soit le chemin d'écriture,
+  annulé ou non. Un index partiel `WHERE annule = false` serait plus faible
+  (il laisserait rejouer un lot annulé).
+- `encaisser_paiement` ajoute par-dessus : rejeu identique → renvoie le reçu
+  existant au lieu d'une erreur ; rejeu différent → `FJ412` ; verrou advisory
+  `(école, lot_id)`.
+- La clé vient du formulaire (`cleEncaissement` dans `fiche-eleve.tsx`, une
+  par saisie) : un double clic renvoie la même clé et retombe sur le rejeu.
+
+**Ce qui est un finding** :
+- Une nouvelle table avec clé d'idempotence sans contrainte ni trigger en base.
+- Un chemin d'écriture sur `paiements` qui insère avec `lot_id IS NULL` (la
+  colonne est nullable pour l'historique : une ligne sans lot échappe au
+  contrôle). Correctif à proposer : `CHECK (lot_id IS NOT NULL) NOT VALID`,
+  après vérification des lignes existantes, pas un index unique.
+- Un client qui génère une nouvelle clé à chaque envoi (double clic = deux
+  lots, qu'aucun contrôle en base ne peut distinguer).
+
+**Vérifier aussi** :
 - Inscription : la réinscription la même année tombe sur l'UNIQUE
-  `(eleve_id, annee_scolaire)` → message « déjà inscrit » via `messageErreur(..., doublon)`.
+  `(eleve_id, annee_scolaire)` → message « déjà inscrit » via
+  `messageErreur(..., doublon)`.
 
 ### H7 — Index sur les colonnes de `WHERE` / `JOIN`
 
 Vérifier systématiquement qu'un filtre fréquent a son index :
-- `paiements(inscription_id)`, `paiements(ecole_id, paye_le)`, `paiements(ecole_id, lot_id)`
+- `paiements(inscription_id)`, `paiements(ecole_id, paye_le)`,
+  `paiements(ecole_id, lot_id)`
 - `inscriptions(ecole_id, annee_scolaire)`, `eleves(parent_id)`, `*(ecole_id)`
 
 ### H8 — Triggers `proteger_*` : toutes les colonnes sensibles couvertes
@@ -448,28 +526,49 @@ grep -n "CREATE OR REPLACE FUNCTION public.proteger_\|verifier_meme_ecole\|CREAT
 
 # REVOKE ALL sur les tables système (C12)
 grep -n "REVOKE ALL ON public\." supabase/schema.sql
+
+# Idempotence (H6) : trigger numeroter_recu présent, aucun index unique sur lot_id
+grep -n "Ce reçu est déjà émis" supabase/schema.sql   # FJ412 du trigger attendu
+grep -n "UNIQUE.*lot_id" supabase/schema.sql          # aucun résultat attendu
+
+# Cause d'erreur reconnue par son texte (C14)
+grep -rn "message.*includes(\|erreur\.startsWith(" src/app/*/actions.ts
 ```
 
 ---
 
 ## 🎯 Cas de test d'auto-évaluation
 
-Le skill est correctement calibré si, en le chargeant sur le `schema.sql` v1.4
+Le skill est correctement calibré si, en le chargeant sur le `schema.sql`
 actuel, l'agent trouve **au minimum** :
 
-1. ✅ `acces_ecole` sans policy, `REVOKE ALL` pour anon et authenticated (C3, C12) — **à valider**
-2. ✅ Aucune policy DELETE sur `paiements` ; `ecole_annule` couverte par `proteger_paiement` v1.4, qui liste aussi `lot_id` et `libelle` (C10, H8) — **à valider**
-3. ✅ `verifier_meme_ecole` active = bloc final v1.1 (une branche par table) : ne pas signaler la version v1.0 morte (C7)
-4. ✅ `numeroter_recu` active = v1.4 : lot réutilisable seulement dans la même transaction et pour la même inscription (C13) — **à valider**
-5. ✅ Policies parent filtrées par `jwt_parent_id()` via `eleves.parent_id` (H2) — **à valider**
-6. ✅ `echanger_acces_ecole` : verrou, tentatives par IP / identifiant / IP globale, bcrypt leurre (C11) — **à valider**
-7. ✅ `echanger_jeton_parent` vérifie `parents.is_active` et `ecoles.is_active` (C9) — **à valider**
-8. ✅ Double encaissement possible en cas de double envoi (H6) : finding connu, au backlog
+1. ✅ `acces_ecole` sans policy, `REVOKE ALL` pour anon et authenticated (C3, C12)
+2. ✅ Aucune policy DELETE sur `paiements` ; `ecole_annule` couverte par
+   `proteger_paiement` (version active), qui liste aussi `lot_id` et `libelle`
+   (C10, H8)
+3. ✅ `verifier_meme_ecole` : lire la **version active** (la dernière occurrence
+   dans `schema.sql`), ne pas signaler les versions mortes listées dans
+   `.claude/SCHEMA-INDEX.md` (C7)
+4. ✅ `numeroter_recu` : version active, lot réutilisable seulement dans la même
+   transaction et pour la même inscription (C13)
+5. ✅ Policies parent filtrées par `jwt_parent_id()` via `eleves.parent_id` (H2)
+6. ✅ `echanger_acces_ecole` : verrou, tentatives par IP / identifiant / IP
+   globale, bcrypt leurre (C11)
+7. ✅ `echanger_jeton_parent` vérifie `parents.is_active` et `ecoles.is_active` (C9)
+8. ✅ **Idempotence garantie en base** par `numeroter_recu` (lot d'une
+   transaction précédente → `FJ412`) et rejeu dans `encaisser_paiement` (H6).
+   **Ne pas** signaler l'absence d'index unique sur `lot_id` : il casserait les
+   reçus de plusieurs lignes (faux positif de la relecture externe 2026-11-11).
+9. ✅ **Cause d'erreur reconnue par son texte** (C14) : `inscrireEleve`
+   (`calcul.erreur.startsWith("Rien à encaisser")`) et `modifierInscription`
+   (`includes("date_depart")` sur une erreur 23514). Findings connus, **non
+   bloquants**, déjà au backlog. **Ne pas** signaler `FJ412` comme fourre-tout :
+   chaque `RAISE` a son message (faux positif de la relecture externe 2026-11-11).
 
-Points 1 à 7 → corrects, à mentionner dans « ✅ Ce qui est bon ». Point 8 → à
-mentionner sans bloquer.
+Points 1 à 8 → corrects, à mentionner dans « ✅ Ce qui est bon ».
+Point 9 → findings connus, à mentionner sans bloquer ni rouvrir.
 
-S'il rate l'un de ces 8, renforcer la section correspondante.
+S'il rate l'un de ces 9, renforcer la section correspondante.
 
 ---
 
@@ -482,6 +581,8 @@ Le skill produit un rapport structuré avec :
 - **🟠 Haute** : idem, plus condensé
 - **🟡 Moyenne** : liste à puces
 - **✅ Ce qui est bon** : liste obligatoire, pour ne pas décourager
+- **Notes mineures (non listées comme findings)** : les `impact: cosmétique`
+  en 1 ligne chacun, sans correction détaillée
 - **Escalade** : si décision business/légale, question + 2 options + recommandation
 
 Chaque finding critique doit inclure un **exemple de code corrigé prêt à

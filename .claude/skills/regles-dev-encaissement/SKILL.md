@@ -41,7 +41,7 @@ et le total. Le parent retrouve ses reçus sur `/p/[token]`.
   `ecole_annule` + trigger `proteger_paiement`)
 
 **Triggers à connaître :**
-- `numeroter_recu` (BEFORE INSERT) : numéro `JP-<année>-<00001>`, partagé par les
+- `numeroter_recu` (BEFORE INSERT) : numéro `FJ-<année>-<00001>`, partagé par les
   lignes du même `lot_id` insérées dans la même transaction.
 - `proteger_paiement` (BEFORE UPDATE) : seule l'annulation motivée passe.
 - `verifier_meme_ecole` : l'inscription doit appartenir à la même école.
@@ -59,9 +59,23 @@ L'action relit l'inscription et **tous** ses paiements, appelle
 Un mois déjà soldé est ignoré ; si plus rien n'est dû : refus clair.
 
 ### I2 — Un encaissement = un lot = un reçu
-Toutes les lignes créées par un appel partagent `lot_id = randomUUID()` créé dans
-l'action, et sont insérées **en un seul `insert([...])`** (même transaction) : la
-base leur donne le même `numero_recu`. Ne jamais calculer ni écrire de numéro.
+Toutes les lignes d'un encaissement partagent un `lot_id` et sont créées **par la
+fonction SQL `encaisser_paiement`** (un seul `INSERT`, une seule transaction) :
+la base leur donne le même `numero_recu`. Ne jamais calculer ni écrire de numéro,
+ne jamais faire d'`insert` direct sur `paiements` depuis l'action.
+
+### I2 bis — Idempotence et concurrence
+- Le `lot_id` est la **clé d'idempotence** : créée par le formulaire
+  (`cleEncaissement` dans `fiche-eleve.tsx`, une par saisie, renouvelée après
+  un succès ou quand la saisie change, voir `cleAEnvoyer`), validée par
+  `lireCleEncaissement()` ; absente ou invalide, l'action en génère une.
+- Même clé, même contenu → la base renvoie le reçu existant (`rejoue: true`,
+  message « déjà enregistré », rien n'est ajouté). Même clé, contenu différent
+  ou lot d'une autre transaction → `FJ412`.
+- L'action envoie l'**empreinte** des paiements lus (`empreintePaiements` :
+  nombre et total actif). Si un autre poste a encaissé entre la lecture et
+  l'écriture, la base refuse (`FJ412`) au lieu d'encaisser deux fois.
+- Ne jamais renouveler la clé à chaque clic : un double clic créerait deux reçus.
 
 ### I3 — Jamais de suppression ni de modification
 Pas de `DELETE`, pas d'`UPDATE` de montant, de mois, de mode ou de référence. Une
@@ -102,18 +116,23 @@ export async function encaisserPaiement(saisie: SaisiePaiement): Promise<Resulta
   if (!s) return { success: false, message: SESSION_EXPIREE };
   // mode dans MODES_PAIEMENT, référence obligatoire pour le mobile money (I5), montant() si saisi
 
-  const ecole = await lireEcole(s.supabase, s.ecoleId);        // calendrier + tranches
-  // inscription + paiements, toujours .eq("ecole_id", s.ecoleId)
-  const situation = situationInscription(ins, paiements ?? [], ecole, todayDakar());   // I1
+  if (!estUuid(saisie.inscription_id)) return { success: false, message: "Inscription introuvable." };
 
-  const base = { ecole_id: s.ecoleId, inscription_id: ins.id, mode, reference,
-                 paye_le: todayDakar(), lot_id: randomUUID() };                       // I2
-  // lignes selon le type ; dernier mois : libelleTranche ; puis trancheAvecMois (I4)
+  // inscription + paiements + calendrier, toujours .eq("ecole_id", s.ecoleId), puis situationInscription()  (I1)
+  const charge = await chargerSituation(s.supabase, s.ecoleId, saisie.inscription_id);
+  const cle = lireCleEncaissement(saisie.cle) ?? randomUUID();          // I2 bis : clé du formulaire
+  // lignes = lignesAEncaisser(situation, choix) : montants recalculés, tranche ajoutée au même reçu (I4)
 
-  const { data, error } = await s.supabase.from("paiements").insert(lignes).select("id");   // une seule insertion
-  if (error) throw error;
+  const empreinte = empreintePaiements(charge.paiements);              // I2 bis : rien n'a bougé depuis la lecture
+  const { data, error } = await s.supabase.rpc("encaisser_paiement", { // I2 : un INSERT, une transaction
+    p_inscription_id: ins.id, p_lot_id: cle, p_mode: reglement.mode, p_reference: reglement.reference,
+    p_lignes: lignesPourRpc(lignes), p_nb_paiements: empreinte.nb, p_total_actif: empreinte.total,
+  });
+  if (error) throw error;                                              // → messageErreur("paiements", err)
+  const resultat = lireResultatEncaissement(data);
   revalidatePath("/ecole");
-  return { success: true, message: "Reçu créé : …", data: { ids: (data ?? []).map((d) => d.id) } };
+  // resultat.rejoue → « Cet encaissement était déjà enregistré… », sinon « Reçu créé : … »
+  return { success: true, message: "Reçu créé : …", data: { ids: resultat.ids } };
 }
 ```
 
@@ -171,12 +190,13 @@ désactivée, élève en abandon, et l'exemple de référence de la v1.5 (132 00
 | Anti-pattern | Correction |
 |---|---|
 | Montant à encaisser reçu du client et inséré tel quel | Recalcul avec `situationInscription()` (I1) |
-| Plusieurs `insert` pour un même encaissement | Un seul `insert([...])` avec le même `lot_id` (I2) |
+| `insert` direct sur `paiements`, ou plusieurs appels pour un même encaissement | Un seul appel `rpc("encaisser_paiement")` (I2) |
 | `numero_recu` calculé ou écrit dans le code | Laisser le trigger `numeroter_recu` |
 | `DELETE` ou `update({ montant })` sur `paiements` | `annulerPaiement(id, motif)` (I3) |
 | Annulation d'une seule ligne d'un reçu multi-lignes | Annuler tout le lot |
 | Tranche calculée différemment côté fiche et côté serveur | Une seule fonction partagée dans `scolarite.ts` |
-| `lot_id` reçu du client | `randomUUID()` dans l'action |
+| Clé d'idempotence acceptée sans contrôle, ou renouvelée à chaque clic | `lireCleEncaissement()` côté serveur, une clé par saisie côté fiche (I2 bis) |
+| Encaisser sans empreinte des paiements lus | `empreintePaiements()` passée à la fonction SQL (I2 bis) |
 | `createAdminClient()` dans `src/app/ecole/` | `createClientEcole(ecoleId)` |
 | `error.message` renvoyé au client | `messageErreur()` |
 | `new Date()` pour `paye_le` ou une échéance | `todayDakar()` |

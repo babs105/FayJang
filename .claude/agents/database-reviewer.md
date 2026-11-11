@@ -128,7 +128,7 @@ que tu lis trop large ou que tu fais des appels redondants.
 | Sévérité | Points clés |
 |---|---|
 | 🔴 Critique | C1 RLS activée · C2 pas de `USING(true)` · C3 pas de secret dans une table SELECT · C4 `search_path` sur SECURITY DEFINER · C5 `REVOKE FROM PUBLIC` · C6 vérif rôle dans SECURITY DEFINER · C7 cohérence multi-écoles (`verifier_meme_ecole`) · C8 pas de client admin hors appelants autorisés · C9 `is_active` sur échanges · C10 paiements jamais supprimés ni modifiés · C11 limite de tentatives · C12 tables système verrouillées · C13 numéro de reçu attribué par la base · C14 codes d'erreur `FJ4xx` documentés · C15 REVOKE par défaut |
-| 🟠 Haute | H1 `WITH CHECK` sur FOR ALL/UPDATE · H2 isolation `parent_id` · H3 UNIQUE sur login · H4 CHECK invariants métier · H5 scope dans SECURITY DEFINER · H6 UNIQUE composites et doublons · H7 index sur WHERE/JOIN · H8 triggers `proteger_*` complets |
+| 🟠 Haute | H1 `WITH CHECK` sur FOR ALL/UPDATE · H2 isolation `parent_id` · H3 UNIQUE sur login · H4 CHECK invariants métier · H5 scope dans SECURITY DEFINER · H6 idempotence garantie en base (trigger ou contrainte) et doublons · H7 index sur WHERE/JOIN · H8 triggers `proteger_*` complets |
 | 🟡 Moyenne | M1 updated_at · M2 idempotence migrations · M3 REVOKE/GRANT · M4 lot de reçu cohérent · M5 aucun seed |
 
 
@@ -193,6 +193,9 @@ BLOQUANT | À CORRIGER | APPROUVÉ
 ## 🟡 Moyenne
 <liste à puces, sans code complet>
 
+## À vérifier (hypothèses non prouvées, hors verdict)
+- <soupçon> : <ce qu'il faudrait lire ou tester pour trancher>
+
 ## ✅ Ce qui est bon
 - ✅ RLS activée sur les N nouvelles tables
 - ✅ Aucune policy DELETE sur paiements
@@ -217,8 +220,13 @@ finding sur une fonction va dans `03-fonctions.sql`, etc.
   précisant **le fichier source** où l'insérer (`supabase/schema/0X-*.sql`)
 - Défendre chaque verdict BLOQUANT en 1 phrase (règle + exploitation)
 - Citer le chemin exact trouvé via `Grep`/`Read`, ne jamais inventer
-- Choisir la sévérité la plus haute en cas de doute (faux positif = 30 sec,
-  faux négatif = fuite en prod ou reçu faux)
+- **Prouver chaque finding** (section « Preuve avant finding » du skill) :
+  lire la version active, y compris les **triggers** de la table, citer la
+  ligne, et vérifier que la correction proposée ne casse pas un flux existant
+  (reçu de plusieurs lignes, lot annulé, reprise)
+- En cas de doute sur la **sévérité** d'un finding prouvé, choisir la plus
+  haute. En cas de doute sur l'**existence** du problème, ne pas le classer :
+  le mettre dans `## À vérifier` avec ce qu'il faudrait lire pour trancher
 - Vérifier que `schema.sql` est frais par rapport aux 5 sources
   (point 2), sinon refuser la review
 - Classer chaque finding par `impact` (business / maintien / cosmétique) et
@@ -241,6 +249,10 @@ finding sur une fonction va dans `03-fonctions.sql`, etc.
 - Auditer la performance Next.js (rendu, cache) → c'est l'agent dev
 - Lister un finding `impact: cosmétique` dans les sections 🔴/🟠/🟡 (il va dans « Notes mineures », en 1 ligne)
 - Dépasser 8 findings listés (couper, garder les plus importants)
+- Écrire « rien dans le schéma n'empêche… » sans avoir lu les triggers de la table
+- Proposer un index ou une contrainte unique sans avoir vérifié qu'une ligne
+  normale ne la viole pas (un lot de `paiements` a plusieurs lignes)
+- Reprendre tel quel un finding d'une relecture externe
 
 ## Escalade vers l'humain
 
@@ -259,6 +271,8 @@ Structure de l'escalade : question précise + 2 options avec leurs compromis
 - Aucun fichier lu en entier (sauf skill + index)
 - Aucune version morte lue (sauf justification)
 - `schema.sql` et `SCHEMA-INDEX.md` sont frais par rapport aux sources
+- Chaque finding cite une ligne lue, et chaque correction a été rejouée contre
+  un cas normal existant
 
 ## Format des findings non corrigés
 
