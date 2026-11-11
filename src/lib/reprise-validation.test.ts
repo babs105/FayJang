@@ -14,6 +14,7 @@ const CTX: ContexteReprise = {
   anneeScolaire: "2026-2027",
   aujourdhui: "2026-11-11",
   premierMois: "2026-10-01",
+  calendrier: { mois_debut: 10, nb_mensualites: 9, jour_echeance: 5 },
   classes: [],
   eleves: [],
 };
@@ -231,7 +232,12 @@ describe("analyserReprise", () => {
   it("garde une classe déjà en base sans la modifier, avec son catalogue", () => {
     const ctx: ContexteReprise = {
       ...CTX,
-      classes: [{ nom: "CM2 A", articles: [{ libelle: "Cantine", nature: "mensuel", obligatoire: false }] }],
+      classes: [
+        {
+          nom: "CM2 A", frais: 30000, mensualite: 15000, dernierMois: null,
+          articles: [{ libelle: "Cantine", nature: "mensuel", obligatoire: false, prix: 10000, quantiteDefaut: 1 }],
+        },
+      ],
     };
     const a = analyserReprise(
       classeur([eleve({ classe: "cm2 a", options: "Cantine" })], {
@@ -305,5 +311,68 @@ describe("analyserReprise", () => {
     const c = classeur([eleve()]);
     c.feuilles[3].tronquee = true;
     expect(analyserReprise(c, CTX).erreursGlobales[0]).toContain("découpez le fichier");
+  });
+});
+
+describe("analyserReprise : chiffrage des élèves", () => {
+  const ARTICLES = [["CM2 A", "Cantine", "mensuel", 10000, 1, "non"]];
+
+  it("répartit le versé et totalise l'arriéré de l'école", () => {
+    // Frais 25 000, mensualité 15 000 ; 62 000 versés au 11/11/2026 : inscription, octobre, novembre, 7 000 sur décembre
+    const a = analyserReprise(classeur([eleve({ scol: 62000 }), eleve({ prenom: "Modou", tel: "70 111 22 34", scol: 25000 })]), CTX);
+    expect(a.eleves[0].repartition).toMatchObject({ arriere: 0, resteAnnee: 98000, totalPaye: 62000 });
+    expect(a.eleves[0].repartition?.paiements.map((p) => p.montant)).toEqual([25000, 15000, 15000, 7000]);
+    // Le second ne doit que octobre et novembre
+    expect(a.eleves[1].repartition).toMatchObject({ arriere: 30000, resteAnnee: 135000 });
+    expect(a.totaux).toEqual({ arriere: 30000, resteAnnee: 233000, verse: 87000 });
+  });
+
+  it("refuse un versé supérieur au dû de l'année", () => {
+    const a = analyserReprise(classeur([eleve({ scol: 170000 })]), CTX);
+    expect(a.eleves[0].etat).toBe("erreur");
+    expect(a.eleves[0].erreurs.join(" ")).toContain("dépasse");
+    expect(a.eleves[0].repartition).toBeNull();
+    expect(a.totaux.arriere).toBe(0);
+  });
+
+  it("signale un élève parti qui a trop versé", () => {
+    const a = analyserReprise(classeur([eleve({ scol: 60000, statut: "abandon", depart: "05/11/2026" })]), CTX);
+    expect(a.eleves[0].etat).toBe("a_creer");
+    expect(a.eleves[0].avertissements.join(" ")).toContain("versés après le départ");
+  });
+
+  it("classe déjà en base : des tarifs différents dans le fichier refusent ses élèves", () => {
+    const ctx: ContexteReprise = { ...CTX, classes: [{ nom: "CM2 A", frais: 30000, mensualite: 15000, dernierMois: null, articles: [] }] };
+    const a = analyserReprise(classeur([eleve()], { classes: [["CM2 A", "elementaire", 25000, 15000, null]] }), ctx);
+    expect(a.eleves[0].etat).toBe("erreur");
+    expect(a.eleves[0].erreurs).toContain("Les tarifs du fichier diffèrent de la classe CM2 A de FayJàng : corrigez le fichier ou la classe.");
+  });
+
+  it("classe déjà en base : ses tarifs servent au calcul quand le fichier est identique ou muet", () => {
+    const ctx: ContexteReprise = { ...CTX, classes: [{ nom: "CM2 A", frais: 30000, mensualite: 15000, dernierMois: null, articles: [] }] };
+    const a = analyserReprise(classeur([eleve({ scol: 30000 })], { classes: [["CM2 A", "elementaire", null, null, null]] }), ctx);
+    expect(a.eleves[0].etat).toBe("a_creer");
+    expect(a.eleves[0].repartition?.paiements[0]).toMatchObject({ type: "inscription", montant: 30000 });
+  });
+
+  it("classe nouvelle : le catalogue du fichier (prix, quantité) entre dans le calcul", () => {
+    const a = analyserReprise(
+      classeur([eleve({ scol: null, art: 20000, options: "Cantine" })], { articles: ARTICLES }),
+      CTX
+    );
+    expect(a.eleves[0].etat).toBe("a_creer");
+    expect(a.eleves[0].repartition?.paiements.map((p) => [p.article, p.mois, p.montant])).toEqual([
+      ["Cantine", "2026-10-01", 10000],
+      ["Cantine", "2026-11-01", 10000],
+    ]);
+    // Cantine due pour octobre et novembre, soldée : plus d'arriéré sur l'article, mais l'inscription et les mois restent dus
+    expect(a.eleves[0].repartition?.arriere).toBe(25000 + 30000);
+  });
+
+  it("ne chiffre pas un élève déjà présent", () => {
+    const ctx: ContexteReprise = { ...CTX, eleves: [{ prenom: "Aminata", nom: "Faye", telephone: "+221774005060" }] };
+    const a = analyserReprise(classeur([eleve()]), ctx);
+    expect(a.eleves[0].etat).toBe("deja_present");
+    expect(a.eleves[0].repartition).toBeNull();
   });
 });

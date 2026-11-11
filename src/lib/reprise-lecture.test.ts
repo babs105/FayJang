@@ -122,6 +122,7 @@ describe("lireClasseur", () => {
       anneeScolaire: "2026-2027",
       aujourdhui: "2026-11-11",
       premierMois: "2026-10-01",
+      calendrier: { mois_debut: 10, nb_mensualites: 9, jour_echeance: 5 },
       classes: [],
       eleves: [],
     });

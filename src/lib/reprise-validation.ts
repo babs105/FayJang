@@ -1,8 +1,10 @@
-// Reprise de l'existant : contrôle de forme du fichier (classes, articles, élèves), sans aucun calcul d'argent.
-// Produit l'aperçu ligne par ligne affiché à l'école avant tout import. N'écrit rien.
+// Reprise de l'existant : contrôle de forme du fichier (classes, articles, élèves), puis chiffrage de chaque élève
+// (reprise-repartition.ts). Produit l'aperçu ligne par ligne affiché à l'école avant tout import. N'écrit rien.
 import { normaliserTelephone } from "@/lib/telephone";
 import type { Cellule, ClasseurBrut, FeuilleBrute } from "@/lib/reprise-lecture";
 import { COLONNES_REQUISES, normaliser, reconnaitreEntetes, typeFeuille, type TypeFeuille } from "@/lib/reprise-colonnes";
+import { repartirReprise, type ArticlePrevu, type PaiementPrevu } from "@/lib/reprise-repartition";
+import type { CalendrierEcole } from "@/lib/scolarite";
 import type { NatureArticle, Niveau, StatutInscription } from "@/types/database";
 
 export const MAX_ELEVES = 2000;
@@ -119,8 +121,10 @@ export interface ContexteReprise {
   aujourdhui: string;
   /** Premier mois de l'année scolaire, AAAA-MM-01 */
   premierMois: string;
-  /** Classes déjà présentes pour l'année, avec leur catalogue */
-  classes: { nom: string; articles: ArticleCatalogue[] }[];
+  /** Paramètres de l'école (calendrier, tranches, mois exigibles à l'inscription) */
+  calendrier: CalendrierEcole;
+  /** Classes déjà présentes pour l'année, avec leurs tarifs et leur catalogue (dans l'ordre du catalogue) */
+  classes: { nom: string; frais: number; mensualite: number; dernierMois: number | null; articles: ArticleCatalogue[] }[];
   /** Élèves déjà inscrits cette année (téléphone du parent normalisé) */
   eleves: { prenom: string; nom: string; telephone: string }[];
 }
@@ -129,6 +133,17 @@ export interface ArticleCatalogue {
   libelle: string;
   nature: NatureArticle;
   obligatoire: boolean;
+  prix: number;
+  quantiteDefaut: number;
+}
+
+/** Ce que l'élève verse, réparti en paiements, et ce que l'app affichera ensuite */
+export interface RepartitionEleve {
+  paiements: PaiementPrevu[];
+  articles: ArticlePrevu[];
+  arriere: number;
+  resteAnnee: number;
+  totalPaye: number;
 }
 
 export interface ClasseApercu {
@@ -179,6 +194,8 @@ export interface EleveApercu {
   etat: "a_creer" | "deja_present" | "erreur";
   erreurs: string[];
   avertissements: string[];
+  /** Chiffrage de l'élève ; null s'il est en erreur ou déjà présent */
+  repartition: RepartitionEleve | null;
 }
 
 export interface ApercuReprise {
@@ -189,6 +206,8 @@ export interface ApercuReprise {
   articles: ArticleApercu[];
   eleves: EleveApercu[];
   compteurs: { aCreer: number; dejaPresents: number; erreurs: number; parents: number; classesNouvelles: number };
+  /** Somme sur les élèves à créer, à comparer au cahier de caisse de l'école */
+  totaux: { arriere: number; resteAnnee: number; verse: number };
 }
 
 /** Élèves d'exemple du modèle : à effacer avant l'import */
@@ -328,9 +347,35 @@ export function analyserReprise(classeur: ClasseurBrut, ctx: ContexteReprise): A
   }
 
   // Classes utilisables par les élèves : nouvelles sans erreur du fichier + classes déjà en base
-  const catalogues = new Map<string, { nom: string; articles: ArticleCatalogue[] }>();
-  for (const [cle, c] of classesBase) catalogues.set(cle, { nom: c.nom, articles: c.articles });
-  for (const c of classes) if (c.etat === "nouvelle") catalogues.set(normaliser(c.nom), { nom: c.nom, articles: [] });
+  // Une classe déjà en base garde ses tarifs : si le fichier en donne d'autres, ses élèves sont refusés (décision DO3-A)
+  interface CatalogueClasse {
+    nom: string;
+    articles: ArticleCatalogue[];
+    tarifs: { frais: number; mensualite: number; dernierMois: number | null } | null;
+    ecart: string | null;
+  }
+  const catalogues = new Map<string, CatalogueClasse>();
+  for (const [cle, c] of classesBase) {
+    const tarifs = { frais: c.frais, mensualite: c.mensualite, dernierMois: c.dernierMois };
+    const fichier = classesFichier.get(cle);
+    // Seules les valeurs données par le fichier sont comparées ; une case vide ne contredit pas la classe
+    const differe =
+      !!fichier &&
+      ((fichier.frais !== null && fichier.frais !== c.frais) ||
+        (fichier.mensualite !== null && fichier.mensualite !== c.mensualite) ||
+        (fichier.dernierMois !== null && fichier.dernierMois !== (c.dernierMois ?? c.mensualite)));
+    catalogues.set(cle, {
+      nom: c.nom,
+      articles: c.articles,
+      tarifs,
+      ecart: differe ? `Les tarifs du fichier diffèrent de la classe ${c.nom} de FayJàng : corrigez le fichier ou la classe.` : null,
+    });
+  }
+  for (const c of classes) {
+    if (c.etat !== "nouvelle") continue;
+    const tarifs = c.frais !== null && c.mensualite !== null ? { frais: c.frais, mensualite: c.mensualite, dernierMois: c.dernierMois } : null;
+    catalogues.set(normaliser(c.nom), { nom: c.nom, articles: [], tarifs, ecart: null });
+  }
 
   // ----- Articles -----
   const articles: ArticleApercu[] = [];
@@ -383,7 +428,9 @@ export function analyserReprise(classeur: ClasseurBrut, ctx: ContexteReprise): A
       articles.push(article);
       // Une classe déjà en base garde son catalogue : seul le fichier d'une classe nouvelle le remplit
       if (article.etat === "nouveau" && nature) {
-        catalogues.get(cleClasse)?.articles.push({ libelle, nature, obligatoire: article.obligatoire });
+        catalogues.get(cleClasse)?.articles.push({
+          libelle, nature, obligatoire: article.obligatoire, prix: article.prix ?? 0, quantiteDefaut: article.quantite,
+        });
       }
     }
   }
@@ -437,7 +484,7 @@ export function analyserReprise(classeur: ClasseurBrut, ctx: ContexteReprise): A
         erreurs.push(enErreur ? `La classe « ${classeSaisie} » est en erreur dans la feuille « Classes ».` : `Classe « ${classeSaisie} » inconnue : ajoutez-la dans la feuille « Classes ».`);
       }
 
-      // Montants (contrôle de forme seulement : la répartition vient à l'étape suivante)
+      // Montants (contrôle de forme ici ; la répartition est calculée plus bas)
       const lireMontant = (col: "totalScolarite" | "totalArticles" | "reduction", libelle: string): number | null => {
         const m = montantCellule(cellule(col));
         if (m === "invalide") {
@@ -518,6 +565,8 @@ export function analyserReprise(classeur: ClasseurBrut, ctx: ContexteReprise): A
         }
       }
 
+      if (catalogue?.ecart) erreurs.push(catalogue.ecart);
+
       // Doublons et élèves déjà présents
       let dejaPresent = false;
       if (prenom && nom && telephone) {
@@ -536,6 +585,29 @@ export function analyserReprise(classeur: ClasseurBrut, ctx: ContexteReprise): A
         if (connu && normaliser(connu.nom) !== normaliser(parent)) {
           avert.push(`Même téléphone que la ligne ${connu.ligne} avec un autre nom de parent (« ${connu.nom} ») : un seul parent sera créé.`);
         } else if (!connu && parent) parentsParTelephone.set(telephone, { nom: parent, ligne: numero });
+      }
+
+      // Chiffrage : seulement pour un élève qui sera créé et dont la ligne est valide
+      let repartition: RepartitionEleve | null = null;
+      if (!erreurs.length && !dejaPresent && catalogue?.tarifs) {
+        const r = repartirReprise({
+          anneeScolaire: ctx.anneeScolaire,
+          aujourdhui: ctx.aujourdhui,
+          ecole: ctx.calendrier,
+          tarifs: catalogue.tarifs,
+          reduction,
+          catalogue: catalogue.articles,
+          statut: statut ?? "active",
+          dateDepart: typeof depart === "string" && depart !== "invalide" ? depart : null,
+          verseScolarite: totalScolarite,
+          verseArticles: totalArticles,
+          options,
+        });
+        if (!r.ok) erreurs.push(r.erreur);
+        else {
+          repartition = { paiements: r.paiements, articles: r.articles, ...r.resume };
+          avert.push(...r.avertissements);
+        }
       }
 
       eleves.push({
@@ -558,6 +630,7 @@ export function analyserReprise(classeur: ClasseurBrut, ctx: ContexteReprise): A
         etat: erreurs.length ? "erreur" : dejaPresent ? "deja_present" : "a_creer",
         erreurs,
         avertissements: avert,
+        repartition,
       });
     }
   }
@@ -579,6 +652,11 @@ export function analyserReprise(classeur: ClasseurBrut, ctx: ContexteReprise): A
       erreurs: eleves.filter((e) => e.etat === "erreur").length,
       parents: new Set(aCreer.map((e) => e.telephone)).size,
       classesNouvelles: classes.filter((c) => c.etat === "nouvelle").length,
+    },
+    totaux: {
+      arriere: aCreer.reduce((s, e) => s + (e.repartition?.arriere ?? 0), 0),
+      resteAnnee: aCreer.reduce((s, e) => s + (e.repartition?.resteAnnee ?? 0), 0),
+      verse: aCreer.reduce((s, e) => s + (e.repartition?.totalPaye ?? 0), 0),
     },
   };
 }

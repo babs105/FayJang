@@ -139,6 +139,11 @@
   s'appuyer sur une contrainte d'unicité en base. *Estimé : 30 min. Croise : tranche 5 de l'import.*
   (review security tranche 1 « reprise de l'existant », 2026-11-11)
 
+- [ ] **`formatMois` recrée un `Intl.DateTimeFormat` à chaque appel** — `src/lib/dates.ts` ; `situationInscription`
+  l'appelle pour chaque libellé d'article. Un aperçu de 2000 élèves paie ce coût, et la suite de tests de parité de la
+  reprise prend ~30 s. Correctif : formateur créé une fois au niveau du module. *Estimé : 15 min. Croise : prochaine
+  tranche qui touche `dates.ts`.* (tranche 2 « reprise de l'existant », 2026-11-11)
+
 
 ---
 

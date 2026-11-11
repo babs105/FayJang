@@ -106,6 +106,16 @@ export function ReprisePanel() {
               <Kpi label="Lignes en erreur" valeur={String(apercu.compteurs.erreurs)} ton={apercu.compteurs.erreurs ? "rouge" : undefined} />
               <Kpi label="Classes à créer" valeur={String(apercu.compteurs.classesNouvelles)} />
             </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <Kpi
+                label="Arriéré total de l'école"
+                valeur={formatFCFA(apercu.totaux.arriere)}
+                detail="à comparer à votre cahier de caisse"
+                ton={apercu.totaux.arriere ? "rouge" : "vert"}
+              />
+              <Kpi label="Reste sur l'année" valeur={formatFCFA(apercu.totaux.resteAnnee)} detail="élèves à créer" />
+              <Kpi label="Déjà versé" valeur={formatFCFA(apercu.totaux.verse)} detail="élèves à créer" />
+            </div>
             {apercu.erreursGlobales.length > 0 && (
               <Message ok={false}>
                 <p className="font-bold mb-1">Le fichier ne peut pas être importé :</p>
@@ -126,7 +136,7 @@ export function ReprisePanel() {
               </div>
             )}
             <p className="text-[11px] text-neutral-500">
-              Prochaine étape (bientôt) : le calcul, pour chaque élève, des mois payés, de l&apos;arriéré et du reste à payer, puis l&apos;import.
+              Les montants ci-dessous sont calculés comme FayJàng les affichera après l&apos;import. Prochaine étape (bientôt) : l&apos;import lui-même.
             </p>
           </Carte>
 
@@ -247,6 +257,9 @@ export function ReprisePanel() {
                       <th className="py-1.5 pr-3 font-bold">Parent</th>
                       <th className="py-1.5 pr-3 font-bold text-right">Versé scolarité</th>
                       <th className="py-1.5 pr-3 font-bold text-right">Versé articles</th>
+                      <th className="py-1.5 pr-3 font-bold">Paiements prévus</th>
+                      <th className="py-1.5 pr-3 font-bold text-right">Arriéré</th>
+                      <th className="py-1.5 pr-3 font-bold text-right">Reste sur l&apos;année</th>
                       <th className="py-1.5 font-bold">État</th>
                     </tr>
                   </thead>
@@ -279,6 +292,33 @@ export function ReprisePanel() {
                         </td>
                         <td className="py-1.5 pr-3 text-right whitespace-nowrap">{montant(e.totalScolarite)}</td>
                         <td className="py-1.5 pr-3 text-right whitespace-nowrap">{montant(e.totalArticles)}</td>
+                        <td className="py-1.5 pr-3 min-w-[170px]">
+                          {e.repartition ? (
+                            e.repartition.paiements.length === 0 ? (
+                              <span className="text-neutral-400">Aucun</span>
+                            ) : (
+                              <details>
+                                <summary className="cursor-pointer text-jang-700 font-bold">
+                                  {e.repartition.paiements.length} paiement{e.repartition.paiements.length > 1 ? "s" : ""}
+                                </summary>
+                                <ul className="mt-1 space-y-0.5 text-[11px] text-neutral-600">
+                                  {e.repartition.paiements.map((p, i) => (
+                                    <li key={i} className="flex justify-between gap-3">
+                                      <span>{p.libelle}</span>
+                                      <span className="whitespace-nowrap">{formatFCFA(p.montant)}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </details>
+                            )
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                        <td className={cn("py-1.5 pr-3 text-right whitespace-nowrap font-bold", e.repartition?.arriere ? "text-red-700" : "text-neutral-800")}>
+                          {montant(e.repartition?.arriere ?? null)}
+                        </td>
+                        <td className="py-1.5 pr-3 text-right whitespace-nowrap">{montant(e.repartition?.resteAnnee ?? null)}</td>
                         <td className="py-1.5 min-w-[180px]">
                           {e.etat === "erreur" ? <Erreurs liste={e.erreurs} /> : <Badge ton={ETAT_ELEVE[e.etat].ton}>{ETAT_ELEVE[e.etat].libelle}</Badge>}
                           {e.avertissements.map((a, i) => (
