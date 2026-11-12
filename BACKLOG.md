@@ -149,17 +149,17 @@ _Aucun bug à planifier en attente._
 - [x] **Écran dédié quand l'école dépasse le nombre de lignes** — message « contactez le support » distinct de la panne
   passagère (`src/app/ecole/page.tsx`). Commit `d38b5f1`. (2026-11-11)
 - [x] **Paiement protégé de la suppression** — trigger `trg_interdire_suppression_paiement` (BEFORE DELETE), y compris
-  depuis l'éditeur SQL ; nettoyage de tests : `SET LOCAL fayjang.allow_paiement_delete = 'on'` dans la transaction. Bloc v1.19, commit `626d80b`, testé sur une base Postgres locale ; à appliquer sur Supabase. (2026-11-12)
-- [x] **Message de classe désactivée** — `inscrire_eleve` répond « Classe introuvable ou désactivée. ». Bloc v1.19, commit `626d80b`, testé sur une base Postgres locale ; à appliquer sur Supabase. (2026-11-12)
-- [x] **Parent connu non réécrit à l'inscription** — `ON CONFLICT DO NOTHING` puis lecture, comme l'import. Bloc v1.19, commit `626d80b`, testé sur une base Postgres locale ; à appliquer sur Supabase. (2026-11-12)
+  depuis l'éditeur SQL ; nettoyage de tests : `SET LOCAL fayjang.allow_paiement_delete = 'on'` dans la transaction. Bloc v1.19, commit `626d80b`, testé sur une base Postgres locale ; appliqué sur Supabase en production le 2026-11-12. (2026-11-12)
+- [x] **Message de classe désactivée** — `inscrire_eleve` répond « Classe introuvable ou désactivée. ». Bloc v1.19, commit `626d80b`, testé sur une base Postgres locale ; appliqué sur Supabase en production le 2026-11-12. (2026-11-12)
+- [x] **Parent connu non réécrit à l'inscription** — `ON CONFLICT DO NOTHING` puis lecture, comme l'import. Bloc v1.19, commit `626d80b`, testé sur une base Postgres locale ; appliqué sur Supabase en production le 2026-11-12. (2026-11-12)
 - [x] **Un message FJ422 par cause à l'inscription** — nombre de lignes, forme, libellé, doublon, mois hors année,
-  article non encaissable, montant au-delà du dû ; les contrôles ne changent pas. Bloc v1.19, commit `626d80b`, testé sur une base Postgres locale ; à appliquer sur Supabase. (2026-11-12)
-- [x] **Verrou de lot dans `inscrire_eleve`** (M4) — même verrou « lot: » que `encaisser_paiement`. Bloc v1.19, commit `626d80b`, testé sur une base Postgres locale ; à appliquer sur Supabase. (2026-11-12)
-- [x] **Matricule FayJàng factorisé** — `prochain_matricule(annee)`, appelée par `inscrire_eleve` et `importer_reprise`. Bloc v1.19, commit `626d80b`, testé sur une base Postgres locale ; à appliquer sur Supabase. (2026-11-12)
+  article non encaissable, montant au-delà du dû ; les contrôles ne changent pas. Bloc v1.19, commit `626d80b`, testé sur une base Postgres locale ; appliqué sur Supabase en production le 2026-11-12. (2026-11-12)
+- [x] **Verrou de lot dans `inscrire_eleve`** (M4) — même verrou « lot: » que `encaisser_paiement`. Bloc v1.19, commit `626d80b`, testé sur une base Postgres locale ; appliqué sur Supabase en production le 2026-11-12. (2026-11-12)
+- [x] **Matricule FayJàng factorisé** — `prochain_matricule(annee)`, appelée par `inscrire_eleve` et `importer_reprise`. Bloc v1.19, commit `626d80b`, testé sur une base Postgres locale ; appliqué sur Supabase en production le 2026-11-12. (2026-11-12)
 - [x] **Ordre des verrous inscription / import** (H5) — le verrou « matricule: » est pris avant l'écriture du parent des
-  deux côtés. Corrigé par construction, sans test de concurrence. Bloc v1.19, commit `626d80b`, testé sur une base Postgres locale ; à appliquer sur Supabase. (2026-11-12)
+  deux côtés. Corrigé par construction, sans test de concurrence. Bloc v1.19, commit `626d80b`, testé sur une base Postgres locale ; appliqué sur Supabase en production le 2026-11-12. (2026-11-12)
 - [x] **Articles obligatoires vérifiés par `importer_reprise`** — un élève à qui il manque un article obligatoire de sa
-  classe est refusé ; exception gardée : service sans versement après la fin de l'année. Bloc v1.19, commit `626d80b`, testé sur une base Postgres locale ; à appliquer sur Supabase. (2026-11-12)
+  classe est refusé ; exception gardée : service sans versement après la fin de l'année. Bloc v1.19, commit `626d80b`, testé sur une base Postgres locale ; appliqué sur Supabase en production le 2026-11-12. (2026-11-12)
 - [x] **Durcissements de `importer_reprise`** — `CASE` devant `jsonb_array_length` (aussi dans `inscrire_eleve`) ;
   `TAILLE_LOT` documenté à 25 au plus (`src/lib/reprise-lots.ts`) ; homonymes et `revalidatePath` réglés par
-  `d38b5f1`. Bloc v1.19, commit `626d80b`, testé sur une base Postgres locale ; à appliquer sur Supabase. (2026-11-12)
+  `d38b5f1`. Bloc v1.19, commit `626d80b`, testé sur une base Postgres locale ; appliqué sur Supabase en production le 2026-11-12. (2026-11-12)
