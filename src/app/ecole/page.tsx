@@ -3,6 +3,7 @@ import { createClientEcole } from "@/lib/supabase/server";
 import { getEcoleId } from "@/lib/ecole-session";
 import { getAppBaseUrl, todayDakar } from "@/lib/config";
 import { situationInscription } from "@/lib/scolarite";
+import { lireSituationAbonnement } from "@/lib/abonnement";
 import { derniereModification } from "@/lib/modifications";
 import { LectureTropLongue, TAILLE_PAGE, comparer, toutLire, toutLireParIds } from "@/lib/lecture-paginee";
 import { EcoleDashboardClient } from "./ecole-dashboard-client";
@@ -37,6 +38,14 @@ export default async function EcolePage({ searchParams }: PageProps) {
     return <ErreurBase migrationManquante={migrationManquante} />;
   }
   if (!ecole) redirect("/ecole/login");
+
+  // État de l'abonnement : calculé par la base, seule à porter la règle (elle refuse aussi les écritures).
+  // Lecture en échec (ou bloc v1.20 pas encore appliqué) : pas de bandeau plutôt qu'une page en erreur,
+  // le refus des écritures ne dépend pas de cet affichage.
+  const { data: abonnementBrut, error: erreurAbonnement } = await supabase.rpc("abonnement_ecole");
+  const abonnementLu = erreurAbonnement ? null : lireSituationAbonnement(abonnementBrut);
+  if (!abonnementLu) console.error("[ecole/page] lecture de l'abonnement :", erreurAbonnement?.code ?? "réponse illisible");
+  const abonnement = abonnementLu ?? { etat: "normal" as const, fin: null, finGrace: null, joursRestants: null };
 
   const annee = ecole.annee_scolaire;
   // Lectures paginées (PostgREST renvoie 1000 lignes au plus) avec un ordre stable terminé par l'id ;
@@ -219,6 +228,7 @@ export default async function EcolePage({ searchParams }: PageProps) {
       eleves={elevesVue}
       paiements={paiementsVue}
       aujourdhui={aujourdhui}
+      abonnement={abonnement}
       bienvenue={bienvenue === "1"}
       numeroWave={process.env.WAVE_NUMERO_PAIEMENT || null}
     />

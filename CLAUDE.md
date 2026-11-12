@@ -89,7 +89,7 @@ Toute action École suit ce modèle, dans cet ordre :
   puis `bash scripts/schema-index.sh` pour l'index, puis mettre à jour
   `src/types/database.ts` **dans le même commit** (cohérence obligatoire).
 - L'édition d'une source du schéma (`supabase/schema/*.sql`) par un agent dev n'est autorisée qu'après accord explicite de l'humain dans la conversation. L'agent édite la source (nouveau bloc `vX.Y` en fin de `05-migrations.sql`), lance `bash supabase/scripts/build-schema.sh` puis `bash scripts/schema-index.sh`, puis s'arrête. L'humain relit le diff (`git diff supabase/schema/ supabase/schema.sql`) et applique en base. Sans accord, l'agent ne fait que proposer. Deux hooks demandent l'accord à chaque écriture d'un `.sql` (`block-sql-writes.sh` pour Write/Edit, `block-sql-bash.sh` pour une commande shell).
-- Nouvelle table : `ecole_id`, RLS activée et politiques (section 9). Codes d'erreur métier : `FJ403`, `FJ404`, `FJ412`, `FJ422`, `FJ429` (`src/lib/erreurs.ts`).
+- Nouvelle table : `ecole_id`, RLS activée et politiques (section 9), et le trigger `trg_abonnement_ecriture` (garde d'abonnement, modèle dans `/migration-schema`). Codes d'erreur métier : `FJ403`, `FJ404`, `FJ412`, `FJ422`, `FJ429` (`src/lib/erreurs.ts`).
 - Le schéma est appliqué à la main par l'utilisateur dans Supabase : lui rappeler de le relancer.
 
 ### Dates

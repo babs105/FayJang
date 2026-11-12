@@ -3040,3 +3040,130 @@ $$;
 DROP TRIGGER IF EXISTS trg_interdire_suppression_paiement ON public.paiements;
 CREATE TRIGGER trg_interdire_suppression_paiement BEFORE DELETE ON public.paiements
     FOR EACH ROW EXECUTE FUNCTION public.interdire_suppression_paiement();
+
+-- ==============================================================================
+-- v1.20 : abonnement appliqué automatiquement (feature D02, tranche 1).
+-- Une école dont l'essai ou l'abonnement est fini depuis plus de 7 jours, ou que le SuperAdmin a passée en
+-- « Suspendu » ou « Expiré », est en lecture seule : la base refuse ses écritures (FJ403), même si une Server
+-- Action oubliait de le contrôler. Rien n'est écrit pour cela : l'état est calculé depuis statut_abonnement,
+-- trial_ends_at et abonnement_fin. Aucune colonne, aucune table, aucun bloc existant modifié.
+--
+-- LA RÈGLE N'EXISTE QU'ICI. L'application ne la recalcule pas : elle lit abonnement_ecole() pour afficher le
+-- bandeau, et les triggers lisent la même fonction pour refuser. Changer un délai se fait dans
+-- situation_abonnement, nulle part ailleurs.
+--
+-- 1. situation_abonnement(statut, fin d'essai, fin d'abonnement, jour) : JSON
+--    { etat, fin, fin_grace, jours_restants }. Pure (jour passé en paramètre), donc testable sans table.
+--      - 'suspendu' ou 'expire' : etat 'lecture_seule' immédiat, sans délai de grâce, pas de date ;
+--      - fin = jour de Dakar de trial_ends_at (essai) ou abonnement_fin (actif) ; sans date : 'normal' ;
+--      - de fin - 7 à fin : 'alerte' ; de fin + 1 à fin + 7 : 'grace' ; ensuite : 'lecture_seule'.
+-- 2. abonnement_ecole() : la situation de l'école du JWT, au jour de Dakar. SECURITY INVOKER : l'école lit sa
+--    propre ligne de ecoles par sa policy. NULL si l'école est introuvable.
+-- 3. verifier_ecriture_ecole() : lève FJ403 si le rôle est « ecole » et que son état est 'lecture_seule' (ou
+--    que l'école est introuvable). Le SuperAdmin et l'inscription d'une école (client admin, rôle NULL) et le
+--    parent ne sont pas concernés.
+-- 4. Triggers :
+--      - trg_abonnement_ecriture (BEFORE, FOR EACH STATEMENT : passe avant tout trigger de ligne, donc avant
+--        numeroter_recu, aucun numéro de reçu n'est consommé par un refus) sur paiements, inscriptions, eleves,
+--        classes, articles_classe, articles_inscription (toute écriture), ecoles (UPDATE : paramètres),
+--        parents (INSERT, DELETE) ;
+--      - trg_abonnement_modification (BEFORE UPDATE, FOR EACH ROW) sur parents : toute modification est
+--        refusée SAUF celle du seul token (régénérer le lien d'un parent reste permis). La comparaison porte
+--        sur la ligne entière : une colonne ajoutée plus tard à parents est gardée d'office.
+--    Non gardées : acces_ecole (le code d'accès se change en lecture seule), compteurs_recus,
+--    tentatives_connexion.
+-- Retour arrière : DROP TRIGGER trg_abonnement_ecriture sur ces 8 tables et trg_abonnement_modification sur
+-- parents.
+-- ==============================================================================
+CREATE OR REPLACE FUNCTION public.situation_abonnement(
+    p_statut TEXT, p_trial_ends_at TIMESTAMPTZ, p_abonnement_fin DATE, p_jour DATE
+) RETURNS JSONB
+LANGUAGE sql IMMUTABLE SET search_path = public AS $$
+    SELECT jsonb_build_object(
+        'etat', CASE
+            WHEN p_statut IN ('suspendu', 'expire') THEN 'lecture_seule'
+            WHEN f.fin IS NULL THEN 'normal'
+            WHEN p_jour > f.fin + 7 THEN 'lecture_seule'
+            WHEN p_jour > f.fin THEN 'grace'
+            WHEN p_jour >= f.fin - 7 THEN 'alerte'
+            ELSE 'normal'
+        END,
+        'fin', f.fin,
+        'fin_grace', f.fin + 7,
+        'jours_restants', f.fin - p_jour
+    )
+    FROM (SELECT CASE p_statut
+                     WHEN 'essai' THEN (p_trial_ends_at AT TIME ZONE 'Africa/Dakar')::date
+                     WHEN 'actif' THEN p_abonnement_fin
+                 END AS fin) f
+$$;
+REVOKE EXECUTE ON FUNCTION public.situation_abonnement(TEXT, TIMESTAMPTZ, DATE, DATE) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.situation_abonnement(TEXT, TIMESTAMPTZ, DATE, DATE) TO authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION public.abonnement_ecole()
+RETURNS JSONB
+LANGUAGE sql STABLE SET search_path = public AS $$
+    SELECT public.situation_abonnement(e.statut_abonnement, e.trial_ends_at, e.abonnement_fin,
+                                       (now() AT TIME ZONE 'Africa/Dakar')::date)
+    FROM public.ecoles e
+    WHERE e.id = public.jwt_ecole_id()
+$$;
+REVOKE EXECUTE ON FUNCTION public.abonnement_ecole() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.abonnement_ecole() TO authenticated;
+
+-- FJ403 : école en lecture seule (abonnement expiré ou suspendu)
+CREATE OR REPLACE FUNCTION public.verifier_ecriture_ecole()
+RETURNS VOID LANGUAGE plpgsql STABLE SET search_path = public AS $$
+BEGIN
+    -- École introuvable (situation NULL) : on refuse aussi
+    IF public.jwt_role_app() = 'ecole'
+       AND coalesce(public.abonnement_ecole() ->> 'etat', 'lecture_seule') = 'lecture_seule' THEN
+        RAISE EXCEPTION 'Abonnement expiré ou suspendu : l''Espace École est en lecture seule. Contactez FayJàng.'
+            USING ERRCODE = 'FJ403';
+    END IF;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.verifier_ecriture_ecole() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.verifier_ecriture_ecole() TO authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION public.exiger_ecriture_ecole()
+RETURNS TRIGGER LANGUAGE plpgsql SET search_path = public AS $$
+BEGIN
+    PERFORM public.verifier_ecriture_ecole();
+    RETURN NULL;
+END;
+$$;
+
+-- Parent : seule la régénération du lien (token) reste permise en lecture seule
+CREATE OR REPLACE FUNCTION public.exiger_ecriture_parent()
+RETURNS TRIGGER LANGUAGE plpgsql SET search_path = public AS $$
+BEGIN
+    IF (to_jsonb(NEW) - 'token' - 'updated_at') IS DISTINCT FROM (to_jsonb(OLD) - 'token' - 'updated_at') THEN
+        PERFORM public.verifier_ecriture_ecole();
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+DO $$
+DECLARE
+    t TEXT;
+BEGIN
+    FOREACH t IN ARRAY ARRAY['paiements', 'inscriptions', 'eleves', 'classes', 'articles_classe', 'articles_inscription'] LOOP
+        EXECUTE format('DROP TRIGGER IF EXISTS trg_abonnement_ecriture ON public.%I', t);
+        EXECUTE format('CREATE TRIGGER trg_abonnement_ecriture BEFORE INSERT OR UPDATE OR DELETE ON public.%I '
+                       'FOR EACH STATEMENT EXECUTE FUNCTION public.exiger_ecriture_ecole()', t);
+    END LOOP;
+END $$;
+
+DROP TRIGGER IF EXISTS trg_abonnement_ecriture ON public.ecoles;
+CREATE TRIGGER trg_abonnement_ecriture BEFORE UPDATE ON public.ecoles
+    FOR EACH STATEMENT EXECUTE FUNCTION public.exiger_ecriture_ecole();
+
+DROP TRIGGER IF EXISTS trg_abonnement_ecriture ON public.parents;
+CREATE TRIGGER trg_abonnement_ecriture BEFORE INSERT OR DELETE ON public.parents
+    FOR EACH STATEMENT EXECUTE FUNCTION public.exiger_ecriture_ecole();
+
+DROP TRIGGER IF EXISTS trg_abonnement_modification ON public.parents;
+CREATE TRIGGER trg_abonnement_modification BEFORE UPDATE ON public.parents
+    FOR EACH ROW EXECUTE FUNCTION public.exiger_ecriture_parent();

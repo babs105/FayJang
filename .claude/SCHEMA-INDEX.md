@@ -3,7 +3,7 @@
 > **Fichier généré automatiquement.** Ne pas éditer à la main.
 > Régénérer : `bash scripts/schema-index.sh`
 
-**Total : 3650 lignes.**
+**Total : 3777 lignes.**
 
 ## Tables
 
@@ -25,6 +25,7 @@
 
 ## Fonctions
 
+- `abonnement_ecole` — L3711
 - `changer_code_ecole` — L344
 - `code_correspond` — L244
 - `controler_tentatives` — L186
@@ -34,6 +35,8 @@
 - `encaisser_paiement` — L2300 **(active)** · remplace L1276
 - `enregistrer_classe` — L1538
 - `enregistrer_parametres` — L1973
+- `exiger_ecriture_ecole` — L3737
+- `exiger_ecriture_parent` — L3746
 - `hacher_code_bcrypt` — L257
 - `importer_reprise` — L3276 **(active)** · remplace L2583
 - `inscrire_eleve` — L2980 **(active)** · remplace L994, L1693
@@ -51,6 +54,8 @@
 - `proteger_paiement` — L925 **(active)** · remplace L436, L826
 - `session_ecole_valide` — L318
 - `set_updated_at` — L2264
+- `situation_abonnement` — L3686
+- `verifier_ecriture_ecole` — L3723
 - `verifier_meme_ecole` — L2176 **(active)** · remplace L394, L756, L876
 
 ## Policies
@@ -75,6 +80,9 @@
 
 ## Triggers
 
+- `trg_abonnement_ecriture` sur `ecoles` — L3768
+- `trg_abonnement_ecriture` sur `parents` — L3772
+- `trg_abonnement_modification` sur `parents` — L3776
 - `trg_interdire_suppression_paiement` sur `paiements` — L3649
 - `trg_meme_ecole` sur `articles_classe` — L915
 - `trg_meme_ecole` sur `articles_inscription` — L918
@@ -131,6 +139,7 @@
 - L2548 : v1.17 : matricule de l'ancien système (reprise de l'existant, tranche 5).
 - L2565 : v1.18 : import des élèves d'une école existante par lots (fonction importer_reprise, tranche 5).
 - L2935 : v1.19 : durcissements de l'inscription et de l'import, matricule factorisé, paiement protégé de la suppression.
+- L3653 : v1.20 : abonnement appliqué automatiquement (feature D02, tranche 1).
 
 ## Notes pour l'agent
 

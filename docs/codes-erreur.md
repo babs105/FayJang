@@ -23,7 +23,7 @@ parent, jamais pour un développeur. (« Motif obligatoire », pas « constraint
 
 | Code | Fonction(s) qui le lève | Message utilisateur |
 |---|---|---|
-| `FJ403` | `proteger_colonnes_ecole` (trigger) | « Ces informations ne peuvent être modifiées que par FayJàng. » |
+| `FJ403` | `proteger_colonnes_ecole` (trigger), `verifier_ecriture_ecole` (fonction appelée par les triggers `trg_abonnement_*`) | « Ces informations ne peuvent être modifiées que par FayJàng. » / « Abonnement expiré ou suspendu : l'Espace École est en lecture seule. Contactez FayJàng. » |
 | `FJ404` | `verifier_meme_ecole` (trigger) | « Parent introuvable dans cette école. » / « Élève ou classe introuvable dans cette école. » / « Inscription introuvable dans cette école. » / « Classe introuvable dans cette école. » / « Inscription ou article introuvable dans cette école. » / « Article introuvable pour cet élève. » |
 | `FJ412` | `proteger_paiement`, `proteger_inscription`, `numeroter_recu`, `proteger_article_inscription` (triggers) | « Ce paiement est déjà annulé. » / « Un paiement encaissé ne se modifie pas : annulez-le puis saisissez le bon. » / « Cette inscription a des paiements : passez-la en abandon au lieu de la supprimer. » / « Élève et année d'une inscription payée ne changent pas. » / « Ce reçu est déjà émis : impossible d'y ajouter une ligne. » / « Cet article a des paiements : arrêtez le service ou annulez les reçus. » / « Article déjà payé : son prix et sa quantité ne changent plus. » |
 | `FJ422` | `proteger_paiement`, `numeroter_recu` (triggers) | « Indiquez le motif de l'annulation. » / « Un reçu ne concerne qu'un seul élève. » |

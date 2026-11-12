@@ -49,6 +49,13 @@ Règles :
   `ecole_id`, une ligne `ALTER TABLE ... ENABLE ROW LEVEL SECURITY;` et ses politiques (au minimum
   `FOR ALL` pour `public.jwt_role_app() = 'ecole' AND ecole_id = public.jwt_ecole_id()`, avec `DROP POLICY IF EXISTS`
   avant chaque `CREATE POLICY`). Accès parent : politique `SELECT` filtrée par `public.jwt_parent_id()`.
+- Nouvelle table d'une école que l'Espace École écrit : poser la garde d'abonnement (v1.20), sinon une école en
+  lecture seule (abonnement expiré ou suspendu) pourra y écrire. Dans le bloc vX.Y de la table :
+  ```sql
+  DROP TRIGGER IF EXISTS trg_abonnement_ecriture ON public.x;
+  CREATE TRIGGER trg_abonnement_ecriture BEFORE INSERT OR UPDATE OR DELETE ON public.x
+      FOR EACH STATEMENT EXECUTE FUNCTION public.exiger_ecriture_ecole();
+  ```
 - Une table qui référence une autre table d'école : ajouter son cas au trigger `verifier_meme_ecole`.
 - Nouvelle colonne de `paiements` : l'ajouter à la liste `IS DISTINCT FROM` de `proteger_paiement` dans le même bloc.
 - Un secret (token, hash, code) ne va pas dans une table qui a une politique SELECT ouverte à un autre rôle

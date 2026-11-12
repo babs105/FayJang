@@ -12,6 +12,8 @@ import { ImpayesPanel } from "./impayes-panel";
 import { ClassesPanel } from "./classes-panel";
 import { ParametresPanel } from "./parametres-panel";
 import { FicheEleve } from "./fiche-eleve";
+import { BandeauAbonnement } from "./bandeau-abonnement";
+import type { SituationAbonnement } from "@/lib/abonnement";
 import type { ClasseVue, EcoleVue, EleveVue, PaiementVue } from "./types";
 
 export type Onglet = "tableau" | "eleves" | "paiements" | "impayes" | "classes" | "parametres";
@@ -31,6 +33,8 @@ export interface DonneesEcole {
   eleves: EleveVue[];
   paiements: PaiementVue[];
   aujourdhui: string;
+  /** État de l'abonnement calculé par le serveur (alerte, grâce, lecture seule) */
+  abonnement: SituationAbonnement;
 }
 
 export function EcoleDashboardClient(props: DonneesEcole & { bienvenue: boolean; numeroWave: string | null }) {
@@ -89,6 +93,7 @@ export function EcoleDashboardClient(props: DonneesEcole & { bienvenue: boolean;
       </header>
 
       <main className="max-w-6xl mx-auto px-4 py-6 space-y-4">
+        <BandeauAbonnement ecole={props.ecole} abonnement={props.abonnement} numeroWave={props.numeroWave} />
         {bienvenue && (
           <div className="p-4 rounded-3xl bg-jang-50 border border-jang-100 text-xs text-jang-800 flex justify-between gap-3">
             <p>
