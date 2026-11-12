@@ -81,6 +81,9 @@
 - **Branche de slice** : `feat/<feature>-tN` (ex: `feat/relances-sms-t1`),
   créée depuis la branche de feature pour chaque tranche.
 - **Jamais** de commit direct sur `main` pour une feature multi-tranches.
+- **Une branche mergée est supprimée**, en local et sur GitHub : la slice après son merge dans la
+  branche de feature, la branche de feature après son merge dans `main`. `git branch -d` refuse une
+  branche non mergée : rien ne peut être perdu.
 - **Jamais** de merge vers `main` par tranche. Le merge vers `main` se fait
   **une seule fois**, à la fin de la feature.
 
@@ -447,7 +450,8 @@ En cas de conflit, `CLAUDE.md` gagne. Si le `WORKFLOW.md` contredit
 - [ ] Aucune donnée réelle modifiée sans accord de l'utilisateur
 - [ ] Commit au format `type: description en français`
 - [ ] Merge `feat/<feature>-tN` → `feat/<feature>`
-- [ ] Branche de slice supprimée (`git branch -d feat/<feature>-tN`)
+- [ ] Branche de slice supprimée, en local et sur GitHub si elle a été poussée
+      (`git branch -d feat/<feature>-tN`, `git push origin --delete feat/<feature>-tN`)
 
 ## Checklist avant de merger une feature (vers `main`)
 
@@ -465,7 +469,9 @@ En cas de conflit, `CLAUDE.md` gagne. Si le `WORKFLOW.md` contredit
       feature à « Livrée » avec le commit de merge, fiche réduite en section 4
 - [ ] Décisions durables de la fiche recopiées en section 9 « Décisions tranchées » de
       `docs/feature-spec.md` (avec l'accord de l'humain)
-- [ ] Branche de feature supprimée
+- [ ] Branche de feature supprimée, en local et sur GitHub (`git branch -d feat/<feature>`,
+      `git push origin --delete feat/<feature>`). Le repère de la livraison est le commit de merge
+      cité dans `docs/feature-spec.md`, pas la branche
 
 ## Exemple complet — feature « relances SMS » (3 tranches)
 
@@ -486,6 +492,7 @@ git checkout feat/relances-sms
 git merge feat/relances-sms-t1
 git push
 git branch -d feat/relances-sms-t1
+git push origin --delete feat/relances-sms-t1
 
 # --- Tranches 2 et 3 : idem ---
 
@@ -497,4 +504,5 @@ git checkout main && git pull
 git merge feat/relances-sms
 git push
 git branch -d feat/relances-sms
+git push origin --delete feat/relances-sms
 ```
