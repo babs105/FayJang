@@ -50,8 +50,8 @@ feature. Si une demande sort de ton scope, tu refuses et renvoies vers
 - `BACKLOG.md` (backlog de **bugs**) : **ajout** sans demander des bugs de review non
   corrigés dans ta tranche, au format du fichier, dans « Bugs à planifier » ou « Bugs
   mineurs » selon le critère de `.claude/WORKFLOW.md` (section « Le backlog »).
-  Un besoin (nouvelle feature à développer) ou une piste n'y va pas : tu le listes dans
-  ton rapport sous « À proposer au feature spec » (section 6 ou 7), la session le reporte.
+  Un besoin (nouvelle feature à développer) ou une piste n'y va pas, ni au feature spec :
+  il reste dans ton rapport.
   Cocher, supprimer, modifier une entrée ou la passer en « Bugs corrigés » :
   seulement après l'accord explicite de l'humain, en citant la preuve (commit, ligne).
   Ton rapport liste les « findings du backlog résolus » par ta tranche.
@@ -163,9 +163,6 @@ Chaque intervention produit :
 
 ## Bugs ajoutés au backlog
 - <titre> (« Bugs à planifier » ou « Bugs mineurs ») | aucun
-
-## À proposer au feature spec
-- **<titre fonctionnel>** → section 6 (besoin) | section 7 (piste) — <ce que l'utilisateur pourra faire> | rien
 
 ## Hors scope identifié
 <si une partie de la demande sort de ton scope, la lister ici pour

@@ -74,8 +74,8 @@ apparaît dans le rapport ou non.
 
 **Règle** : un finding `impact: cosmétique` ne doit **pas** apparaître dans
 les sections 🔴/🟠/🟡. Il va dans `## Notes mineures (non listées comme findings)`
-en fin de rapport. Une note mineure ne va au backlog que si c'est un **bug** ;
-un besoin ou une piste va dans `## À proposer au feature spec` (voir plus bas).
+en fin de rapport. Une note mineure ne va au backlog que si c'est un **bug** ; sinon elle reste
+dans le rapport (jamais au feature spec).
 
 ## Plafond par review
 
@@ -179,25 +179,10 @@ termine ton rapport par un bloc `## À mettre au backlog (bugs reportés)` avec 
   *Estimé : <durée>. Croise : <quelle feature future>.*
 ```
 
-## Besoins et pistes (pas au backlog)
+## Besoins et pistes (ni backlog, ni feature spec)
 
-`BACKLOG.md` ne reçoit que des **bugs** dont la correction est reportée : le
+`BACKLOG.md` ne reçoit que des **bugs mineurs** dont la correction est reportée : le
 code livré fait autre chose que ce que disent le feature spec, `CLAUDE.md` ou
-une décision tranchée. Si aucune règle écrite n'est violée, ce n'est pas un bug.
-
-Ce que tu repères et qui n'est pas un bug est soit un **besoin**, c'est-à-dire
-une **nouvelle feature à développer**, soit une **piste**. Il va dans un bloc
-`## À proposer au feature spec`, en fin de rapport, avec ce format exact :
-
-```markdown
-- **<titre fonctionnel>** → section 6 (besoin) | section 7 (piste) — <ce que l'utilisateur pourra faire, ou « aucun changement visible »>.
-  *Source : <review, tranche, date>. À trancher : <question métier, ou « rien »>.*
-```
-
-- **Section 6 (besoin)** : nouvelle feature à développer, le « quoi » est clair
-  (y compris une feature technique sans changement visible : limite de fréquence, tests SQL).
-- **Section 7 (piste)** : idée de feature à valider ou à écarter, rien n'est décidé.
-
-Tu ne modifies pas `docs/feature-spec.md` (lecture seule) : la session
-principale reporte tes lignes dans la section indiquée, après l'accord de
-l'humain. Tu ne proposes aucune règle métier : tu poses la question.
+une décision tranchée. Si aucune règle écrite n'est violée, ce n'est pas un bug :
+tu peux le mentionner dans ton rapport, sans bloc dédié, et il n'est écrit ni au
+backlog ni au feature spec.

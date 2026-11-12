@@ -34,7 +34,6 @@
   | Moment | Ce qui change | Accord de l'humain |
   |---|---|---|
   | Nouvelle feature ou piste retenue | Une ligne en section 6 ou 7 | L'humain l'a demandée ou validée |
-  | Besoin ou piste signalé par une review ou un dev | Une ligne en section 6 (besoin) ou 7 (piste), avec sa source (review, tranche, date) | Proposée par la session dans le même tour, puis validée |
   | Fiche validée | Fiche ajoutée, ligne à « planifiée » | « fiche validée » |
   | Règle qui change en cours de feature | La fiche, avec la date | Décision de l'humain citée |
   | Correction (backlog ou bug) qui change un comportement décrit | La règle de la feature concernée, marquée « Sur la branche » jusqu'au merge | Proposée par la session dans le même tour, puis validée |
@@ -53,17 +52,19 @@
   (lecture seule) signalent dans leur rapport une fiche fausse ou incomplète.
   `dev-encaissement` signale dans son rapport ce qui devrait y changer ; il
   ne l'édite pas (hors de son périmètre).
-- **Un besoin (nouvelle feature à développer) ou une piste repéré en review
-  va au feature spec, pas au backlog.** Le reviewer le range dans le bloc `## À proposer au feature spec`
-  de son rapport, avec sa destination (section 6 « besoin » ou section 7
-  « piste »). La session principale reporte la ligne dans la section
-  indiquée, après l'accord de l'humain (tri complet : section « Le backlog »).
+- **Une review n'alimente jamais le feature spec.** Après les findings, seuls
+  les bugs mineurs non corrigés vont au backlog. Un besoin ou une piste
+  signalé par un reviewer ou un dev n'est écrit ni au backlog ni au feature
+  spec : il reste dans le rapport (tri complet : section « Le backlog »).
+  Une nouvelle feature ou piste n'entre au feature spec que si l'humain la
+  demande lui-même.
 - Une ligne ne passe à « Livrée » qu'avec la **preuve** (commit de merge sur
   `main`), comme pour une entrée du backlog.
 
 ### Sur le plan
 - L'architect **ne déclenche rien**. Il écrit un plan. C'est l'humain qui
-  déclenche chaque étape.
+  déclenche chaque étape (sauf les reviews d'une tranche, que la session
+  lance elle-même : voir « Sur le dev »).
 - Chaque tranche est **verticale** : un peu de schéma, un peu de serveur,
   un peu d'UI, pour livrer un flow utilisateur complet. Pas de "T1 schéma",
   "T2 serveur", "T3 UI".
@@ -116,8 +117,16 @@
   Sans autorisation, il signale la mise à jour nécessaire dans son rapport.
   L'humain relit le diff (`git diff src/types/database.ts`) avant d'appliquer
   le schéma en base.
-- Le dev **ne déclenche pas** les reviews lui-même. Il les liste dans son
-  rapport. C'est l'humain qui les invoque.
+- **Les reviews font partie de la tranche : la session principale les lance
+  elle-même**, sans attendre la demande de l'humain, dès que la tranche est
+  codée et vérifiée (types, tests, preview). Elle invoque les reviewers
+  prévus par le plan, avec leur scope nommé, après les contrôles de la
+  section « Avant d'invoquer un reviewer », puis présente à l'humain le
+  rapport de tranche et les rapports de review ensemble. Un agent dev
+  (`dev-encaissement`) ne lance pas de review : il les liste dans son
+  rapport, et la session principale les lance à sa suite.
+- **Aucun finding n'est corrigé sans décision de l'humain** : la session
+  présente les rapports, l'humain arbitre (règles « Sur le schéma »).
 
 ### Sur le schéma (règle absolue)
 
@@ -129,16 +138,16 @@
 - **`supabase/schema.sql` est un fichier généré.** Ne jamais l'éditer à la main.
   Éditer les sources dans `supabase/schema/*.sql`, puis lancer le build.
 - **Un finding d'audit ne se corrige pas immédiatement.** S'il n'est pas
-  corrigé dans la tranche, il est trié (section « Le backlog ») : un **bug**
-  dont la correction est reportée va dans `BACKLOG.md` ; un **besoin** (nouvelle feature à
-  développer) ou une **piste** va dans `docs/feature-spec.md` (section 6 ou 7). Dans les deux
-  cas il sera planifié, découpé, et suivra le workflow normal.
+  corrigé dans la tranche, il est trié (section « Le backlog ») : un **bug
+  mineur** dont la correction est reportée va dans `BACKLOG.md`, où il sera
+  planifié, découpé, et suivra le workflow normal. Rien ne va dans
+  `docs/feature-spec.md`.
 - **Exception : les 🔴 (fuite active, reçu faux, corruption de données).**
   Hotfix immédiat, branche `fix/prod-xxx` depuis `main`, review accélérée, puis
   retour au workflow.
 - **Une seule vague de correction par audit.** Si un audit produit 2 🟠 et
   3 🟡, on applique les 2 🟠 + 1 🟡 (le plus impactant). Les autres 🟡 sont
-  triés (bug reporté → backlog, besoin ou piste → feature spec). On ne
+  triés (bug mineur → backlog, le reste reste dans le rapport). On ne
   relance pas d'audit après.
 - **Si un audit produit 3 findings ou plus, on gèle `schema.sql` pendant
   2 semaines.** On livre une feature utilisateur avant de rouvrir.
@@ -146,17 +155,16 @@
   rapport. Le reviewer **recommande** (il écrit sur chaque 🟡 soit
   `impact: business`, soit `impact: cosmétique`). Le dev **applique** la
   décision de l'humain. Si l'humain n'est pas disponible dans l'heure :
-  **aucun 🟡 n'est appliqué**, tous sont triés (backlog ou feature spec). On
+  **aucun 🟡 n'est appliqué**, tous sont triés (backlog ou rapport). On
   ne re-audite pas.
 
   Rappel : un 🟡 `impact: business` est en fait un 🟠 déguisé. Il faut
   le reclasser en 🟠 et l'appliquer. Un 🟡 `impact: cosmétique` est trié :
-  au backlog si c'est un bug, sinon au feature spec ou abandonné. Il n'y a
+  au backlog si c'est un bug mineur, sinon il reste dans le rapport. Il n'y a
   pas de 🟡 « moyen ».
 - **Mise à jour du backlog** : après chaque review, le dev (agent dev ou session principale, ou l'humain)
-  ajoute les **bugs** non corrigés à `BACKLOG.md` **avant** de fermer la PR, et la session propose
-  les besoins et pistes pour `docs/feature-spec.md`. Un finding non corrigé et non consigné est un
-  finding oublié.
+  ajoute les **bugs mineurs** non corrigés à `BACKLOG.md` **avant** de fermer la PR. Un bug non
+  corrigé et non consigné est un bug oublié.
 - **Lecture du backlog** : `architect` lit `BACKLOG.md` avant chaque plan
   et intègre les bugs que la feature croise comme tranches.
 - **Le dev (agent dev ou session principale) gère `BACKLOG.md`, avec l'autorisation de l'humain** :
@@ -321,31 +329,30 @@ T(n+1).
 ## Le backlog (obligatoire)
 
 `BACKLOG.md`, à la racine du projet, est un **backlog de bugs** : il ne
-contient que les bugs dont la correction a été reportée. Tout le reste va
-dans `docs/feature-spec.md`.
+contient que les bugs mineurs dont la correction a été reportée. Aucun
+finding de review ne va dans `docs/feature-spec.md`.
 
 **Tri d'un finding non corrigé dans la PR courante** (le reviewer le propose
 dans son rapport, le dev ou la session l'applique) :
 
 | Nature | Critère | Destination | Qui écrit |
 |---|---|---|---|
-| **Bug reporté** | Le code livré fait autre chose que ce que disent le feature spec, `CLAUDE.md` ou une décision tranchée : résultat faux, refus à tort, erreur, faille exploitable | `BACKLOG.md` | Le dev, sans demander |
-| **Besoin** | Une **nouvelle feature à développer** : rien n'est faux aujourd'hui, il manque quelque chose (capacité pour l'école ou le parent, ou feature technique sans changement visible : limite de fréquence, tests SQL) | `docs/feature-spec.md`, section 6 « Features à développer » | La session, après accord de l'humain |
-| **Piste** | Idée de feature à valider ou à écarter, rien n'est décidé | `docs/feature-spec.md`, section 7 « Pistes proposées » | La session, après accord de l'humain |
+| **Bug mineur reporté** | Le code livré fait autre chose que ce que disent le feature spec, `CLAUDE.md` ou une décision tranchée : résultat faux, refus à tort, erreur, faille exploitable | `BACKLOG.md` | Le dev, sans demander |
+| **Besoin ou piste** | Rien n'est faux aujourd'hui, il manque quelque chose | Reste dans le rapport, nulle part ailleurs | — |
 | **Note cosmétique** | Ni bug, ni besoin | Reste dans le rapport, nulle part ailleurs | — |
 
-En cas de doute entre bug et besoin : si aucune règle écrite n'est violée,
-ce n'est pas un bug.
+En cas de doute : si aucune règle écrite n'est violée, ce n'est pas un bug.
+
 
 Structure de `BACKLOG.md` :
 
 ```markdown
 # Backlog
 
-## Bugs à planifier (avec architect)
+## Bugs mineurs à planifier (avec architect)
 - [ ] **<titre>** (<code checklist, ex. S9, si applicable>) — <description>. Correctif : <…>. *Estimé : <durée>. Croise : <feature>.*
 
-## Bugs mineurs (à corriger quand une feature croise le sujet)
+## Bugs mineurs  ou Dette technique & Sécurité (à corriger quand une feature croise le sujet)
 - [ ] **<titre>** (<code checklist, ex. S9, si applicable>) — <description>. Correctif : <…>. *Estimé : <durée>. Croise : <feature>.*
 
 ## Bugs corrigés (avec la preuve, ne plus rouvrir)
@@ -412,8 +419,10 @@ En cas de conflit, `CLAUDE.md` gagne. Si le `WORKFLOW.md` contredit
 4. **Review générique.** "database-reviewer, regarde le schéma" → il va
    tout relire, rater des choses, et tu vas payer 10× le contexte.
    Toujours un scope nommé.
-5. **Laisser le dev déclencher les reviews.** Tu ne vois pas le rapport
-   intermédiaire, tu ne peux pas arbitrer, et tu perds la main.
+5. **Laisser le dev corriger les findings sans arbitrage.** La session
+   lance les reviews à la fin de la tranche, mais c'est l'humain qui lit
+   les rapports et décide de ce qui se corrige. Une review dont le rapport
+   n'est pas présenté, ou un finding corrigé d'office, et tu perds la main.
 6. **Merger chaque tranche vers `main`.** Si une feature a 3 tranches et
    que chacune va en prod, la prod change 3 fois pour 1 feature.
    **Une feature = un seul merge vers `main`.**
@@ -444,8 +453,7 @@ En cas de conflit, `CLAUDE.md` gagne. Si le `WORKFLOW.md` contredit
 - [ ] `security-reviewer` a rendu APPROUVÉ sur son scope nommé (si applicable)
 - [ ] Tests manuels listés dans le rapport du dev : tous passent
 - [ ] `.claude/SCHEMA-INDEX.md` régénéré si `schema.sql` a changé
-- [ ] Bugs non corrigés ajoutés à `BACKLOG.md`
-- [ ] Besoins et pistes des reviews proposés pour `docs/feature-spec.md` (section 6 ou 7)
+- [ ] Bugs mineurs non corrigés ajoutés à `BACKLOG.md`
 - [ ] Bugs du backlog résolus par la tranche passés en « Bugs corrigés » (après accord de l'humain)
 - [ ] Aucune donnée réelle modifiée sans accord de l'utilisateur
 - [ ] Commit au format `type: description en français`
