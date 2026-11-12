@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createAdminSession, destroyAdminSession, isAdmin, isAdminConfigure, verifyAdminCode } from "@/lib/admin-session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isDateValide } from "@/lib/dates";
+import { controlerAbonnementAdmin } from "@/lib/abonnement";
 import type { PlanId, StatutAbonnement } from "@/types/database";
 
 export async function loginAdminAction(_prev: { error?: string } | undefined, formData: FormData): Promise<{ error?: string }> {
@@ -35,6 +36,8 @@ export async function modifierAbonnement(
   if (!(await isAdmin())) return { success: false, message: "Session expirée." };
   if (!["essai", "standard", "premium"].includes(champs.plan)) return { success: false, message: "Plan inconnu." };
   if (!["essai", "actif", "expire", "suspendu"].includes(champs.statut_abonnement)) return { success: false, message: "Statut inconnu." };
+  const refus = controlerAbonnementAdmin(champs.statut_abonnement, champs.abonnement_fin);
+  if (refus) return { success: false, message: refus };
 
   const { error } = await createAdminClient()
     .from("ecoles")
