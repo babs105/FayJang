@@ -275,6 +275,17 @@ export type Database = {
         };
         Returns: Json;
       };
+      /** Situation d'abonnement de l'école du JWT (bloc v1.20), seule source de la règle ;
+       * retour : { etat, fin, fin_grace, jours_restants }, voir lireSituationAbonnement (src/lib/abonnement.ts) */
+      abonnement_ecole: {
+        Args: Record<PropertyKey, never>;
+        Returns: Json;
+      };
+      /** Même calcul, à date explicite (pure, sert aux tests SQL) */
+      situation_abonnement: {
+        Args: { p_statut: string; p_trial_ends_at: string | null; p_abonnement_fin: string | null; p_jour: string };
+        Returns: Json;
+      };
     };
     Enums: { [_ in never]: never };
     CompositeTypes: { [_ in never]: never };

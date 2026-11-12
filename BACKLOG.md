@@ -6,8 +6,8 @@
 > feature le croise.
 >
 > Règles :
-> - Un besoin (nouvelle feature à développer) ou une piste
->   ne s'écrit pas ici : il va dans `docs/feature-spec.md`, section 6 ou 7.
+> - Après une review, seuls les bugs mineurs non corrigés s'écrivent ici. Un besoin ou une piste
+>   ne s'écrit ni ici ni dans `docs/feature-spec.md` : il reste dans le rapport de review.
 > - Ne rien corriger depuis ce fichier sans passer par `architect`.
 > - Ne rien supprimer sans avoir la preuve que c'est fait (commit, PR, numéro de ligne).
 > - Les décisions tranchées (métier, projet, risques acceptés) ne sont pas ici : `docs/feature-spec.md`, section 9.
@@ -23,19 +23,27 @@
 
 ---
 
-## Bugs à planifier (avec architect)
+## Bugs mineurs à planifier (avec architect)
 
 _Aucun bug à planifier en attente._
 
 ---
 
-## Bugs mineurs (à corriger quand une feature croise le sujet)
+## Bugs mineurs ou Dette technique & Sécurité (à corriger quand une feature croise le sujet)
+- [ ] **Mobile money dans les reçus de reprise** | Reprendre un versement fait par
+  Wave ou Orange Money | Tranche 5 « reprise de l'existant »  (2026-11-11) | Référence de transaction obligatoire ou non pour un versement ancien, ou mode « Non précisé » |(Référence facultative uniquement pour l'import)
 
 - [ ] **Commentaires de cellule écrits par openpyxl illisibles par exceljs** — un classeur produit par un outil qui
   écrit ses commentaires comme openpyxl fait échouer `lireClasseur` (« Fichier Excel illisible »). Le modèle n'a plus de
   commentaires ; un fichier enregistré depuis Excel ou LibreOffice n'est pas concerné. Correctif si une école bute
   dessus : retirer les commentaires avant le chargement, ou message dédié. *Estimé : 1 h. Croise : V2 de l'import
   (fichiers d'école tels quels).* (tranche 1 « reprise de l'existant », 2026-11-11)
+
+- [ ] **Limites de fréquence sur l'export et l'analyse d'import** | Aucun changement visible ; le serveur est protégé | Reviews security des tranches 1 et 7 « reprise de l'existant » (S10, 2026-11-11) | Seuils (une génération par minute et par école ? 10 analyses par 10 min ?) |
+- [ ] **Tests de non-régression SQL** | Aucun changement visible ; les fonctions `encaisser_paiement` et `importer_reprise` sont testées sur une base | Review database de la tranche 3 et tranche 5 « reprise de l'existant » (H4, 2026-11-11) | Base de test dédiée |
+- [ ] **Import : analyse du fichier gardée entre les étapes** | Aucun changement visible ; un gros fichier s'importe plus vite (le fichier n'est plus relu ni réanalysé à chaque clic et à chaque lot de 25) | Review security de la tranche 4 et tranche 5 « reprise de l'existant » (S10/S13, 2026-11-11) | Où garder l'analyse : table temporaire ou cache signé |
+
+- [ ]**Sauvegarde régulière des paiements**  L'école et FayJàng gardent une copie hors de la base  `docs/mise-en-prod.md`, section 5  Export mensuel par école, ou offre Supabase avec sauvegardes 
 
 ---
 

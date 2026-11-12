@@ -34,7 +34,7 @@ Répondre et écrire en **français** : messages, commentaires de code, libellé
 - `.claude/SCHEMA-INDEX.md` : index du schéma (tables, fonctions, policies, triggers avec leurs lignes), **généré** par
   `bash scripts/schema-index.sh` : à régénérer après chaque modification de `schema.sql`, jamais édité à la main
 - `docs/feature-spec.md` : inventaire des features (livrées, à développer, pistes) et **fiche de feature** à faire valider par l'humain avant tout plan `architect` (procédure en section 8)
-- `BACKLOG.md` : backlog de **bugs**, seulement ceux dont la correction a été reportée ; un besoin (nouvelle feature à développer) ou une piste repéré en review va dans `docs/feature-spec.md` (section 6 ou 7), proposé par la session et validé par l'humain (géré par le dev, agent ou session principale : il ajoute librement ses bugs non corrigés, mais ne coche, supprime ou modifie qu'avec l'accord explicite de l'humain ; les décisions tranchées sont en section 9 du feature spec) ; `docs/mise-en-prod.md` : checklist de mise en production
+- `BACKLOG.md` : backlog de **bugs mineurs**, seulement ceux dont la correction a été reportée ; après une review, rien d'autre n'est consigné : un besoin ou une piste reste dans le rapport, il ne va pas dans `docs/feature-spec.md` (géré par le dev, agent ou session principale : il ajoute librement ses bugs non corrigés, mais ne coche, supprime ou modifie qu'avec l'accord explicite de l'humain ; les décisions tranchées sont en section 9 du feature spec) ; `docs/mise-en-prod.md` : checklist de mise en production
 
 Espaces : `/ecole` (Espace École, 7 onglets dans `ecole-dashboard-client.tsx`, dont Importer, + `fiche-eleve.tsx`), `/p/[token]`
 (parent, page serveur sans JS client), `/admin` (SuperAdmin), `/inscription` (ouverture d'un compte école).
@@ -89,7 +89,7 @@ Toute action École suit ce modèle, dans cet ordre :
   puis `bash scripts/schema-index.sh` pour l'index, puis mettre à jour
   `src/types/database.ts` **dans le même commit** (cohérence obligatoire).
 - L'édition d'une source du schéma (`supabase/schema/*.sql`) par un agent dev n'est autorisée qu'après accord explicite de l'humain dans la conversation. L'agent édite la source (nouveau bloc `vX.Y` en fin de `05-migrations.sql`), lance `bash supabase/scripts/build-schema.sh` puis `bash scripts/schema-index.sh`, puis s'arrête. L'humain relit le diff (`git diff supabase/schema/ supabase/schema.sql`) et applique en base. Sans accord, l'agent ne fait que proposer. Deux hooks demandent l'accord à chaque écriture d'un `.sql` (`block-sql-writes.sh` pour Write/Edit, `block-sql-bash.sh` pour une commande shell).
-- Nouvelle table : `ecole_id`, RLS activée et politiques (section 9). Codes d'erreur métier : `FJ403`, `FJ404`, `FJ412`, `FJ422`, `FJ429` (`src/lib/erreurs.ts`).
+- Nouvelle table : `ecole_id`, RLS activée et politiques (section 9), et le trigger `trg_abonnement_ecriture` (garde d'abonnement, modèle dans `/migration-schema`). Codes d'erreur métier : `FJ403`, `FJ404`, `FJ412`, `FJ422`, `FJ429` (`src/lib/erreurs.ts`).
 - Le schéma est appliqué à la main par l'utilisateur dans Supabase : lui rappeler de le relancer.
 
 ### Dates

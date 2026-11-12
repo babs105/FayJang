@@ -54,6 +54,7 @@
 | F19 | Sécurité et exploitation | Transverse | Livrée (main) |
 | F20 | Reprise de l'existant (import Excel) | Onglet Importer | Livrée (main, merge `ccf271e`) |
 | D01 à D08 | Features à développer, c'est-à-dire les besoins (D03 livrée, voir F07) | — | Voir section 6, fiche à remplir selon la section 8 |
+| D02 | Abonnement appliqué automatiquement | Espace École, `/admin` | Fiche validée le 2026-11-12 (section 10), plan `architect` à produire |
 | P01 à P06 | Pistes à trancher | — | Voir section 7 |
 
 ## 4. Features livrées
@@ -195,15 +196,9 @@ n'a encore de plan `architect`.
 | N° | Feature | Ce que l'utilisateur pourra faire | Source | Points à trancher avant le plan |
 |---|---|---|---|---|
 | D01 | **Changement de classe en cours d'année** | Passer un élève dans une autre classe sans le réinscrire | Règle posée le 2026-11-10 (« on paie d'abord ») | Déjà tranché : seulement si l'élève a soldé son dû à date ; mois passés à l'ancien tarif, nouveau tarif dès le mois du changement. À trancher : sort des articles de l'ancienne classe |
-| D02 | **Abonnement appliqué automatiquement** | L'école voit la fin de son essai et son accès suit son abonnement | Constat dans le code : le statut est géré à la main dans `/admin`, la fin d'essai (`trial_ends_at`) ne bloque rien | Que se passe-t-il à l'expiration : lecture seule, blocage, délai de grâce ? |
-| D04 | **Sauvegarde régulière des paiements** | L'école et FayJàng gardent une copie hors de la base | `docs/mise-en-prod.md`, section 5 | Export mensuel par école, ou offre Supabase avec sauvegardes |
-| D05 | **Mobile money dans les reçus de reprise** | Reprendre un versement fait par Wave ou Orange Money | Tranche 5 « reprise de l'existant » (2026-11-11) | Référence de transaction obligatoire ou non pour un versement ancien, ou mode « Non précisé » |
-| D06 | **Limites de fréquence sur l'export et l'analyse d'import** | Aucun changement visible ; le serveur est protégé | Reviews security des tranches 1 et 7 « reprise de l'existant » (S10, 2026-11-11) | Seuils (une génération par minute et par école ? 10 analyses par 10 min ?) |
-| D07 | **Tests de non-régression SQL** | Aucun changement visible ; les fonctions `encaisser_paiement` et `importer_reprise` sont testées sur une base | Review database de la tranche 3 et tranche 5 « reprise de l'existant » (H4, 2026-11-11) | Base de test dédiée |
-| D08 | **Import : analyse du fichier gardée entre les étapes** | Aucun changement visible ; un gros fichier s'importe plus vite (le fichier n'est plus relu ni réanalysé à chaque clic et à chaque lot de 25) | Review security de la tranche 4 et tranche 5 « reprise de l'existant » (S10/S13, 2026-11-11) | Où garder l'analyse : table temporaire ou cache signé |
+| D02 | **Abonnement appliqué automatiquement** | L'école voit la fin de son essai et son accès suit son abonnement | Constat dans le code : le statut est géré à la main dans `/admin`, la fin d'essai (`trial_ends_at`) ne bloque rien | Tout est tranché : fiche validée le 2026-11-12, voir section 10 |
 
-D03 (protection d'un paiement contre la suppression en éditeur SQL) est livrée avec le bloc v1.19 :
-voir F07. Son numéro n'est pas réattribué.
+
 
 ## 7. Pistes proposées (à trancher, rien n'est décidé)
 
@@ -339,3 +334,63 @@ session ajoute une ligne ici après l'accord de l'humain, avec la date. Les bugs
   pas de réglage par action, le corps (3 Mo au lieu de 1) est mis en mémoire avant le contrôle de session. Accepté
   pour l'import (2 Mo + enveloppe multipart). À rouvrir seulement si Next permet une limite par route.
   (review security tranche 2 « reprise de l'existant », 2026-11-11 ; rangé ici le 2026-11-12)
+
+## 10. Fiches validées (features en cours)
+
+Fiches validées par l'humain selon la section 8, en attente de plan ou en cours de développement. Une fiche
+livrée quitte cette section pour la section 4 (section 8.5).
+
+### D02 — Abonnement appliqué automatiquement
+**Acteur** : école (subit la règle), SuperAdmin (règle le statut et la date dans `/admin`)
+**Ce que l'utilisateur peut faire** : l'école voit venir la fin de son essai ou de son abonnement, et son Espace
+École passe seul en lecture seule si elle n'a pas réglé.
+**Règles métier** :
+- La fin est `trial_ends_at` pour une école en essai, `abonnement_fin` pour une école active (jour compté en heure
+  de Dakar).
+- De 7 jours avant la fin jusqu'au jour de la fin : bandeau d'alerte, tout fonctionne.
+- Pendant les 7 jours qui suivent la fin (délai de grâce) : bandeau rouge, tout fonctionne encore.
+- Ensuite : lecture seule. L'école consulte tout, télécharge reçus PDF et export Excel, relance par WhatsApp et
+  peut changer son code d'accès.
+- En lecture seule sont refusés : encaisser, annuler un reçu, inscrire, modifier un élève ou une inscription,
+  importer, modifier classes, articles et paramètres.
+- Le statut « Suspendu » a le même effet que l'expiration, immédiatement et sans délai de grâce.
+- La page parent ne change pas pendant l'expiration ou la suspension.
+- La case « Active » décochée dans `/admin` reste le blocage total (connexion et page parent), comme aujourd'hui.
+- `/admin` refuse le statut « Actif » sans date de fin.
+- Écoles déjà en production à la livraison : une école dont l'essai est fini depuis plus de 7 jours passe aussitôt
+  en lecture seule ; une école « Actif » sans date doit recevoir une date dans `/admin`.
+
+**Argent** : aucun effet sur les reçus, les arriérés ni le reste sur l'année. En lecture seule, aucun paiement ne
+peut être saisi ni annulé ; les reçus existants restent téléchargeables.
+**Données** : `ecoles.statut_abonnement`, `ecoles.trial_ends_at`, `ecoles.abonnement_fin`, `ecoles.is_active`
+(colonnes existantes, lues). Toute évolution du schéma relève du plan et demande l'accord de l'humain.
+**Hors feature** : paiement de l'abonnement dans l'application (piste P05, le SuperAdmin met toujours `/admin` à
+jour à la main après le règlement Wave) ; relance automatique de l'école par WhatsApp, SMS ou e-mail ; différences
+de fonctionnalités entre les plans Standard et Premium.
+**Critère de done** : une école dont l'essai est fini depuis plus de 7 jours se connecte, voit le bandeau
+« abonnement expiré », télécharge un reçu, et reçoit un refus lisible en tentant d'encaisser ; dès que le
+SuperAdmin la passe en « Actif » avec une date future, elle encaisse à nouveau.
+**Exemple chiffré** (pas de montants, les dates servent de cas de test) :
+
+| Cas | Fin | Alerte | Grâce | Lecture seule à partir du |
+|---|---|---|---|---|
+| Essai ouvert le 2026-11-12 | 2026-12-12 | du 2026-12-05 au 2026-12-12 | du 2026-12-13 au 2026-12-19 | 2026-12-20 |
+| Actif jusqu'au 2027-01-31 | 2027-01-31 | du 2027-01-24 au 2027-01-31 | du 2027-02-01 au 2027-02-07 | 2027-02-08 |
+| Suspendu le 2026-12-01 | — | — | aucune | 2026-12-01 |
+
+**Questions tranchées** (toutes le 2026-11-12) :
+- Effet de l'expiration → lecture seule.
+- Alerte et délai → alerte 7 jours avant, 7 jours de grâce après.
+- Page parent pendant l'expiration → inchangée.
+- « Suspendu » → même effet qu'expiré, sans grâce.
+- « Actif » sans date de fin → refusé, date obligatoire.
+- Relance WhatsApp et code d'accès en lecture seule → gardés.
+- Questions remontées par le plan `architect` (escalade, 2026-11-12) :
+  - Lecture seule appliquée où → en base (triggers, bloc v1.20) et dans les Server Actions ; accord donné pour
+    éditer `supabase/schema/05-migrations.sql` pour ce bloc.
+  - Statut « Expiré » posé à la main dans `/admin` → comme « Suspendu », lecture seule immédiate, sans grâce.
+  - École « Actif » ou en essai sans date de fin → état normal, signalée dans `/admin` jusqu'à la saisie de la date.
+  - Régénérer le lien magique d'un parent en lecture seule → permis.
+  - Prolonger un essai → pas de champ « fin d'essai » dans `/admin` : on passe l'école en « Actif » avec une date.
+
+**Statut de la fiche** : validée le 2026-11-12

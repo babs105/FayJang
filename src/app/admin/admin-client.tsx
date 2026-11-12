@@ -5,13 +5,29 @@ import { LogOut } from "lucide-react";
 import { formatFCFA } from "@/lib/utils";
 import { formatDate } from "@/lib/dates";
 import { Badge, Bouton, Carte, Kpi, champ } from "@/components/ui";
+import type { SituationAbonnement } from "@/lib/abonnement";
 import type { Ecole, PlanId, StatutAbonnement } from "@/types/database";
 import { logoutAdminAction, modifierAbonnement } from "./actions";
 
 export type EcoleAdmin = Pick<
   Ecole,
   "id" | "nom" | "slug" | "ville" | "responsable_nom" | "email_contact" | "telephone_contact" | "annee_scolaire" | "plan" | "statut_abonnement" | "trial_ends_at" | "abonnement_fin" | "is_active" | "created_at"
-> & { eleves: number; encaisse: number };
+> & {
+  eleves: number;
+  encaisse: number;
+  /** État calculé par la base (normal, alerte, grâce, lecture seule) ; null si la lecture a échoué */
+  abonnement: SituationAbonnement | null;
+};
+
+/** Badge de l'état d'abonnement : ce que vit l'école aujourd'hui, pas seulement le statut enregistré */
+function BadgeEtat({ ecole }: { ecole: EcoleAdmin }) {
+  const a = ecole.abonnement;
+  if (!a) return <Badge ton="gris">État inconnu</Badge>;
+  if (a.etat === "lecture_seule") return <Badge ton="rouge">Lecture seule</Badge>;
+  if (a.etat === "grace") return <Badge ton="orange">Délai de grâce{a.finGrace ? ` jusqu'au ${formatDate(a.finGrace)}` : ""}</Badge>;
+  if (a.etat === "alerte") return <Badge ton="orange">Fin proche{a.fin ? ` : ${formatDate(a.fin)}` : ""}</Badge>;
+  return <Badge ton="vert">Normal</Badge>;
+}
 
 export function AdminClient({ ecoles, totauxDisponibles = true }: { ecoles: EcoleAdmin[]; totauxDisponibles?: boolean }) {
   return (
@@ -56,14 +72,22 @@ function LigneEcole({ ecole }: { ecole: EcoleAdmin }) {
     <Carte className="space-y-3">
       <div className="flex flex-wrap justify-between gap-2">
         <div>
-          <p className="text-sm font-extrabold">{ecole.nom} {!ecole.is_active && <Badge ton="rouge">Désactivée</Badge>}</p>
+          <p className="text-sm font-extrabold flex flex-wrap items-center gap-1.5">
+            {ecole.nom} <BadgeEtat ecole={ecole} /> {!ecole.is_active && <Badge ton="rouge">Désactivée</Badge>}
+          </p>
           <p className="text-[11px] text-neutral-500">
             {ecole.slug} · {ecole.ville ?? "—"} · {ecole.responsable_nom} · {ecole.email_contact} · {ecole.telephone_contact}
           </p>
           <p className="text-[11px] text-neutral-500">
             Inscrite le {formatDate(ecole.created_at)} · {ecole.eleves} élèves en {ecole.annee_scolaire} · {formatFCFA(ecole.encaisse)} encaissés
             {ecole.statut_abonnement === "essai" && ecole.trial_ends_at && ` · essai jusqu'au ${formatDate(ecole.trial_ends_at)}`}
+            {ecole.statut_abonnement === "actif" && ecole.abonnement_fin && ` · abonnée jusqu'au ${formatDate(ecole.abonnement_fin)}`}
           </p>
+          {ecole.statut_abonnement === "actif" && !ecole.abonnement_fin && (
+            <p className="text-[11px] font-bold text-amber-700">
+              Actif sans date de fin : l&apos;école n&apos;expire jamais. Indiquez une date de fin et enregistrez.
+            </p>
+          )}
         </div>
       </div>
       <div className="flex flex-wrap gap-2 items-center">

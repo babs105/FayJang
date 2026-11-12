@@ -6,11 +6,14 @@ import { formatFCFA } from "@/lib/utils";
 import { LIBELLE_NIVEAU, NIVEAUX } from "@/lib/libelles";
 import { Badge, Bouton, Carte, Label, Message, Modal, champ } from "@/components/ui";
 import { archiverClasse, enregistrerClasse } from "./actions";
+import { MentionLectureSeule } from "./bandeau-abonnement";
+import { peutEcrire } from "@/lib/abonnement";
 import type { SaisieArticle } from "@/lib/classe-catalogue";
 import type { DonneesEcole } from "./ecole-dashboard-client";
 import type { ClasseVue } from "./types";
 
-export function ClassesPanel({ classes, ecole }: DonneesEcole) {
+export function ClassesPanel({ classes, ecole, abonnement }: DonneesEcole) {
+  const lectureSeule = !peutEcrire(abonnement.etat);
   const [edition, setEdition] = useState<ClasseVue | "nouvelle" | null>(null);
   const [isPending, startTransition] = useTransition();
   const [classeFiltre, setClasseFiltre] = useState("");
@@ -22,9 +25,13 @@ export function ClassesPanel({ classes, ecole }: DonneesEcole) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-xs text-neutral-600">Classes et tarifs de l'année <b>{ecole.annee_scolaire}</b></p>
-        <Bouton onClick={() => setEdition("nouvelle")}>
-          <Plus className="w-4 h-4" /> Nouvelle classe
-        </Bouton>
+        {lectureSeule ? (
+          <MentionLectureSeule />
+        ) : (
+          <Bouton onClick={() => setEdition("nouvelle")}>
+            <Plus className="w-4 h-4" /> Nouvelle classe
+          </Bouton>
+        )}
       </div>
 
       {classes.length > 0 && (
@@ -58,7 +65,7 @@ export function ClassesPanel({ classes, ecole }: DonneesEcole) {
                   <p className="text-[11px] text-neutral-500">{LIBELLE_NIVEAU[c.niveau]} · {c.effectif} élève(s)</p>
                 </div>
                 {!c.is_active && <Badge ton="gris">Archivée</Badge>}
-                {c.is_active && (
+                {c.is_active && !lectureSeule && (
                   <button onClick={() => setEdition(c)} className="p-1.5 rounded-lg hover:bg-neutral-100" title="Modifier">
                     <Pencil className="w-4 h-4 text-neutral-500" />
                   </button>
@@ -94,19 +101,21 @@ export function ClassesPanel({ classes, ecole }: DonneesEcole) {
                   ))}
                 </ul>
               )}
-              <button
-                disabled={isPending}
-                onClick={() => startTransition(async () => void (await archiverClasse(c.id, !c.is_active)))}
-                className="mt-3 text-[11px] font-bold text-neutral-500 hover:text-neutral-900"
-              >
-                {c.is_active ? "Archiver" : "Réactiver"}
-              </button>
+              {!lectureSeule && (
+                <button
+                  disabled={isPending}
+                  onClick={() => startTransition(async () => void (await archiverClasse(c.id, !c.is_active)))}
+                  className="mt-3 text-[11px] font-bold text-neutral-500 hover:text-neutral-900"
+                >
+                  {c.is_active ? "Archiver" : "Réactiver"}
+                </button>
+              )}
             </Carte>
           ))}
         </div>
       )}
 
-      {edition && <ClasseModal classe={edition === "nouvelle" ? undefined : edition} onClose={() => setEdition(null)} />}
+      {edition && !lectureSeule && <ClasseModal classe={edition === "nouvelle" ? undefined : edition} onClose={() => setEdition(null)} />}
     </div>
   );
 }
