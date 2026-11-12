@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { lireSituationAbonnement, peutEcrire } from "./abonnement";
+import { controlerAbonnementAdmin, DATE_FIN_ACTIF_MANQUANTE, lireSituationAbonnement, peutEcrire } from "./abonnement";
 
 // La règle des dates est dans la base (situation_abonnement, bloc v1.20) : ici, seule la lecture de sa réponse
 describe("lireSituationAbonnement", () => {
@@ -46,5 +46,20 @@ describe("peutEcrire", () => {
     expect(peutEcrire("alerte")).toBe(true);
     expect(peutEcrire("grace")).toBe(true);
     expect(peutEcrire("lecture_seule")).toBe(false);
+  });
+});
+
+describe("controlerAbonnementAdmin", () => {
+  it("refuse « Actif » sans date de fin valide", () => {
+    expect(controlerAbonnementAdmin("actif", "")).toBe(DATE_FIN_ACTIF_MANQUANTE);
+    expect(controlerAbonnementAdmin("actif", "31/01/2027")).toBe(DATE_FIN_ACTIF_MANQUANTE);
+    expect(controlerAbonnementAdmin("actif", "2027-02-30")).toBe(DATE_FIN_ACTIF_MANQUANTE);
+  });
+
+  it("accepte « Actif » avec une date, et les autres statuts sans date", () => {
+    expect(controlerAbonnementAdmin("actif", "2027-01-31")).toBeNull();
+    expect(controlerAbonnementAdmin("essai", "")).toBeNull();
+    expect(controlerAbonnementAdmin("suspendu", "")).toBeNull();
+    expect(controlerAbonnementAdmin("expire", "")).toBeNull();
   });
 });

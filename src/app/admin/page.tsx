@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { isAdmin } from "@/lib/admin-session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { LectureTropLongue, TAILLE_PAGE, toutLire } from "@/lib/lecture-paginee";
+import { todayDakar } from "@/lib/dates";
+import { lireSituationAbonnement, type SituationAbonnement } from "@/lib/abonnement";
 import { AdminClient, type EcoleAdmin } from "./admin-client";
 
 /** Toutes les écoles réunies : plafond plus haut que pour une seule école */
@@ -42,7 +44,28 @@ export default async function AdminPage() {
     console.error("[admin] totaux :", err instanceof LectureTropLongue ? "trop de lignes" : ((err as { code?: string })?.code ?? "erreur"));
   }
 
-  const vue: EcoleAdmin[] = (ecoles ?? []).map((e) => ({ ...e, eleves: eleves.get(e.id) ?? 0, encaisse: encaisse.get(e.id) ?? 0 }));
+  // État de l'abonnement de chaque école, calculé par la base (situation_abonnement, bloc v1.20 : la règle n'existe
+  // que là). Un appel par école : la console liste peu d'écoles. En échec, l'état est affiché « inconnu ».
+  const jour = todayDakar();
+  const situations = await Promise.all(
+    (ecoles ?? []).map(async (e): Promise<SituationAbonnement | null> => {
+      const { data, error } = await supabase.rpc("situation_abonnement", {
+        p_statut: e.statut_abonnement,
+        p_trial_ends_at: e.trial_ends_at,
+        p_abonnement_fin: e.abonnement_fin,
+        p_jour: jour,
+      });
+      if (error) console.error("[admin] état de l'abonnement :", error.code ?? "erreur");
+      return error ? null : lireSituationAbonnement(data);
+    })
+  );
+
+  const vue: EcoleAdmin[] = (ecoles ?? []).map((e, i) => ({
+    ...e,
+    eleves: eleves.get(e.id) ?? 0,
+    encaisse: encaisse.get(e.id) ?? 0,
+    abonnement: situations[i],
+  }));
 
   return <AdminClient ecoles={vue} totauxDisponibles={totauxDisponibles} />;
 }
