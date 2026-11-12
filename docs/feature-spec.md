@@ -206,9 +206,9 @@
 Un **besoin** est une nouvelle feature à développer : on sait qu'il faut la faire, il reste des points à trancher
 avant le plan. Une feature technique sans changement visible pour l'école (D06 à D08) en fait partie.
 
-Chaque ligne cite sa source : demande de l'humain, constat dans le code, ou review (le reviewer la range dans le
-bloc « À proposer au feature spec » de son rapport, la session l'ajoute ici après l'accord de l'humain). Aucune
-n'a encore de plan `architect`.
+Chaque ligne cite sa source : demande de l'humain ou constat dans le code. Une review n'ajoute rien ici : un
+besoin ou une piste qu'elle signale reste dans son rapport, et n'entre dans ce fichier que si l'humain le demande
+(seuls les bugs mineurs non corrigés vont dans `BACKLOG.md`). Aucune n'a encore de plan `architect`.
 
 | N° | Feature | Ce que l'utilisateur pourra faire | Source | Points à trancher avant le plan |
 |---|---|---|---|---|
@@ -350,6 +350,15 @@ session ajoute une ligne ici après l'accord de l'humain, avec la date. Les bugs
   pas de réglage par action, le corps (3 Mo au lieu de 1) est mis en mémoire avant le contrôle de session. Accepté
   pour l'import (2 Mo + enveloppe multipart). À rouvrir seulement si Next permet une limite par route.
   (review security tranche 2 « reprise de l'existant », 2026-11-11 ; rangé ici le 2026-11-12)
+- **Abonnement (F21)** — la règle n'existe qu'en base (`situation_abonnement`, bloc v1.20) : alerte 7 jours avant
+  la fin, 7 jours de grâce, puis lecture seule. « Suspendu » et « Expiré » posé à la main = lecture seule immédiate,
+  sans grâce. Sans date de fin = état normal, signalé dans `/admin` ; « Actif » exige une date de fin. Prolonger un
+  essai = passer l'école en « Actif » avec une date. (2026-11-12)
+- **Lecture seule (F21)** — restent permis : consulter, reçus PDF, export, relance WhatsApp, régénérer le lien
+  d'un parent, changer le code d'accès. La page parent ne change pas ; la case « Active » décochée reste le
+  blocage total. (2026-11-12)
+- **Après une review, seuls les bugs mineurs non corrigés sont consignés** (`BACKLOG.md`) ; un besoin ou une piste
+  reste dans le rapport et ne va pas au feature spec. (2026-11-12)
 
 ## 10. Fiches validées (features en cours)
 
