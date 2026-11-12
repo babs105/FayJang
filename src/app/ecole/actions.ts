@@ -15,6 +15,7 @@ import { normaliserTelephone } from "@/lib/telephone";
 import { lireArticles, type SaisieArticle } from "@/lib/classe-catalogue";
 import { estUuid, montant, texte } from "@/lib/saisie";
 import { lireResultatParametres, messageParametres } from "@/lib/parametres";
+import { refusLectureSeule } from "@/lib/abonnement-ecole";
 import type { ModePaiement, Niveau, StatutInscription } from "@/types/database";
 
 export interface Resultat<T = undefined> {
@@ -30,6 +31,16 @@ async function session() {
   const ecoleId = await getEcoleId();
   if (!ecoleId) return null;
   return { ecoleId, supabase: createClientEcole(ecoleId) };
+}
+
+/**
+ * Session d'une action qui écrit : comme session(), et refuse en plus une école en lecture seule (abonnement
+ * expiré ou suspendu) avant toute lecture ou écriture. Renvoie le message de refus, ou la session.
+ */
+async function sessionEcriture() {
+  const s = await session();
+  if (!s) return SESSION_EXPIREE;
+  return (await refusLectureSeule(s.supabase, "ecole/actions")) ?? s;
 }
 
 async function lireEcole(supabase: ReturnType<typeof createClientEcole>, ecoleId: string) {
@@ -112,8 +123,8 @@ export interface SaisieClasse {
 }
 
 export async function enregistrerClasse(saisie: SaisieClasse): Promise<Resultat> {
-  const s = await session();
-  if (!s) return { success: false, message: SESSION_EXPIREE };
+  const s = await sessionEcriture();
+  if (typeof s === "string") return { success: false, message: s };
 
   const nom = texte(saisie.nom, 40);
   const niveau = saisie.niveau as Niveau;
@@ -152,8 +163,8 @@ export async function enregistrerClasse(saisie: SaisieClasse): Promise<Resultat>
 }
 
 export async function archiverClasse(id: string, actif: boolean): Promise<Resultat> {
-  const s = await session();
-  if (!s) return { success: false, message: SESSION_EXPIREE };
+  const s = await sessionEcriture();
+  if (typeof s === "string") return { success: false, message: s };
   const { error } = await s.supabase.from("classes").update({ is_active: actif }).eq("id", id).eq("ecole_id", s.ecoleId);
   if (error) return { success: false, message: messageErreur("classes", error) };
   revalidatePath("/ecole");
@@ -222,8 +233,8 @@ type ResultatInscription = {
  * puis revérifiés par la base, qui recopie elle-même tarifs et articles depuis la classe.
  */
 export async function inscrireEleve(saisie: SaisieInscription): Promise<Resultat<{ eleveId: string }>> {
-  const s = await session();
-  if (!s) return { success: false, message: SESSION_EXPIREE };
+  const s = await sessionEcriture();
+  if (typeof s === "string") return { success: false, message: s };
 
   // Identifiants mal formés refusés ici plutôt que par une erreur Postgres générique
   const classeId = texte(saisie.classe_id, 40);
@@ -339,8 +350,8 @@ export async function inscrireEleve(saisie: SaisieInscription): Promise<Resultat
  * Le parent est supprimé aussi s'il n'a plus aucun enfant dans l'école.
  */
 export async function supprimerEleve(id: string): Promise<Resultat> {
-  const s = await session();
-  if (!s) return { success: false, message: SESSION_EXPIREE };
+  const s = await sessionEcriture();
+  if (typeof s === "string") return { success: false, message: s };
 
   try {
     const { data: eleve, error: erreurEleve } = await s.supabase
@@ -396,8 +407,8 @@ export async function modifierInscription(
   id: string,
   champs: { statut?: StatutInscription; date_depart?: string | null; reduction_mensuelle?: string | number }
 ): Promise<Resultat> {
-  const s = await session();
-  if (!s) return { success: false, message: SESSION_EXPIREE };
+  const s = await sessionEcriture();
+  if (typeof s === "string") return { success: false, message: s };
 
   const maj: { statut?: StatutInscription; date_depart?: string | null; reduction_mensuelle?: number } = {};
   if (champs.statut !== undefined) {
@@ -465,8 +476,8 @@ export async function modifierEleve(
   id: string,
   champs: { prenom: string; nom: string; sexe: string; date_naissance: string; parent_nom: string; parent_telephone: string }
 ): Promise<Resultat> {
-  const s = await session();
-  if (!s) return { success: false, message: SESSION_EXPIREE };
+  const s = await sessionEcriture();
+  if (typeof s === "string") return { success: false, message: s };
   const prenom = texte(champs.prenom, 60);
   const nom = texte(champs.nom, 60);
   const parentNom = texte(champs.parent_nom, 80);
@@ -610,8 +621,8 @@ export async function ajouterArticleInscription(
   articleClasseId: string,
   quantiteSaisie?: string | number
 ): Promise<Resultat> {
-  const s = await session();
-  if (!s) return { success: false, message: SESSION_EXPIREE };
+  const s = await sessionEcriture();
+  if (typeof s === "string") return { success: false, message: s };
   try {
     const ecole = await lireEcole(s.supabase, s.ecoleId);
     const { data: ins, error: e1 } = await s.supabase
@@ -669,8 +680,8 @@ export async function ajouterArticleInscription(
  * à la fin du mois courant (ou du dernier mois payé). Frais unique déjà payé : refusé (annuler le reçu d'abord).
  */
 export async function retirerArticleInscription(id: string): Promise<Resultat> {
-  const s = await session();
-  if (!s) return { success: false, message: SESSION_EXPIREE };
+  const s = await sessionEcriture();
+  if (typeof s === "string") return { success: false, message: s };
   try {
     const { data: a, error: e1 } = await s.supabase
       .from("articles_inscription")
@@ -761,8 +772,8 @@ export interface SaisieParametres {
 }
 
 export async function enregistrerParametres(saisie: SaisieParametres): Promise<Resultat> {
-  const s = await session();
-  if (!s) return { success: false, message: SESSION_EXPIREE };
+  const s = await sessionEcriture();
+  if (typeof s === "string") return { success: false, message: s };
 
   const nom = texte(saisie.nom, 100);
   const annee = texte(saisie.annee_scolaire, 9);

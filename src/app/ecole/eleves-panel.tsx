@@ -7,10 +7,13 @@ import { formatDate } from "@/lib/dates";
 import { LIBELLE_MODE, LIBELLE_STATUT_INSCRIPTION, MODES_PAIEMENT } from "@/lib/libelles";
 import { Badge, Bouton, Carte, Label, Message, Modal, champ } from "@/components/ui";
 import { inscrireEleve } from "./actions";
+import { MentionLectureSeule } from "./bandeau-abonnement";
+import { peutEcrire } from "@/lib/abonnement";
 import type { DonneesEcole } from "./ecole-dashboard-client";
 import type { ClasseVue, EcoleVue, EleveVue } from "./types";
 
-export function ElevesPanel({ eleves, classes, ecole, ouvrirEleve }: DonneesEcole & { ouvrirEleve: (id: string) => void }) {
+export function ElevesPanel({ eleves, classes, ecole, abonnement, ouvrirEleve }: DonneesEcole & { ouvrirEleve: (id: string) => void }) {
+  const lectureSeule = !peutEcrire(abonnement.etat);
   const [recherche, setRecherche] = useState("");
   const [classeFiltre, setClasseFiltre] = useState("");
   const [nouveau, setNouveau] = useState(false);
@@ -43,9 +46,13 @@ export function ElevesPanel({ eleves, classes, ecole, ouvrirEleve }: DonneesEcol
           ))}
           <option value="_aucune">Non réinscrits</option>
         </select>
-        <Bouton onClick={() => setNouveau(true)} disabled={classes.length === 0}>
-          <Plus className="w-4 h-4" /> Nouvelle inscription
-        </Bouton>
+        {lectureSeule ? (
+          <MentionLectureSeule className="self-center" />
+        ) : (
+          <Bouton onClick={() => setNouveau(true)} disabled={classes.length === 0}>
+            <Plus className="w-4 h-4" /> Nouvelle inscription
+          </Bouton>
+        )}
       </div>
 
       <Carte className="p-0 overflow-hidden">
@@ -108,7 +115,7 @@ export function ElevesPanel({ eleves, classes, ecole, ouvrirEleve }: DonneesEcol
       </Carte>
       <p className="text-[11px] text-neutral-500">{liste.length} élève(s) affiché(s)</p>
 
-      {nouveau && <InscriptionModal classes={classes} ecole={ecole} onClose={() => setNouveau(false)} onInscrit={(id) => { setNouveau(false); ouvrirEleve(id); }} />}
+      {nouveau && !lectureSeule && <InscriptionModal classes={classes} ecole={ecole} onClose={() => setNouveau(false)} onInscrit={(id) => { setNouveau(false); ouvrirEleve(id); }} />}
     </div>
   );
 }

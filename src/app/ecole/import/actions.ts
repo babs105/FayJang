@@ -22,6 +22,7 @@ import {
   type RefusLigne,
   type ResultatLotReprise,
 } from "@/lib/reprise-lots";
+import { refusLectureSeule } from "@/lib/abonnement-ecole";
 import type { Json } from "@/types/database";
 
 export interface Resultat<T = undefined> {
@@ -33,6 +34,16 @@ export interface Resultat<T = undefined> {
 }
 
 const SESSION_EXPIREE = "Session expirée : reconnectez-vous à l'Espace École.";
+
+/**
+ * Session de la reprise : l'école connectée, refusée en lecture seule (abonnement expiré ou suspendu) dès
+ * l'analyse du fichier, pour ne pas lui faire préparer un import qui sera refusé. Renvoie le message de refus, ou l'id.
+ */
+async function sessionReprise(): Promise<string | { ecoleId: string }> {
+  const ecoleId = await getEcoleId();
+  if (!ecoleId) return SESSION_EXPIREE;
+  return (await refusLectureSeule(createClientEcole(ecoleId), "import/actions")) ?? { ecoleId };
+}
 
 /** Lecture complète partagée (curseur sur l'id) ; au-delà de ~21 000 lignes, refus lisible plutôt qu'une liste tronquée */
 async function toutLire<T extends { id: string }>(
@@ -147,8 +158,9 @@ async function analyserComplet(ecoleId: string, formData: FormData, lirePresents
  * Lecture seule : rien n'est écrit en base, le fichier n'est pas conservé.
  */
 export async function analyserFichierReprise(formData: FormData): Promise<Resultat<ApercuReprise>> {
-  const ecoleId = await getEcoleId();
-  if (!ecoleId) return { success: false, message: SESSION_EXPIREE };
+  const session = await sessionReprise();
+  if (typeof session === "string") return { success: false, message: session };
+  const { ecoleId } = session;
   try {
     return await analyser(ecoleId, formData);
   } catch (err) {
@@ -169,8 +181,9 @@ export interface ResultatClasses {
  * enregistrer_classe, atomique ; une classe déjà présente n'est ni créée ni modifiée. Rejouer ne crée rien de plus.
  */
 export async function importerClassesReprise(formData: FormData): Promise<Resultat<ResultatClasses>> {
-  const ecoleId = await getEcoleId();
-  if (!ecoleId) return { success: false, message: SESSION_EXPIREE };
+  const session = await sessionReprise();
+  if (typeof session === "string") return { success: false, message: session };
+  const { ecoleId } = session;
 
   let apercu: ApercuReprise;
   try {
@@ -240,8 +253,9 @@ const MODES_REPRISE = ["especes", "virement", "cheque"] as const;
  * ignore les élèves déjà créés.
  */
 export async function importerLotReprise(formData: FormData): Promise<Resultat<ResultatLotReprise>> {
-  const ecoleId = await getEcoleId();
-  if (!ecoleId) return { success: false, message: SESSION_EXPIREE };
+  const session = await sessionReprise();
+  if (typeof session === "string") return { success: false, message: session };
+  const { ecoleId } = session;
 
   const mode = formData.get("mode");
   if (typeof mode !== "string" || !(MODES_REPRISE as readonly string[]).includes(mode)) {

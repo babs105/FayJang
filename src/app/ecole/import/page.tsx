@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, Upload } from "lucide-react";
+import { ArrowLeft, Lock, Upload } from "lucide-react";
 import { getEcoleId } from "@/lib/ecole-session";
 import { createClientEcole } from "@/lib/supabase/server";
 import { ReprisePanel } from "./reprise-panel";
+import { lireAbonnementEcole } from "@/lib/abonnement-ecole";
+import { MESSAGE_LECTURE_SEULE, peutEcrire } from "@/lib/abonnement";
 
 export const dynamic = "force-dynamic";
 // Les Server Actions de cette page lisent le fichier et écrivent un lot : marge pour un gros fichier
@@ -17,6 +19,9 @@ export default async function ImportPage() {
   const supabase = createClientEcole(ecoleId);
   const { data: ecole } = await supabase.from("ecoles").select("nom, annee_scolaire").eq("id", ecoleId).maybeSingle();
   if (!ecole) redirect("/ecole/login");
+  // Lecture seule (abonnement expiré ou suspendu) : refus annoncé avant l'envoi du fichier ; les actions refusent aussi
+  const abonnement = await lireAbonnementEcole(supabase, "ecole/import");
+  const lectureSeule = abonnement !== null && !peutEcrire(abonnement.etat);
 
   return (
     <div className="min-h-screen bg-neutral-50">
@@ -37,7 +42,16 @@ export default async function ImportPage() {
         </div>
       </header>
       <main className="max-w-6xl mx-auto px-4 py-6 space-y-4">
-        <ReprisePanel />
+        {lectureSeule ? (
+          <div role="status" className="p-4 rounded-3xl border bg-red-50 border-red-200 text-red-900 text-xs flex gap-3">
+            <Lock className="w-4 h-4 shrink-0 mt-0.5" />
+            <p>
+              <b>{MESSAGE_LECTURE_SEULE}</b> L&apos;import reprendra dès que l&apos;abonnement sera réglé.
+            </p>
+          </div>
+        ) : (
+          <ReprisePanel />
+        )}
       </main>
     </div>
   );

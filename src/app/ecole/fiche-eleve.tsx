@@ -23,6 +23,7 @@ import {
   supprimerEleve,
 } from "./actions";
 import { InscriptionModal } from "./eleves-panel";
+import { MentionLectureSeule } from "./bandeau-abonnement";
 import type { ClasseVue, EcoleVue, EleveVue, PaiementVue } from "./types";
 
 const STYLE_MOIS: Record<StatutMois, string> = {
@@ -39,6 +40,7 @@ export function FicheEleve({
   classes,
   aujourdhui,
   paiements,
+  lectureSeule,
   onClose,
 }: {
   eleve: EleveVue;
@@ -46,6 +48,8 @@ export function FicheEleve({
   classes: ClasseVue[];
   aujourdhui: string;
   paiements: PaiementVue[];
+  /** Abonnement expiré ou suspendu : les gestes d'écriture hors argent sont retirés (encaisser et annuler : tranche 3) */
+  lectureSeule: boolean;
   onClose: () => void;
 }) {
   const [retour, setRetour] = useState<{ ok: boolean; texte: string } | null>(null);
@@ -189,10 +193,14 @@ export function FicheEleve({
           {eleve.derniere_modification && (
             <span className="text-neutral-500">Dernière modification : {formatDate(eleve.derniere_modification)}</span>
           )}
-          <button onClick={() => setEdition(true)} className="ml-auto flex items-center gap-1 font-bold text-neutral-600 hover:text-neutral-900">
-            <Pencil className="w-3.5 h-3.5" /> Modifier la fiche
-          </button>
-          {paiements.length === 0 && (
+          {lectureSeule ? (
+            <MentionLectureSeule className="ml-auto" />
+          ) : (
+            <button onClick={() => setEdition(true)} className="ml-auto flex items-center gap-1 font-bold text-neutral-600 hover:text-neutral-900">
+              <Pencil className="w-3.5 h-3.5" /> Modifier la fiche
+            </button>
+          )}
+          {paiements.length === 0 && !lectureSeule && (
             <button
               disabled={isPending}
               onClick={() =>
@@ -211,7 +219,11 @@ export function FicheEleve({
         {!ins && (
           <div className="rounded-2xl border border-dashed border-neutral-300 p-4 text-center">
             <p className="text-xs text-neutral-600 mb-3">Cet élève n'a pas encore d'inscription pour {ecole.annee_scolaire}.</p>
-            <Bouton onClick={() => setReinscription(true)}>Réinscrire pour {ecole.annee_scolaire}</Bouton>
+            {lectureSeule ? (
+              <MentionLectureSeule />
+            ) : (
+              <Bouton onClick={() => setReinscription(true)}>Réinscrire pour {ecole.annee_scolaire}</Bouton>
+            )}
           </div>
         )}
 
@@ -339,7 +351,7 @@ export function FicheEleve({
                           <p className="text-[11px] font-bold pr-5">{a.libelle}</p>
                           <p className="text-[10px]">{a.reste === 0 ? (a.du === 0 ? "—" : "Payé") : `${formatFCFA(a.reste)} à payer`}</p>
                         </button>
-                        {a.paye === 0 && a.du > 0 && (
+                        {a.paye === 0 && a.du > 0 && !lectureSeule && (
                           <button
                             type="button"
                             title="Retirer cet article"
@@ -360,7 +372,7 @@ export function FicheEleve({
                     <div key={id} className="mb-2">
                       <div className="flex items-center justify-between mb-1">
                         <p className="text-[11px] font-bold">{nom} <span className="font-normal text-neutral-500">(mensuel)</span></p>
-                        {enCours && (
+                        {enCours && !lectureSeule && (
                           <button
                             type="button"
                             onClick={() => confirm(`Arrêter « ${nom} » ? Les mois déjà payés restent.`) && executer(() => retirerArticleInscription(id))}
@@ -394,7 +406,7 @@ export function FicheEleve({
                     </div>
                   );
                 })}
-                {ins.statut === "active" && optionsAjout.length > 0 && (
+                {ins.statut === "active" && !lectureSeule && optionsAjout.length > 0 && (
                   <div className="flex flex-wrap gap-1.5">
                     {optionsAjout.map((a) => (
                       <button
@@ -526,6 +538,7 @@ export function FicheEleve({
               </Bouton>
             </form>
 
+            {!lectureSeule && (
             <div className="flex flex-wrap gap-2 text-xs">
               <select
                 value={statutChoisi}
@@ -565,6 +578,7 @@ export function FicheEleve({
               )}
               <ReductionEditable valeur={ins.reduction_mensuelle} onSave={(v) => executer(() => modifierInscription(ins.id, { reduction_mensuelle: v }))} />
             </div>
+            )}
           </>
         )}
 
@@ -675,8 +689,8 @@ export function FicheEleve({
         </div>
       </div>
 
-      {edition && <EditionEleve eleve={eleve} onClose={() => setEdition(false)} />}
-      {reinscription && (
+      {edition && !lectureSeule && <EditionEleve eleve={eleve} onClose={() => setEdition(false)} />}
+      {reinscription && !lectureSeule && (
         <InscriptionModal classes={classes} ecole={ecole} eleve={eleve} onClose={() => setReinscription(false)} onInscrit={() => setReinscription(false)} />
       )}
     </Modal>
