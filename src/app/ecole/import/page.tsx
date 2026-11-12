@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft, Lock, Upload } from "lucide-react";
-import { getEcoleId } from "@/lib/ecole-session";
+import { getSessionEcole } from "@/lib/ecole-session";
 import { createClientEcole } from "@/lib/supabase/server";
 import { ReprisePanel } from "./reprise-panel";
 import { lireAbonnementEcole } from "@/lib/abonnement-ecole";
@@ -13,10 +13,11 @@ export const maxDuration = 60;
 
 /** Reprise de l'existant : l'école dépose le fichier Excel de ses élèves et voit l'aperçu avant import */
 export default async function ImportPage() {
-  const ecoleId = await getEcoleId();
-  if (!ecoleId) redirect("/ecole/login");
+  const session = await getSessionEcole();
+  if (!session) redirect("/ecole/login");
+  const { ecoleId } = session;
 
-  const supabase = createClientEcole(ecoleId);
+  const supabase = createClientEcole(session);
   const { data: ecole } = await supabase.from("ecoles").select("nom, annee_scolaire").eq("id", ecoleId).maybeSingle();
   if (!ecole) redirect("/ecole/login");
   // Lecture seule (abonnement expiré ou suspendu) : refus annoncé avant l'envoi du fichier ; les actions refusent aussi

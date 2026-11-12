@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getEcoleId } from "@/lib/ecole-session";
+import { getSessionEcole, type SessionEcole } from "@/lib/ecole-session";
 import { createClientEcole } from "@/lib/supabase/server";
 import { todayDakar } from "@/lib/config";
 import { moisScolaires } from "@/lib/dates";
@@ -39,10 +39,10 @@ const SESSION_EXPIREE = "Session expirée : reconnectez-vous à l'Espace École.
  * Session de la reprise : l'école connectée, refusée en lecture seule (abonnement expiré ou suspendu) dès
  * l'analyse du fichier, pour ne pas lui faire préparer un import qui sera refusé. Renvoie le message de refus, ou l'id.
  */
-async function sessionReprise(): Promise<string | { ecoleId: string }> {
-  const ecoleId = await getEcoleId();
-  if (!ecoleId) return SESSION_EXPIREE;
-  return (await refusLectureSeule(createClientEcole(ecoleId), "import/actions")) ?? { ecoleId };
+async function sessionReprise(): Promise<string | { ecoleId: string; utilisateur: SessionEcole }> {
+  const utilisateur = await getSessionEcole();
+  if (!utilisateur) return SESSION_EXPIREE;
+  return (await refusLectureSeule(createClientEcole(utilisateur), "import/actions")) ?? { ecoleId: utilisateur.ecoleId, utilisateur };
 }
 
 /** Lecture complète partagée (curseur sur l'id) ; au-delà de ~21 000 lignes, refus lisible plutôt qu'une liste tronquée */
@@ -66,8 +66,8 @@ interface AnalyseComplete {
 }
 
 /** Lit le fichier et l'analyse contre l'état actuel de la base (classes, catalogues, élèves déjà inscrits) */
-async function analyser(ecoleId: string, formData: FormData): Promise<Resultat<ApercuReprise>> {
-  const r = await analyserComplet(ecoleId, formData);
+async function analyser(utilisateur: SessionEcole, formData: FormData): Promise<Resultat<ApercuReprise>> {
+  const r = await analyserComplet(utilisateur, formData);
   return r.success && r.data ? { success: true, data: r.data.apercu } : { success: false, message: r.message };
 }
 
@@ -76,12 +76,13 @@ async function analyser(ecoleId: string, formData: FormData): Promise<Resultat<A
  * passe : importer_reprise écarte lui-même les doublons en base (statut « ignore »), et chaque lot évite ainsi de relire
  * tous les élèves et parents de l'école.
  */
-async function analyserComplet(ecoleId: string, formData: FormData, lirePresents = true): Promise<Resultat<AnalyseComplete>> {
+async function analyserComplet(utilisateur: SessionEcole, formData: FormData, lirePresents = true): Promise<Resultat<AnalyseComplete>> {
+  const { ecoleId } = utilisateur;
   const fichier = formData.get("fichier");
   if (!(fichier instanceof File) || fichier.size === 0) return { success: false, message: "Choisissez un fichier Excel (.xlsx)." };
   if (fichier.size > LIMITES.octets) return { success: false, message: "Fichier trop lourd : 2 Mo au maximum." };
 
-  const supabase = createClientEcole(ecoleId);
+  const supabase = createClientEcole(utilisateur);
   const { data: ecole, error: erreurEcole } = await supabase
     .from("ecoles")
     .select("annee_scolaire, mois_debut, nb_mensualites, jour_echeance, tranches_dernier_mois, mois_debut_tranches, nb_tranches, rang_mois_tranches, premier_mois_a_linscription, dernier_mois_a_linscription")
@@ -160,9 +161,9 @@ async function analyserComplet(ecoleId: string, formData: FormData, lirePresents
 export async function analyserFichierReprise(formData: FormData): Promise<Resultat<ApercuReprise>> {
   const session = await sessionReprise();
   if (typeof session === "string") return { success: false, message: session };
-  const { ecoleId } = session;
+  const { utilisateur } = session;
   try {
-    return await analyser(ecoleId, formData);
+    return await analyser(utilisateur, formData);
   } catch (err) {
     if (err instanceof ErreurFichier) return { success: false, message: err.message };
     return { success: false, message: messageErreur("import/analyser", err, "Lecture du fichier impossible pour le moment, réessayez.") };
@@ -183,11 +184,11 @@ export interface ResultatClasses {
 export async function importerClassesReprise(formData: FormData): Promise<Resultat<ResultatClasses>> {
   const session = await sessionReprise();
   if (typeof session === "string") return { success: false, message: session };
-  const { ecoleId } = session;
+  const { utilisateur } = session;
 
   let apercu: ApercuReprise;
   try {
-    const r = await analyser(ecoleId, formData);
+    const r = await analyser(utilisateur, formData);
     if (!r.success || !r.data) return { success: false, message: r.message };
     apercu = r.data;
   } catch (err) {
@@ -206,7 +207,7 @@ export async function importerClassesReprise(formData: FormData): Promise<Result
     return { success: true, message: "Aucune classe à créer.", data: resultat };
   }
 
-  const supabase = createClientEcole(ecoleId);
+  const supabase = createClientEcole(utilisateur);
   try {
     for (const c of classes) {
       try {
@@ -255,7 +256,7 @@ const MODES_REPRISE = ["especes", "virement", "cheque"] as const;
 export async function importerLotReprise(formData: FormData): Promise<Resultat<ResultatLotReprise>> {
   const session = await sessionReprise();
   if (typeof session === "string") return { success: false, message: session };
-  const { ecoleId } = session;
+  const { utilisateur } = session;
 
   const mode = formData.get("mode");
   if (typeof mode !== "string" || !(MODES_REPRISE as readonly string[]).includes(mode)) {
@@ -274,7 +275,7 @@ export async function importerLotReprise(formData: FormData): Promise<Resultat<R
   // Vrai dès que le lot part vers la base : avant, rien n'a pu être écrit
   let envoye = false;
   try {
-    const r = await analyserComplet(ecoleId, formData, false);
+    const r = await analyserComplet(utilisateur, formData, false);
     if (!r.success || !r.data) return { success: false, message: r.message };
     const { apercu, classesBase, catalogueBase } = r.data;
     if (apercu.erreursGlobales.length) return { success: false, message: `Le fichier ne peut pas être importé : ${apercu.erreursGlobales[0]}` };
@@ -296,7 +297,7 @@ export async function importerLotReprise(formData: FormData): Promise<Resultat<R
 
     resultat = { crees: 0, ignores: dejaPresents, montant: 0, recus: 0, refuses };
     if (lot.length > 0) {
-      const supabase = createClientEcole(ecoleId);
+      const supabase = createClientEcole(utilisateur);
       envoye = true;
       const { data, error } = await supabase.rpc("importer_reprise", { p_eleves: lot as unknown as Json, p_mode: mode });
       // Refus explicite de la base : la fonction est atomique, rien n'est écrit pour ce lot

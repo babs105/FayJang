@@ -50,7 +50,7 @@ export default function InscriptionPage() {
             </div>
           </div>
           <div>
-            <label className="block text-xs font-bold text-neutral-700 mb-1">Code d&apos;accès (8 caractères min.)</label>
+            <label className="block text-xs font-bold text-neutral-700 mb-1">Mot de passe (8 caractères min.)</label>
             <input name="code" type="password" required minLength={8} autoComplete="new-password" className={champ} />
           </div>
           <button type="submit" disabled={isPending} className="w-full py-2.5 bg-jang-600 hover:bg-jang-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl">

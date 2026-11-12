@@ -14,7 +14,7 @@ import { ParametresPanel } from "./parametres-panel";
 import { FicheEleve } from "./fiche-eleve";
 import { BandeauAbonnement } from "./bandeau-abonnement";
 import { peutEcrire, type SituationAbonnement } from "@/lib/abonnement";
-import type { ClasseVue, EcoleVue, EleveVue, PaiementVue } from "./types";
+import type { ClasseVue, EcoleVue, EleveVue, PaiementVue, UtilisateurVue } from "./types";
 
 export type Onglet = "tableau" | "eleves" | "paiements" | "impayes" | "classes" | "parametres";
 
@@ -35,6 +35,8 @@ export interface DonneesEcole {
   aujourdhui: string;
   /** État de l'abonnement calculé par le serveur (alerte, grâce, lecture seule) */
   abonnement: SituationAbonnement;
+  /** Membre de l'administration connecté (D09) */
+  utilisateur: UtilisateurVue;
 }
 
 export function EcoleDashboardClient(props: DonneesEcole & { bienvenue: boolean; numeroWave: string | null }) {
@@ -56,6 +58,9 @@ export function EcoleDashboardClient(props: DonneesEcole & { bienvenue: boolean;
               <p className="text-sm font-extrabold text-neutral-900 truncate">{props.ecole.nom}</p>
               <p className="text-[11px] text-neutral-500">
                 Espace École · Année {props.ecole.annee_scolaire}
+              </p>
+              <p className="text-[11px] text-neutral-500 truncate">
+                {props.utilisateur.nom} · {props.utilisateur.role === "directeur" ? "Directeur" : "Caissier"}
               </p>
             </div>
           </div>

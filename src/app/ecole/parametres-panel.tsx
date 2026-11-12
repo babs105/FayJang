@@ -5,14 +5,15 @@ import { formatDate, formatMois, moisScolaires } from "@/lib/dates";
 import { formatFCFA } from "@/lib/utils";
 import { maxTranches, moisCibleTranches, moisDesTranches, nomRang, partEchue, verifierReglages } from "@/lib/scolarite";
 import { Badge, Bouton, Carte, Label, Message, champ } from "@/components/ui";
-import { changerCodeAcces, enregistrerParametres } from "./actions";
+import { changerMonMotDePasse, enregistrerParametres } from "./actions";
+import { MOT_DE_PASSE_MIN } from "@/lib/mot-de-passe";
 import { MentionLectureSeule } from "./bandeau-abonnement";
 import { peutEcrire } from "@/lib/abonnement";
 import type { DonneesEcole } from "./ecole-dashboard-client";
 
 const MOIS = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
 
-export function ParametresPanel({ ecole, abonnement, numeroWave }: DonneesEcole & { numeroWave: string | null }) {
+export function ParametresPanel({ ecole, abonnement, numeroWave, utilisateur }: DonneesEcole & { numeroWave: string | null }) {
   const lectureSeule = !peutEcrire(abonnement.etat);
   const [f, setF] = useState({
     nom: ecole.nom,
@@ -202,22 +203,25 @@ export function ParametresPanel({ ecole, abonnement, numeroWave }: DonneesEcole 
           {numeroWave && (
             <p className="text-[11px] text-neutral-600">Règlement par Wave au <b>{numeroWave}</b>, en indiquant l'identifiant <b>{ecole.slug}</b>.</p>
           )}
-          <p className="text-[11px] text-neutral-500">Identifiant de connexion : <b>{ecole.slug}</b>{ecole.email_contact ? ` ou ${ecole.email_contact}` : ""}</p>
+
         </Carte>
 
         <Carte className="space-y-3">
-          <h3 className="text-sm font-extrabold">Code d'accès</h3>
+          <h3 className="text-sm font-extrabold">Mon mot de passe</h3>
+          <p className="text-[11px] text-neutral-500">
+            Connecté : <b>{utilisateur.nom}</b> ({utilisateur.role === "directeur" ? "directeur" : "caissier"}), e-mail de connexion <b>{utilisateur.email}</b>
+          </p>
           <form
             className="space-y-2"
             onSubmit={(e) => {
               e.preventDefault();
-              executer(() => changerCodeAcces(code.ancien, code.nouveau));
+              executer(() => changerMonMotDePasse(code.ancien, code.nouveau));
               setCode({ ancien: "", nouveau: "" });
             }}
           >
-            <input type="password" autoComplete="current-password" placeholder="Code actuel" value={code.ancien} onChange={(e) => setCode({ ...code, ancien: e.target.value })} className={champ} />
-            <input type="password" autoComplete="new-password" placeholder="Nouveau code (8 caractères min.)" value={code.nouveau} onChange={(e) => setCode({ ...code, nouveau: e.target.value })} className={champ} />
-            <Bouton type="submit" variante="sombre" disabled={isPending || !code.ancien || code.nouveau.length < 8} className="w-full">Changer le code</Bouton>
+            <input type="password" autoComplete="current-password" placeholder="Mot de passe actuel" value={code.ancien} onChange={(e) => setCode({ ...code, ancien: e.target.value })} className={champ} />
+            <input type="password" autoComplete="new-password" placeholder={`Nouveau mot de passe (${MOT_DE_PASSE_MIN} caractères min.)`} value={code.nouveau} onChange={(e) => setCode({ ...code, nouveau: e.target.value })} className={champ} />
+            <Bouton type="submit" variante="sombre" disabled={isPending || !code.ancien || code.nouveau.trim().length < MOT_DE_PASSE_MIN} className="w-full">Changer le mot de passe</Bouton>
           </form>
         </Carte>
       </div>
