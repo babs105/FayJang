@@ -44,6 +44,8 @@ et le total. Le parent retrouve ses reçus sur `/p/[token]`.
 - `numeroter_recu` (BEFORE INSERT) : numéro `FJ-<année>-<00001>`, partagé par les
   lignes du même `lot_id` insérées dans la même transaction.
 - `proteger_paiement` (BEFORE UPDATE) : seule l'annulation motivée passe.
+- `trg_interdire_suppression_paiement` (BEFORE DELETE, bloc v1.19) : aucun paiement ne
+  se supprime, même depuis l'éditeur SQL.
 - `verifier_meme_ecole` : l'inscription doit appartenir à la même école.
 
 ## Invariants métier (non négociables)
@@ -100,8 +102,15 @@ sinon). Espèces, virement, chèque : référence facultative.
 
 ### I6 — Dates et montants
 `paye_le = todayDakar()`. Montants entiers en FCFA, jamais de décimales, affichés
-avec `formatFCFA()`. Un élève en abandon ne doit que les mois déjà payés (pas
-d'arriéré fictif).
+avec `formatFCFA()`.
+
+**Élève parti (abandon, transfert)**, décision « Départ d'un élève » (section 9 de
+`docs/feature-spec.md`) : avec une `date_depart`, les mois jusqu'au mois du départ
+**inclus** restent dus (mois entamé = dû), ceux d'après ne le sont plus ; ce qui est
+déjà payé est gardé. Restent dus : frais d'inscription, frais uniques, 1er mois payé à
+l'inscription. Un ancien abandon **sans** date garde l'ancien calcul (seuls les mois
+déjà payés), avec le bandeau « date de départ manquante ». Le paiement libre est refusé
+pour un élève parti, par l'action et par `encaisser_paiement` (FJ412).
 
 ### I7 — Format de retour et erreurs
 `{ success: boolean; message?: string; data?: { ids } }`, message en français
@@ -226,4 +235,6 @@ Le rapport de l'agent contient :
 - **Reviews à déclencher** (`database-reviewer` sur X, `security-reviewer`
   sur Y, avec un scope nommé)
 - **Tests manuels** (E1-E8 applicables à la tranche) et tests chiffrés si `scolarite.ts` change
+- **Bugs du backlog résolus**, **bugs ajoutés au backlog**, et **« À proposer au feature spec »**
+  (besoin → section 6, piste → section 7)
 - **Hors scope identifié** (à re-planifier par `architect`)

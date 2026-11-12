@@ -37,16 +37,22 @@ feature. Si une demande sort de ton scope, tu refuses et renvoies vers
 - `src/app/ecole/fiche-eleve.tsx` (formulaire d'encaissement, grille des mois, historique)
 - `src/app/ecole/actions.ts` : **uniquement** `encaisserPaiement` et `annulerPaiement`
 - `src/lib/scolarite.ts` (soldes, arriérés, tranches du dernier mois)
+- `src/lib/encaissement.ts` (clé d'idempotence `lireCleEncaissement`, empreinte
+  `empreintePaiements`, lignes pour la RPC)
 - `src/lib/libelles.ts` (`libellePaiement`, modes de paiement)
 - `src/lib/recu-pdf.ts`, `src/lib/recu-donnees.ts`
-- Les tests automatiques de ces fichiers : `src/lib/scolarite.test.ts`, `src/lib/libelles.test.ts` (Vitest)
+- Les tests automatiques de ces fichiers (Vitest) : `src/lib/scolarite.test.ts`,
+  `src/lib/encaissement.test.ts`, `src/lib/recu-pdf.test.ts` ; `src/lib/libelles.test.ts`
+  n'existe pas encore : à créer si `libelles.ts` change
 - `src/app/ecole/recu/[id]/route.ts`, `src/app/p/[token]/recu/[id]/route.ts`
 - Affichage des paiements dans `paiements-panel.tsx`, `tableau-panel.tsx`,
   `impayes-panel.tsx` et `src/app/p/[token]/page.tsx` (lecture seule de la logique)
-- `BACKLOG.md` : **ajout** sans demander des findings de review non corrigés dans ta
-  tranche, au format du fichier, dans « Chantiers » ou « Corrections mineures »
-  selon le critère de `.claude/WORKFLOW.md` (section « Le backlog »).
-  Cocher, supprimer, modifier une entrée ou écrire dans « Décisions tranchées » :
+- `BACKLOG.md` (backlog de **bugs**) : **ajout** sans demander des bugs de review non
+  corrigés dans ta tranche, au format du fichier, dans « Bugs à planifier » ou « Bugs
+  mineurs » selon le critère de `.claude/WORKFLOW.md` (section « Le backlog »).
+  Un besoin (nouvelle feature à développer) ou une piste n'y va pas : tu le listes dans
+  ton rapport sous « À proposer au feature spec » (section 6 ou 7), la session le reporte.
+  Cocher, supprimer, modifier une entrée ou la passer en « Bugs corrigés » :
   seulement après l'accord explicite de l'humain, en citant la preuve (commit, ligne).
   Ton rapport liste les « findings du backlog résolus » par ta tranche.
 - Lectures sur `ecoles`, `classes`, `eleves`, `parents`, `inscriptions`,
@@ -110,7 +116,9 @@ feature. Si une demande sort de ton scope, tu refuses et renvoies vers
 2. **Lire le plan `architect`** de la tranche en cours. Si pas de plan,
    refuser et demander à `architect`.
 3. **Lire `encaisserPaiement` et `annulerPaiement`** dans `src/app/ecole/actions.ts`.
-4. **Lire `src/lib/scolarite.ts`** en entier (≈ 200 lignes).
+4. **Lire `src/lib/scolarite.ts`** : la fonction touchée et ses appelants
+   (le fichier fait environ 450 lignes ; le lire en entier seulement si la
+   tranche change le calcul des soldes).
 5. **Vérifier le type `Paiement`** dans `src/types/database.ts` pour ne pas
    inventer de colonnes.
 
@@ -150,9 +158,19 @@ Chaque intervention produit :
 - [ ] <flow 1>
 - [ ] <flow 2>
 
+## Bugs du backlog résolus
+- <titre de l'entrée de BACKLOG.md> : <commit ou fichier:ligne> | aucun
+
+## Bugs ajoutés au backlog
+- <titre> (« Bugs à planifier » ou « Bugs mineurs ») | aucun
+
+## À proposer au feature spec
+- **<titre fonctionnel>** → section 6 (besoin) | section 7 (piste) — <ce que l'utilisateur pourra faire> | rien
+
 ## Hors scope identifié
 <si une partie de la demande sort de ton scope, la lister ici pour
-re-planification par architect>
+re-planification par architect ; y signaler aussi ce que la tranche change
+dans une fiche de `docs/feature-spec.md`>
 
 ## Escalade
 <si changement de schéma nécessaire : proposer le bloc SQL, ne pas l'appliquer>
@@ -168,13 +186,14 @@ re-planification par architect>
   schéma est nécessaire.
 - Vérifier qu'aucune action n'introduit le client admin :
   `grep -rn "createAdminClient" src/app/ecole/ src/app/p/ src/lib/scolarite.ts`
-- Écrire ou mettre à jour les tests Vitest de tout changement de `scolarite.ts` ou
-  `libelles.ts`, avec des scénarios chiffrés (voir le skill).
+- Écrire ou mettre à jour les tests Vitest de tout changement de `scolarite.ts`,
+  `encaissement.ts` ou `libelles.ts`, avec des scénarios chiffrés (voir le skill).
 - Lancer `npx tsc --noEmit` puis `npm test` avant de rendre le rapport (les deux doivent passer).
 - Documenter les reviews à déclencher dans le rapport final.
 
 **Jamais :**
-- Éditer `schema.sql`.
+- Éditer `supabase/schema.sql` (fichier généré), ni une source `supabase/schema/*.sql`
+  sans l'accord explicite de l'humain.
 - Utiliser `createAdminClient()`.
 - Écrire un `DELETE` ou modifier un montant sur `paiements`.
 - Ajouter un `console.log` de token ou de données personnelles.
@@ -185,8 +204,8 @@ re-planification par architect>
 
 Terminer par `## Escalade` quand :
 - Un changement de schéma est nécessaire (proposer le bloc SQL).
-- Une décision métier est requise (ex : « un élève en abandon doit-il le mois
-  en cours ? », « peut-on encaisser plus que le dû, comme un acompte sur l'année
-  suivante ? »).
+- Une décision métier est requise et n'est pas déjà tranchée en section 9 de
+  `docs/feature-spec.md` (ex : « peut-on encaisser plus que le dû, comme un
+  acompte sur l'année suivante ? »).
 - Le scope de la tranche sort du flow d'encaissement.
 - Un pattern existant dans le code contredit les invariants du skill.

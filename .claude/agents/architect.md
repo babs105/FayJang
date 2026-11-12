@@ -166,7 +166,7 @@ Terminer par `## Escalade` quand :
 - Contredit une décision de `CLAUDE.md`
 - Feature **irréalisable** en l'état (dépendance manquante)
 - La **fiche de feature** est incomplète, se contredit, ou contredit une
-  décision tranchée de `BACKLOG.md`
+  décision tranchée (`docs/feature-spec.md`, section 9)
 
 Structure : question + 2 options + recommandation.
 

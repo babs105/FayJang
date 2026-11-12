@@ -1,36 +1,35 @@
 # Backlog — FayJàng
 
-> Les findings d'audit qui ne sont pas corrigés dans la PR courante arrivent ici.
-> Un finding dans ce fichier **n'est pas une urgence**. Il attend qu'une feature
-> le croise.
+> **Backlog de bugs** : seuls les bugs dont la correction a été reportée arrivent ici
+> (le code livré fait autre chose que ce que disent le feature spec, `CLAUDE.md` ou une
+> décision tranchée). Un bug dans ce fichier **n'est pas une urgence**. Il attend qu'une
+> feature le croise.
 >
 > Règles :
+> - Un besoin (nouvelle feature à développer) ou une piste
+>   ne s'écrit pas ici : il va dans `docs/feature-spec.md`, section 6 ou 7.
 > - Ne rien corriger depuis ce fichier sans passer par `architect`.
 > - Ne rien supprimer sans avoir la preuve que c'est fait (commit, PR, numéro de ligne).
-> - Une décision tranchée ne se rouvre pas sans raison nouvelle.
+> - Les décisions tranchées (métier, projet, risques acceptés) ne sont pas ici : `docs/feature-spec.md`, section 9.
+> - Un bug corrigé passe en « Bugs corrigés » avec sa preuve (commit) ; il ne se rouvre pas sans raison nouvelle.
 > - Le dev (`dev-encaissement` ou la session principale) gère ce fichier avec l'autorisation de l'humain :
->   il **ajoute** sans demander les findings non corrigés de sa tranche ; il **coche, supprime, modifie**
->   une entrée ou écrit dans « Décisions tranchées » seulement après l'accord explicite de l'humain.
+>   il **ajoute** sans demander les bugs non corrigés de sa tranche ; il **coche, supprime, modifie**
+>   une entrée ou la passe en « Bugs corrigés » seulement après l'accord explicite de l'humain.
 > - Classement (détail dans `.claude/WORKFLOW.md`, section « Le backlog ») :
->   - **Chantier** dès qu'un de ces points est vrai : plus d'1 h de travail, touche `schema.sql`,
+>   - **Bug à planifier** dès qu'un de ces points est vrai : plus d'1 h de travail, touche `schema.sql`,
 >     l'auth ou l'argent (encaissement, reçus, soldes), plus de 2 fichiers, ou décision métier à prendre ;
->   - **Correction mineure** sinon : correctif court et localisé.
+>   - **Bug mineur** sinon : correctif court et localisé.
 >   - Une nouvelle entrée s'ajoute à la fin de sa section, avec son origine (review, tranche, date).
 
 ---
 
-## Chantiers (feature-scale, à planifier avec architect)
+## Bugs à planifier (avec architect)
 
-_Aucun chantier en attente._
+_Aucun bug à planifier en attente._
 
 ---
 
-## Corrections mineures (à appliquer quand une feature croise le sujet)
-
-- [ ] **Version unique des fonctions v1.9 à v1.11 à vérifier en base** — après application du schéma :
-  `SELECT oid::regprocedure FROM pg_proc WHERE proname IN ('enregistrer_classe', 'enregistrer_parametres',
-  'inscrire_eleve');` doit renvoyer trois lignes (PGRST203 sinon). Vérifié en base locale, pas encore sur Supabase.
-  *Estimé : 2 min. Croise : mise en production de « opérations atomiques ».* (2026-11-10)
+## Bugs mineurs (à corriger quand une feature croise le sujet)
 
 - [ ] **Commentaires de cellule écrits par openpyxl illisibles par exceljs** — un classeur produit par un outil qui
   écrit ses commentaires comme openpyxl fait échouer `lireClasseur` (« Fichier Excel illisible »). Le modèle n'a plus de
@@ -38,76 +37,10 @@ _Aucun chantier en attente._
   dessus : retirer les commentaires avant le chargement, ou message dédié. *Estimé : 1 h. Croise : V2 de l'import
   (fichiers d'école tels quels).* (tranche 1 « reprise de l'existant », 2026-11-11)
 
-- [ ] **Limite de fréquence sur l'analyse du fichier d'import** (S10) — chaque appel à `analyserFichierReprise`
-  déclenche un parsing exceljs et environ 7 lectures paginées ; une école connectée peut les enchaîner. Correctif :
-  limite par école (ex. 10 analyses par 10 min), réutilisable pour l'import réel. *Estimé : 1 h. Croise : tranche 5
-  de l'import.* (review security tranche 1 « reprise de l'existant », 2026-11-11)
-
-- [ ] **`bodySizeLimit: "3mb"` vaut pour toutes les Server Actions** — `next.config.ts` : Next 15 n'a pas de réglage
-  par action, le corps (3 Mo au lieu de 1) est mis en mémoire avant le contrôle de session. Risque faible, accepté
-  pour l'import (2 Mo + enveloppe multipart). À revoir si Next permet une limite par route, ou passer l'envoi par une
-  route dédiée. *Estimé : 1 h.* (review security tranche 2 « reprise de l'existant », 2026-11-11)
-
-- [ ] **Test de non-régression SQL du contrôle de période** (H4) — le refus FJ412 d'un service mensuel hors
-  `[mois_debut, mois_fin]` (`encaisser_paiement` v1.16) n'a aucun test automatique (Vitest ne couvre que `src/lib`).
-  Correctif : script SQL à jouer sur une base de test (mois = début, mois = fin, un mois avant, un mois après, bornes
-  NULL, rejeu après changement de période). Les noms de mois sont aussi codés en dur dans la fonction SQL, à garder
-  alignés avec `dates.ts`. *Estimé : 1 h. Croise : tranche 5.* (review database tranche 3 « reprise de l'existant », 2026-11-11)
-
-- [ ] **Réanalyse complète du fichier à chaque clic** (S10/S13) — créer les classes relance `analyser()` deux fois
-  (action puis aperçu recalculé) : parse de 2 Mo et lecture de tous les élèves et parents de l'école. Chemin
-  authentifié, risque de charge seulement. À revoir si l'import s'ouvre à d'autres rôles. *Estimé : 30 min.*
-  (review security tranche 4, 2026-11-11)
-
-- [ ] **Mode de paiement des reçus de reprise limité à espèces, virement, chèque** — Wave, Orange Money et Free Money
-  sont refusés par `importer_reprise` (règle I5 : référence de transaction obligatoire, qu'un total repris n'a pas).
-  Une école qui a tout encaissé par mobile money choisit un autre mode, approximatif ; la mention « Reprise de
-  l'existant » sur le PDF (tranche 6) lève l'ambiguïté. Décision métier si besoin d'un mode « Non précisé ».
-  (tranche 5 « reprise de l'existant », 2026-11-11)
-
-- [ ] **Import : le fichier est relu et réanalysé à chaque lot de 25** — `importerLotReprise` renvoie le fichier (2 Mo
-  au plus) et refait l'aperçu complet, y compris la lecture des élèves et parents de l'école : 80 lots pour 2000
-  élèves. Fonctionnel, coûteux. Correctif possible : stocker l'analyse (table temporaire ou cache signé) et ne relire
-  que les élèves du lot. *Estimé : 2 h. Croise : gros fichiers.* (tranche 5 « reprise de l'existant », 2026-11-11)
-  **Mise à jour** : chaque lot ne relit plus les élèves, parents et inscriptions de l'école (doublons écartés par
-  `importer_reprise`, review security tranche 5). Reste : la relecture du fichier à chaque lot.
-
-- [ ] **Test de non-régression SQL de `importer_reprise`** — Vitest ne couvre pas le SQL. Script à jouer sur une base
-  de test : lot de 26 refusé, doublon rejoué (0 création), plafond dépassé (lot annulé en entier), service repris
-  (paiement de février sur la ligne de février), élève sans versement (aucun numéro consommé). *Estimé : 1 h 30.*
-  (tranche 5 « reprise de l'existant », 2026-11-11)
-
-- [ ] **Limite de fréquence sur l'export Excel** (S10) — `/ecole/export` charge toute l'école en mémoire et construit le
-  classeur à chaque appel, sans frein pour une école authentifiée (coût limité à ses propres données). Correctif :
-  une génération par minute et par école. *Estimé : 1 h.* (review security tranche 7, 2026-11-11)
-
 ---
 
-## Décisions tranchées (ne plus rouvrir)
+## Bugs corrigés (avec la preuve, ne plus rouvrir)
 
-- [x] **Un paiement ne se supprime ni ne se modifie** : annulation motivée seulement,
-  reçu barré « ANNULÉ », annulation par reçu entier (lot). (2026-11-07)
-- [x] **Le dernier mois peut se payer par tranches** : mois de début et nombre de
-  tranches réglés par l'école, tranche incluse dans le reçu de la mensualité, case
-  cochée par défaut. (2026-11-08)
-- [x] **Commits signés avec l'adresse noreply GitHub** dans ce dépôt (l'adresse Gmail
-  n'est pas reliée au compte, Vercel refusait le déploiement). (2026-11-08)
-- [x] **Nom de l'application : FayJàng** (identifiants techniques sans accent :
-  `fayjang`). (2026-11-08)
-- [x] **Réglages d'encaissement fixés par l'école en début d'année** (1er / dernier mois à
-  l'inscription, mois payé par tranches) : ils restent au niveau de l'école, pas figés sur
-  chaque inscription. (2026-11-08)
-- [x] **Départ d'un élève (abandon, transfert)** : une date de départ est enregistrée ; les mois
-  jusqu'au mois du départ inclus (mois entamé = dû) restent dus, ceux d'après ne le sont plus
-  (ce qui est déjà payé est gardé, pas de remboursement). Restent dus : frais d'inscription,
-  frais uniques (tenues…), 1er mois payé à l'inscription. Anciens abandons sans date : ancien
-  calcul + bandeau « date de départ manquante ». Le parent voit « Départ enregistré le … ». (2026-11-08)
-- [x] **Paiement libre refusé pour un élève parti** (abandon ou transfert). Appliqué dans
-  `encaisserPaiement` et l'interface (commit `3e3c4bb`). (2026-11-08)
-- [x] **Exception au gel du schéma** pour la seule colonne `inscriptions.date_depart` (ajout pur,
-  feature « départ d'un élève »). (2026-11-08)
-- [x] **Préfixe des reçus encore « JP- »** — vient de l'ancien nom JàngPay. Passer à
-  « FJ- » demande un bloc final qui remplace `numeroter_recu` .(2026-11-09)
 - [x] **Inscription d'élève atomique** — fonction SQL `inscrire_eleve` (bloc v1.7 de
   `supabase/schema/05-migrations.sql`) : parent, élève, inscription, articles et reçu d'inscription
   créés en une seule transaction ; un échec n'en laisse aucun et ne consomme pas de numéro de reçu.
@@ -117,10 +50,6 @@ _Aucun chantier en attente._
 - [x] **Plafond de lignes sur le calcul du matricule** — le matricule est calculé par `inscrire_eleve`
   (plus grand suffixe numérique + 1, sous verrou), sans lecture plafonnée ni ordre texte ; testé : après
   269999 vient 2610000. Commit `561ff6d`. (2026-11-10)
-- [x] **Signature de `inscrire_eleve` gardée en tranche 2** — mêmes 14 paramètres, refus de l'encaissement
-  retiré, lignes de paiement validées avant tout cast. Commit `865f9d2`. (2026-11-10)
-- [x] **Parent existant à l'inscription** : même téléphone dans l'école = même parent ; son nom et son lien
-  ne changent pas (un parent désactivé est réutilisé sans être réactivé). (2026-11-10)
 - [x] **Encaissement atomique (paiements simultanés)** — fonction SQL `encaisser_paiement` (bloc v1.8 de
   `supabase/schema/05-migrations.sql`), SECURITY INVOKER : verrou de l'inscription (`FOR NO KEY UPDATE`),
   empreinte des paiements lus par le serveur (tout changement depuis la lecture → FJ412 « Un autre encaissement
@@ -134,14 +63,6 @@ _Aucun chantier en attente._
 - [x] **Paiement libre refusé pour un élève parti, aussi en base** — `encaisser_paiement` refuse un paiement libre
   si l'inscription n'est pas active (FJ412). Couvre le seul chemin d'encaissement ; la policy RLS `ecole_encaisse`
   n'a pas changé. Commit `013056d`. (2026-11-10)
-- [x] **Version unique de `encaisser_paiement` à vérifier en base** — après application du schéma :
-  `SELECT oid::regprocedure FROM pg_proc WHERE proname = 'encaisser_paiement';` doit renvoyer une ligne (PGRST203
-  sinon). *Estimé : 2 min. Croise : mise en production de « encaissement atomique ».*
-  (plan architect « encaissement atomique », 2026-11-10)
-- [X] **Version unique de `inscrire_eleve` à vérifier en base** — après application du schéma, s'assurer qu'une
-  seule signature existe : `SELECT oid::regprocedure FROM pg_proc WHERE proname = 'inscrire_eleve';` doit renvoyer
-  une ligne (une surcharge donnerait l'erreur PostgREST PGRST203). *Estimé : 2 min. Croise : mise en production
-  de « inscription atomique ».* (review database tranche 2 « inscription atomique », 2026-11-10)
 - [x] **Opérations multi-étapes atomiques** — `enregistrer_classe` (bloc v1.9) : classe et catalogue en une seule
   transaction, classe verrouillée en FOR NO KEY UPDATE ; `enregistrer_parametres` (bloc v1.11) : réglages et copie
   des classes actives + catalogue vers la nouvelle année en une seule transaction, école verrouillée (FOR NO KEY
@@ -169,8 +90,6 @@ _Aucun chantier en attente._
 - [x] **Service mensuel encaissé hors de sa période** (H4) — `encaisser_paiement` (bloc v1.16) refuse en FJ412 un mois
   hors de `[mois_debut, mois_fin]` d'un service mensuel (bornes NULL = année entière), après le rejeu ; message
   « Transport : mars 2027 est hors de la période du service (…) ». Commit `af25822`. (2026-11-11)
-- [x] **Service d'un élève parti sans aucun versement : c'est un dû** (M-A) — tranché par l'humain : `repartirReprise`
-  rattache le service, obligatoire ou optionnel, pour le mois du départ, avec un avertissement. Commit `0c83e9d`. (2026-11-11)
 - [x] **Reprise de l'existant : rattachement exact des articles et des paiements** (H-1, M-B, M-C) — `importer_reprise`
   (bloc v1.18) écrit une ligne `articles_inscription` par période d'un service (arrêté puis repris), `mois_debut` /
   `mois_fin` à l'INSERT, et rattache chaque paiement à sa ligne par `article_index` (boucle, jamais l'ordre d'un insert

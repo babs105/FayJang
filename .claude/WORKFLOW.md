@@ -34,10 +34,12 @@
   | Moment | Ce qui change | Accord de l'humain |
   |---|---|---|
   | Nouvelle feature ou piste retenue | Une ligne en section 6 ou 7 | L'humain l'a demandée ou validée |
+  | Besoin ou piste signalé par une review ou un dev | Une ligne en section 6 (besoin) ou 7 (piste), avec sa source (review, tranche, date) | Proposée par la session dans le même tour, puis validée |
   | Fiche validée | Fiche ajoutée, ligne à « planifiée » | « fiche validée » |
   | Règle qui change en cours de feature | La fiche, avec la date | Décision de l'humain citée |
   | Correction (backlog ou bug) qui change un comportement décrit | La règle de la feature concernée, marquée « Sur la branche » jusqu'au merge | Proposée par la session dans le même tour, puis validée |
   | Feature mergée sur `main` | Ligne à « Livrée », fiche réduite en section 4 | Merge confirmé |
+  | Décision tranchée (métier, projet, risque accepté) | Une ligne datée en section 9 | Décision de l'humain citée |
 
 - **La session propose la mise à jour à chaque changement, sans attendre
   qu'on la lui demande.** Dès qu'un tour modifie un comportement, une règle,
@@ -51,6 +53,11 @@
   (lecture seule) signalent dans leur rapport une fiche fausse ou incomplète.
   `dev-encaissement` signale dans son rapport ce qui devrait y changer ; il
   ne l'édite pas (hors de son périmètre).
+- **Un besoin (nouvelle feature à développer) ou une piste repéré en review
+  va au feature spec, pas au backlog.** Le reviewer le range dans le bloc `## À proposer au feature spec`
+  de son rapport, avec sa destination (section 6 « besoin » ou section 7
+  « piste »). La session principale reporte la ligne dans la section
+  indiquée, après l'accord de l'humain (tri complet : section « Le backlog »).
 - Une ligne ne passe à « Livrée » qu'avec la **preuve** (commit de merge sur
   `main`), comme pour une entrée du backlog.
 
@@ -118,40 +125,51 @@
   2. `bash scripts/schema-index.sh` (régénère `.claude/SCHEMA-INDEX.md`)
 - **`supabase/schema.sql` est un fichier généré.** Ne jamais l'éditer à la main.
   Éditer les sources dans `supabase/schema/*.sql`, puis lancer le build.
-- **Un finding d'audit ne se corrige pas immédiatement.** Il va dans
-  `BACKLOG.md`. Il devient une feature (« correction X ») qui sera planifiée,
-  découpée, et suivie du workflow normal.
+- **Un finding d'audit ne se corrige pas immédiatement.** S'il n'est pas
+  corrigé dans la tranche, il est trié (section « Le backlog ») : un **bug**
+  dont la correction est reportée va dans `BACKLOG.md` ; un **besoin** (nouvelle feature à
+  développer) ou une **piste** va dans `docs/feature-spec.md` (section 6 ou 7). Dans les deux
+  cas il sera planifié, découpé, et suivra le workflow normal.
 - **Exception : les 🔴 (fuite active, reçu faux, corruption de données).**
   Hotfix immédiat, branche `fix/prod-xxx` depuis `main`, review accélérée, puis
   retour au workflow.
 - **Une seule vague de correction par audit.** Si un audit produit 2 🟠 et
-  3 🟡, on applique les 2 🟠 + 1 🟡 (le plus impactant). Les autres 🟡 vont
-  au backlog. On ne relance pas d'audit après.
+  3 🟡, on applique les 2 🟠 + 1 🟡 (le plus impactant). Les autres 🟡 sont
+  triés (bug reporté → backlog, besoin ou piste → feature spec). On ne
+  relance pas d'audit après.
 - **Si un audit produit 3 findings ou plus, on gèle `schema.sql` pendant
   2 semaines.** On livre une feature utilisateur avant de rouvrir.
 - **Qui décide du 🟡 à corriger** : c'est **l'humain**, après lecture du
   rapport. Le reviewer **recommande** (il écrit sur chaque 🟡 soit
   `impact: business`, soit `impact: cosmétique`). Le dev **applique** la
   décision de l'humain. Si l'humain n'est pas disponible dans l'heure :
-  **aucun 🟡 n'est appliqué**, tous vont au `BACKLOG.md`. On ne re-audite pas.
+  **aucun 🟡 n'est appliqué**, tous sont triés (backlog ou feature spec). On
+  ne re-audite pas.
 
   Rappel : un 🟡 `impact: business` est en fait un 🟠 déguisé. Il faut
-  le reclasser en 🟠 et l'appliquer. Un 🟡 `impact: cosmétique` va au
-  backlog. Il n'y a pas de 🟡 « moyen ».
+  le reclasser en 🟠 et l'appliquer. Un 🟡 `impact: cosmétique` est trié :
+  au backlog si c'est un bug, sinon au feature spec ou abandonné. Il n'y a
+  pas de 🟡 « moyen ».
 - **Mise à jour du backlog** : après chaque review, le dev (agent dev ou session principale, ou l'humain)
-  ajoute les findings non corrigés à `BACKLOG.md` **avant** de fermer la PR. Un
-  finding non corrigé et non consigné est un finding oublié.
+  ajoute les **bugs** non corrigés à `BACKLOG.md` **avant** de fermer la PR, et la session propose
+  les besoins et pistes pour `docs/feature-spec.md`. Un finding non corrigé et non consigné est un
+  finding oublié.
 - **Lecture du backlog** : `architect` lit `BACKLOG.md` avant chaque plan
-  et intègre les findings que la feature croise comme tranches.
+  et intègre les bugs que la feature croise comme tranches.
 - **Le dev (agent dev ou session principale) gère `BACKLOG.md`, avec l'autorisation de l'humain** :
-  - il **ajoute** sans demander les findings non corrigés de sa tranche (format du fichier : titre,
-    problème, correctif, estimation, « Croise ») ;
-  - il **coche, supprime ou modifie** une entrée, et **écrit dans « Décisions tranchées »**, seulement
+  - il **ajoute** sans demander les bugs non corrigés de sa tranche (format du fichier : titre,
+    problème, correctif, estimation, « Croise ») ; il n'y ajoute **ni besoin, ni piste, ni idée
+    d'amélioration** ;
+  - il **coche, supprime ou modifie** une entrée, et **la passe en « Bugs corrigés »**, seulement
     après l'accord explicite de l'humain dans la conversation, et en citant la preuve (commit, PR,
-    ligne de code) ou la décision de l'humain ;
+    ligne de code) ;
+  - une **décision** (métier, projet, risque accepté) ne s'écrit pas dans le backlog : elle va en
+    section 9 « Décisions tranchées » de `docs/feature-spec.md`, écrite par la session après l'accord
+    de l'humain ;
   - les autres agents (architect, reviewers) n'y écrivent pas.
 - **Retrait des findings résolus** : le rapport du dev liste les « findings du backlog résolus » par
-  sa tranche, avec le commit. Après accord de l'humain, le dev les retire de `BACKLOG.md` avant le merge.
+  sa tranche, avec le commit. Après accord de l'humain, le dev les passe en « Bugs corrigés » de `BACKLOG.md`
+  avant le merge.
 
 ### Sur les reviews
 
@@ -169,14 +187,33 @@
 **Une review qui lit tout `schema.sql` n'est pas une review ciblée. Elle
 est renvoyée.**
 
+#### Avant d'invoquer un reviewer (celui qui invoque : session ou humain)
+
+Les reviewers n'ont que `Read`, `Grep`, `Glob` : ils ne lancent aucune
+commande. Celui qui invoque fait donc les contrôles qui demandent un shell,
+et écrit le résultat dans sa demande :
+
+- **`database-reviewer`** : `bash supabase/scripts/build-schema.sh && bash scripts/schema-index.sh`,
+  puis `git status --short supabase/schema.sql .claude/SCHEMA-INDEX.md`. La
+  demande dit « schéma et index régénérés ». Sans cette mention, le reviewer
+  refuse la review d'un scope SQL.
+- **`security-reviewer`**, si un secret dans le bundle est suspecté :
+  `NEXT_DIST_DIR=.next-build npm run build`, pour qu'il puisse chercher dans
+  `.next-build/static/`. `npm audit` (S15) est lancé par celui qui invoque.
+
 #### Quelles reviews déclencher (grille proportionnelle)
 
-| Niveau | Détection | Reviews |
+Le **nombre de reviews** vient d'une seule grille : celle de « Grille de
+reviews pour tout agent dev », plus bas, qui compte selon **ce que la tranche
+touche**. Le tableau ci-dessous ne fixe que le **niveau de vérification** en
+plus des reviews.
+
+| Niveau | Détection | En plus des reviews de la grille |
 |---|---|---|
-| **Micro** | 1 fichier, pas de SQL, pas d'auth, pas d'argent | Aucune (juste `tsc`) |
-| **Petite** | 2-3 fichiers, UI/logique métier simple | 1 review max (si applicable) |
-| **Moyenne** | Touche SQL ou auth, pattern connu | 2 reviews |
-| **Critique** | `schema.sql`, policy RLS, `SECURITY DEFINER`, trigger, cookie, JWT, encaissement, reçu, calcul des soldes | 2 reviews + tests manuels chiffrés |
+| **Micro** | 1 fichier, pas de SQL, pas d'auth, pas d'argent | `tsc` + `npm test` |
+| **Petite** | 2-3 fichiers, UI/logique métier simple | `tsc` + `npm test`, contrôle en preview si un écran change |
+| **Moyenne** | Touche SQL ou auth, pattern connu | Tests manuels du flow en preview |
+| **Critique** | `schema.sql`, policy RLS, `SECURITY DEFINER`, trigger, cookie, JWT, encaissement, reçu, calcul des soldes | **Tests manuels chiffrés** (reçu, arriéré, reste sur l'année) |
 
 `database-reviewer` est **obligatoire** si la tranche touche :
 `schema.sql`, une policy RLS, une fonction `SECURITY DEFINER`, un trigger,
@@ -206,9 +243,11 @@ l'agent qui la code.
 | `supabase/schema/*.sql` (policy, trigger, fonction) | **2** (database + security) |
 | Un calcul métier sensible (`scolarite.ts` à FayJàng, équivalent ailleurs) | **1** (database) |
 | Une Server Action avec inputs (`actions.ts`) | **1** (security) |
+| Une Server Action qui appelle `.rpc()`, ou `.from()` sur une table sensible (`ecoles`, `parents`, `eleves`, `inscriptions`, `paiements`) | **2** (security sur l'action + database sur l'appel) |
 | Une route de téléchargement (`/ecole/recu/[id]`, `/p/[token]/recu/[id]`, `/export`) | **1** (security) |
 | Un cookie, un JWT, une session | **1** (security) |
-| L'UI seule (composant, JSX, CSS) | **0** (juste `tsc` + `npm test`) |
+| L'UI seule (composant, JSX, CSS), sans nouvelle donnée lue côté serveur | **0** (juste `tsc` + `npm test`) |
+| Un composant qui affiche une **nouvelle** donnée d'une école ou d'une famille (nouvelle lecture côté serveur) | **1** (security sur la lecture et le composant) |
 | Un libellé, une couleur, une icône | **0** (UI pure) |
 
 **Règles de priorité** :
@@ -222,8 +261,9 @@ l'agent qui la code.
    formulaire. Le code de l'action est déjà reviewé **quand il a été créé**,
    pas à chaque fois qu'on l'appelle.
 4. Si la tranche **ajoute une nouvelle action** dans `actions.ts` (même
-   une action apparemment « UI ») → 1 review (security). C'est le seul cas
-   où une tranche UI déclenche une review.
+   une action apparemment « UI ») → 1 review (security), 2 si l'action
+   appelle `.rpc()` ou lit/écrit une table sensible. Avec l'affichage d'une
+   nouvelle donnée, ce sont les seuls cas où une tranche UI déclenche une review.
 
 **Critère de décision rapide** : est-ce que la tranche **ajoute ou modifie**
 une action, une policy, un trigger, une fonction, un calcul métier, une
@@ -235,12 +275,12 @@ du JSX, du CSS, un libellé) → 0 review.
 | Tranche | Reviews |
 |---|---|
 | Ajouter un bouton qui appelle une action **déjà existante et reviewée** | **0** (le bouton est du JSX) |
-| Ajouter un champ obligatoire dans une action existante | **1** (security, l'action change) |
+| Ajouter un champ obligatoire dans une action existante | **1** (security, l'action change) ; **2** si le champ part dans un `.rpc()` ou une table sensible |
 | Corriger un calcul métier dans `scolarite.ts` (ou équivalent) | **1** (database) |
 | Ajouter une policy + l'action qui l'utilise | **2** (policy + action) |
 | Ajouter une nouvelle route de téléchargement | **1** (security) |
 | Changer un libellé, une couleur, une icône | **0** (UI pure) |
-| Ajouter une **nouvelle** action dans `actions.ts` | **1** (security) |
+| Ajouter une **nouvelle** action dans `actions.ts` | **1** (security) ; **2** si elle appelle `.rpc()` ou une table sensible |
 
 Un verdict `BLOQUANT` renvoie au dev sur la même tranche. On ne passe pas à
 T(n+1).
@@ -254,7 +294,7 @@ T(n+1).
   `feat/<feature>`. C'est ce merge qui déclenche le déploiement en
   production.
 - Jamais de merge sans les reviews du scope nommé.
-- Jamais de merge sans `npx tsc --noEmit` (le hook le fait, mais vérifier).
+- Jamais de merge sans `npx tsc --noEmit` (le hook de fin de tour lance `tsc` puis `npm test`, mais vérifier).
 - Jamais de `git push` sur `main` par un agent sans l'accord explicite de l'humain.
 - Jamais de merge sans `npm test` vert (tests Vitest écrits par le dev de la
   tranche) ; les écrans restent testés à la main, tests listés dans le rapport du dev.
@@ -277,27 +317,46 @@ T(n+1).
 
 ## Le backlog (obligatoire)
 
-Tout finding d'audit qui n'est pas corrigé dans la PR courante va dans
-`BACKLOG.md`, à la racine du projet. Structure :
+`BACKLOG.md`, à la racine du projet, est un **backlog de bugs** : il ne
+contient que les bugs dont la correction a été reportée. Tout le reste va
+dans `docs/feature-spec.md`.
+
+**Tri d'un finding non corrigé dans la PR courante** (le reviewer le propose
+dans son rapport, le dev ou la session l'applique) :
+
+| Nature | Critère | Destination | Qui écrit |
+|---|---|---|---|
+| **Bug reporté** | Le code livré fait autre chose que ce que disent le feature spec, `CLAUDE.md` ou une décision tranchée : résultat faux, refus à tort, erreur, faille exploitable | `BACKLOG.md` | Le dev, sans demander |
+| **Besoin** | Une **nouvelle feature à développer** : rien n'est faux aujourd'hui, il manque quelque chose (capacité pour l'école ou le parent, ou feature technique sans changement visible : limite de fréquence, tests SQL) | `docs/feature-spec.md`, section 6 « Features à développer » | La session, après accord de l'humain |
+| **Piste** | Idée de feature à valider ou à écarter, rien n'est décidé | `docs/feature-spec.md`, section 7 « Pistes proposées » | La session, après accord de l'humain |
+| **Note cosmétique** | Ni bug, ni besoin | Reste dans le rapport, nulle part ailleurs | — |
+
+En cas de doute entre bug et besoin : si aucune règle écrite n'est violée,
+ce n'est pas un bug.
+
+Structure de `BACKLOG.md` :
 
 ```markdown
 # Backlog
 
-## Chantiers (feature-scale, à planifier avec architect)
+## Bugs à planifier (avec architect)
 - [ ] **<titre>** (<code checklist, ex. S9, si applicable>) — <description>. Correctif : <…>. *Estimé : <durée>. Croise : <feature>.*
 
-## Corrections mineures (à appliquer quand une feature croise le sujet)
+## Bugs mineurs (à corriger quand une feature croise le sujet)
 - [ ] **<titre>** (<code checklist, ex. S9, si applicable>) — <description>. Correctif : <…>. *Estimé : <durée>. Croise : <feature>.*
 
-## Décisions tranchées (ne plus rouvrir)
-- [x] <décision>
+## Bugs corrigés (avec la preuve, ne plus rouvrir)
+- [x] **<titre>** — <ce qui est corrigé>. Commit `<hash>`. (<date>)
 ```
 
-**Où placer un finding** (le dev applique ce critère, le reviewer peut le suggérer) :
-- **Chantier** dès qu'un de ces points est vrai : plus d'1 h de travail, touche `schema.sql`,
+Les décisions tranchées (métier, projet, risques acceptés) ne sont pas dans le backlog : elles sont en
+section 9 de `docs/feature-spec.md`.
+
+**Où placer un bug dans le backlog** (le dev applique ce critère, le reviewer peut le suggérer) :
+- **Bug à planifier** dès qu'un de ces points est vrai : plus d'1 h de travail, touche `schema.sql`,
   l'auth ou l'argent (encaissement, reçus, soldes), plus de 2 fichiers, ou demande une décision
   métier avant de coder. Ce sont les cas où `architect` est obligatoire.
-- **Correction mineure** sinon : correctif court et localisé, appliqué quand une feature passe
+- **Bug mineur** sinon : correctif court et localisé, appliqué quand une feature passe
   par le fichier.
 - Une nouvelle entrée s'ajoute **à la fin** de sa section, avec son origine (review, tranche, date)
   et son code de checklist s'il y en a un (S9, H6…).
@@ -377,13 +436,14 @@ En cas de conflit, `CLAUDE.md` gagne. Si le `WORKFLOW.md` contredit
 
 ## Checklist avant de merger une tranche (vers la branche de feature)
 
-- [ ] `npx tsc --noEmit` passe (le hook le fait en fin de tour)
+- [ ] `npx tsc --noEmit` et `npm test` passent (le hook les lance en fin de tour)
 - [ ] `database-reviewer` a rendu APPROUVÉ sur son scope nommé (si applicable)
 - [ ] `security-reviewer` a rendu APPROUVÉ sur son scope nommé (si applicable)
 - [ ] Tests manuels listés dans le rapport du dev : tous passent
 - [ ] `.claude/SCHEMA-INDEX.md` régénéré si `schema.sql` a changé
-- [ ] Findings non corrigés ajoutés à `BACKLOG.md`
-- [ ] Findings du backlog résolus par la tranche retirés (après accord de l'humain)
+- [ ] Bugs non corrigés ajoutés à `BACKLOG.md`
+- [ ] Besoins et pistes des reviews proposés pour `docs/feature-spec.md` (section 6 ou 7)
+- [ ] Bugs du backlog résolus par la tranche passés en « Bugs corrigés » (après accord de l'humain)
 - [ ] Aucune donnée réelle modifiée sans accord de l'utilisateur
 - [ ] Commit au format `type: description en français`
 - [ ] Merge `feat/<feature>-tN` → `feat/<feature>`
@@ -403,8 +463,8 @@ En cas de conflit, `CLAUDE.md` gagne. Si le `WORKFLOW.md` contredit
 - [ ] `git push` sur `main`
 - [ ] `docs/feature-spec.md` mis à jour par la session principale : ligne de la
       feature à « Livrée » avec le commit de merge, fiche réduite en section 4
-- [ ] Décisions durables de la fiche recopiées dans « Décisions tranchées » de
-      `BACKLOG.md` (avec l'accord de l'humain)
+- [ ] Décisions durables de la fiche recopiées en section 9 « Décisions tranchées » de
+      `docs/feature-spec.md` (avec l'accord de l'humain)
 - [ ] Branche de feature supprimée
 
 ## Exemple complet — feature « relances SMS » (3 tranches)

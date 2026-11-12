@@ -12,13 +12,13 @@ case "$file_path" in
   *) exit 0 ;;
 esac
 
-# Autoriser uniquement admin.ts et api/cron
-if [[ "$file_path" == *"/supabase/admin.ts" ]] || [[ "$file_path" == *"/api/cron/"* ]]; then
+# Autoriser uniquement admin.ts (seul fichier qui lit la clé admin)
+if [[ "$file_path" == *"/supabase/admin.ts" ]]; then
   exit 0
 fi
 
 if echo "$content" | grep -q "SUPABASE_SERVICE_ROLE_KEY\|service_role"; then
-  echo "BLOQUÉ : service_role interdit hors de src/lib/supabase/admin.ts et src/app/api/cron/ (FayJàng)." >&2
+  echo "BLOQUÉ : service_role interdit hors de src/lib/supabase/admin.ts (FayJàng)." >&2
   exit 2
 fi
 

@@ -88,9 +88,10 @@ Une tranche qui mélange les deux périmètres est **mal découpée** : la coupe
 Un plan faux coûte une tranche entière. Un plan qui lit tout coûte du temps
 pour rien. Ordre de lecture, **12 appels d'outils au plus** :
 
-1. La **fiche de feature** (dans la demande, sinon `docs/feature-spec.md`).
+1. La **fiche de feature** (dans la demande, sinon `docs/feature-spec.md`), puis la
+   section 9 « Décisions tranchées » du même fichier (`Grep` sur les mots de la feature).
 2. `BACKLOG.md` : un seul `Grep` sur les mots de la feature (table, action,
-   écran) pour trouver les entrées « Croise : », puis « Décisions tranchées ».
+   écran) pour trouver les bugs ouverts « Croise : ».
 3. `.claude/SCHEMA-INDEX.md` en entier (court) : tables, fonctions, triggers
    concernés et **dernier bloc `vX.Y`** (le prochain bloc du plan porte le
    numéro suivant). Ne jamais lire `supabase/schema.sql` en entier ; lire la
@@ -170,12 +171,13 @@ Une policy RLS | `database-reviewer` | "sur la policy `<nom>`"
 Une fonction SECURITY DEFINER | `database-reviewer` | "sur la fonction `<nom>`"
 Un trigger (`numeroter_recu`, `proteger_paiement`, `verifier_meme_ecole`…) | `database-reviewer` | "sur le trigger `<nom>` de la table `<table>`"
 Un calcul d'argent (`situationInscription`, tranches) | `database-reviewer` | "sur la fonction `<nom>` de `scolarite.ts` et son appel dans `<action>`"
-Une Server Action qui appelle `.rpc()` | `database-reviewer` | "sur l'appel RPC `<nom>` de l'action `<nom>`"
+Une Server Action qui appelle `.rpc()`, ou `.from()` sur une table sensible | `database-reviewer` (en plus de `security-reviewer` sur l'action) | "sur l'appel `<nom>` de l'action `<nom>`"
 Une Server Action qui valide des inputs | `security-reviewer` | "sur l'action `<nom>`"
 Un cookie / une session | `security-reviewer` | "sur le cookie `<nom>` dans `<fichier>`"
 La protection d'une route (pas de middleware : contrôle de session dans chaque fichier) | `security-reviewer` | "sur le contrôle de session de `<fichier>`"
 Une route de téléchargement (reçu, export) | `security-reviewer` | "sur la route `<path>`"
-Un composant qui affiche des données d'une école ou d'une famille | `security-reviewer` | "sur le composant `<nom>`"
+Un composant qui affiche une **nouvelle** donnée d'une école ou d'une famille (nouvelle lecture côté serveur) | `security-reviewer` | "sur la lecture de `<page>` et le composant `<nom>`"
+L'UI seule (JSX, CSS, libellé), sans nouvelle donnée lue | aucune | —
 Un secret (clé, token, hash) | `security-reviewer` + humain | "sur l'usage du secret `<nom>` dans `<fichier>`"
 
 **Règle d'or** : le scope d'une review est toujours un **objet nommé**

@@ -4,9 +4,11 @@
 > **feature-specific** du projet (`.claude/WORKFLOW.md`) : une feature = un flow utilisateur
 > livrable de bout en bout, découpé en tranches verticales par `architect`.
 >
-> État au **2026-11-11**, branche `feat/import-reprise`. Ce document décrit le **quoi** ; le plan
+> État au **2026-11-12**, branche `feat/import-reprise`. Ce document décrit le **quoi** ; le plan
 > d'une feature (tranches, scope des reviews) reste produit par `architect` au moment de la lancer.
-> Les corrections mineures ne sont pas ici : elles vivent dans `BACKLOG.md`.
+> Les bugs dont la correction est reportée ne sont pas ici : ils vivent dans `BACKLOG.md` (backlog de bugs).
+> À l'inverse, un **besoin** (nouvelle feature à développer) ou une **piste** repéré pendant une review ou un
+> dev arrive ici, en section 6 ou 7, jamais dans le backlog.
 
 ## 1. Acteurs et espaces
 
@@ -51,7 +53,7 @@
 | F18 | Console SuperAdmin | `/admin` | Livrée (main) |
 | F19 | Sécurité et exploitation | Transverse | Livrée, en-têtes et CSP sur la branche |
 | F20 | Reprise de l'existant (import Excel) | Onglet Importer | **Terminée sur la branche, pas encore sur `main`** |
-| D01 à D07 | Features à développer (D03 livrée sur la branche) | — | Voir section 6, fiche à remplir selon la section 8 |
+| D01 à D08 | Features à développer, c'est-à-dire les besoins (D03 livrée sur la branche) | — | Voir section 6, fiche à remplir selon la section 8 |
 | P01 à P06 | Pistes à trancher | — | Voir section 7 |
 
 ## 4. Features livrées
@@ -183,24 +185,32 @@
 
 ## 6. Features à développer (identifiées dans le projet)
 
-Chaque ligne cite sa source. Aucune n'a encore de plan `architect`.
+Un **besoin** est une nouvelle feature à développer : on sait qu'il faut la faire, il reste des points à trancher
+avant le plan. Une feature technique sans changement visible pour l'école (D06 à D08) en fait partie.
+
+Chaque ligne cite sa source : demande de l'humain, constat dans le code, ou review (le reviewer la range dans le
+bloc « À proposer au feature spec » de son rapport, la session l'ajoute ici après l'accord de l'humain). Aucune
+n'a encore de plan `architect`.
 
 | N° | Feature | Ce que l'utilisateur pourra faire | Source | Points à trancher avant le plan |
 |---|---|---|---|---|
 | D01 | **Changement de classe en cours d'année** | Passer un élève dans une autre classe sans le réinscrire | Règle posée le 2026-11-10 (« on paie d'abord ») | Déjà tranché : seulement si l'élève a soldé son dû à date ; mois passés à l'ancien tarif, nouveau tarif dès le mois du changement. À trancher : sort des articles de l'ancienne classe |
 | D02 | **Abonnement appliqué automatiquement** | L'école voit la fin de son essai et son accès suit son abonnement | Constat dans le code : le statut est géré à la main dans `/admin`, la fin d'essai (`trial_ends_at`) ne bloque rien | Que se passe-t-il à l'expiration : lecture seule, blocage, délai de grâce ? |
 | D04 | **Sauvegarde régulière des paiements** | L'école et FayJàng gardent une copie hors de la base | `docs/mise-en-prod.md`, section 5 | Export mensuel par école, ou offre Supabase avec sauvegardes |
-| D05 | **Mobile money dans les reçus de reprise** | Reprendre un versement fait par Wave ou Orange Money | `BACKLOG.md` | Référence de transaction obligatoire ou non pour un versement ancien |
-| D06 | **Limites de fréquence sur l'export et l'analyse d'import** | Aucun changement visible ; le serveur est protégé | `BACKLOG.md` (S10) | Seuils (une génération par minute et par école ?) |
-| D07 | **Tests de non-régression SQL** | Aucun changement visible ; les fonctions `encaisser_paiement` et `importer_reprise` sont testées sur une base | `BACKLOG.md` (H4) | Base de test dédiée |
+| D05 | **Mobile money dans les reçus de reprise** | Reprendre un versement fait par Wave ou Orange Money | Tranche 5 « reprise de l'existant » (2026-11-11) | Référence de transaction obligatoire ou non pour un versement ancien, ou mode « Non précisé » |
+| D06 | **Limites de fréquence sur l'export et l'analyse d'import** | Aucun changement visible ; le serveur est protégé | Reviews security des tranches 1 et 7 « reprise de l'existant » (S10, 2026-11-11) | Seuils (une génération par minute et par école ? 10 analyses par 10 min ?) |
+| D07 | **Tests de non-régression SQL** | Aucun changement visible ; les fonctions `encaisser_paiement` et `importer_reprise` sont testées sur une base | Review database de la tranche 3 et tranche 5 « reprise de l'existant » (H4, 2026-11-11) | Base de test dédiée |
+| D08 | **Import : analyse du fichier gardée entre les étapes** | Aucun changement visible ; un gros fichier s'importe plus vite (le fichier n'est plus relu ni réanalysé à chaque clic et à chaque lot de 25) | Review security de la tranche 4 et tranche 5 « reprise de l'existant » (S10/S13, 2026-11-11) | Où garder l'analyse : table temporaire ou cache signé |
 
 D03 (protection d'un paiement contre la suppression en éditeur SQL) est livrée sur la branche avec le bloc v1.19 :
 voir F07. Son numéro n'est pas réattribué.
 
 ## 7. Pistes proposées (à trancher, rien n'est décidé)
 
-Ces idées **ne figurent dans aucun document du projet**. Ce sont des propositions, classées par valeur
-estimée pour une école, à valider ou à écarter avant toute planification.
+Une **piste** est une idée de feature : rien n'est décidé, elle peut être écartée. Une piste validée par l'humain
+devient un besoin et passe en section 6. Elles sont classées par valeur estimée pour une école. Une piste repérée
+pendant une review arrive ici de la même façon qu'un besoin (bloc « À proposer au feature spec » du rapport,
+ajout par la session après l'accord de l'humain), avec sa source dans la colonne « Pourquoi ».
 
 | N° | Piste | Pourquoi | Ce qui existe déjà |
 |---|---|---|---|
@@ -251,8 +261,8 @@ décisions métier : elles appartiennent à l'humain. Ni la session principale n
    section 6 ou 7, il donne son numéro.
 2. **La session principale rassemble l'existant**, sans rien décider :
    - le code concerné (pages, actions, fonctions SQL, calculs de `src/lib`) ;
-   - les décisions déjà prises : « Décisions tranchées » de `BACKLOG.md`, section 2 de ce document, mémoire du projet ;
-   - les entrées ouvertes de `BACKLOG.md` que la feature croise (champ « Croise : »).
+   - les décisions déjà prises : sections 2 et 9 de ce document (« Décisions tranchées »), mémoire du projet ;
+   - les bugs ouverts de `BACKLOG.md` que la feature croise (champ « Croise : »).
 3. **La session rédige un brouillon de fiche** (statut « brouillon »). Les champs factuels sont remplis ; chaque
    point non décidé est écrit **« À trancher »**, jamais deviné.
 4. **La session pose les questions métier ouvertes**, toutes en une fois : une question précise, deux options
@@ -265,7 +275,7 @@ décisions métier : elles appartiennent à l'humain. Ni la session principale n
    L'humain vérifie les chiffres à la main : ce sont eux qui serviront aux tests.
 7. **L'humain valide la fiche** (« fiche validée »). La session passe le statut à « validée le <date> », ajoute la
    fiche à la suite de ce document, et met à jour la ligne de la feature dans la vue d'ensemble (section 3).
-8. **La fiche part chez `architect`**, copiée telle quelle, avec les entrées du backlog croisées. Il produit le
+8. **La fiche part chez `architect`**, copiée telle quelle, avec les bugs du backlog croisés. Il produit le
    plan en tranches verticales (`.claude/WORKFLOW.md`).
 
 ### 8.4 Quand la fiche est prête
@@ -286,5 +296,46 @@ Une fiche est validable seulement si :
 - **Règle qui change en cours de feature** : on modifie la fiche d'abord (avec la date), le plan ensuite. La
   fiche reste la référence du « quoi ».
 - **Feature livrée** : la fiche passe en section 4 (features livrées), réduite à « ce que l'utilisateur peut
-  faire » et « règles » ; les décisions durables sont recopiées dans « Décisions tranchées » de `BACKLOG.md`,
+  faire » et « règles » ; les décisions durables sont recopiées en section 9 « Décisions tranchées »,
   avec l'accord de l'humain.
+
+## 9. Décisions tranchées (ne plus rouvrir)
+
+Décisions métier, décisions de projet et risques acceptés, tranchés par l'humain. Une décision ne se rouvre pas
+sans raison nouvelle ; une fiche qui en contredit une doit d'abord la rouvrir explicitement (section 8.4). La
+session ajoute une ligne ici après l'accord de l'humain, avec la date. Les bugs corrigés, eux, sont dans
+`BACKLOG.md` (« Bugs corrigés »).
+
+- **Un paiement ne se supprime ni ne se modifie** : annulation motivée seulement,
+  reçu barré « ANNULÉ », annulation par reçu entier (lot). (2026-11-07)
+- **Le dernier mois peut se payer par tranches** : mois de début et nombre de
+  tranches réglés par l'école, tranche incluse dans le reçu de la mensualité, case
+  cochée par défaut. (2026-11-08)
+- **Commits signés avec l'adresse noreply GitHub** dans ce dépôt (l'adresse Gmail
+  n'est pas reliée au compte, Vercel refusait le déploiement). (2026-11-08)
+- **Nom de l'application : FayJàng** (identifiants techniques sans accent :
+  `fayjang`). (2026-11-08)
+- **Réglages d'encaissement fixés par l'école en début d'année** (1er / dernier mois à
+  l'inscription, mois payé par tranches) : ils restent au niveau de l'école, pas figés sur
+  chaque inscription. (2026-11-08)
+- **Départ d'un élève (abandon, transfert)** : une date de départ est enregistrée ; les mois
+  jusqu'au mois du départ inclus (mois entamé = dû) restent dus, ceux d'après ne le sont plus
+  (ce qui est déjà payé est gardé, pas de remboursement). Restent dus : frais d'inscription,
+  frais uniques (tenues…), 1er mois payé à l'inscription. Anciens abandons sans date : ancien
+  calcul + bandeau « date de départ manquante ». Le parent voit « Départ enregistré le … ». (2026-11-08)
+- **Paiement libre refusé pour un élève parti** (abandon ou transfert). Appliqué dans
+  `encaisserPaiement` et l'interface (commit `3e3c4bb`). (2026-11-08)
+- **Exception au gel du schéma** pour la seule colonne `inscriptions.date_depart` (ajout pur,
+  feature « départ d'un élève »). (2026-11-08)
+- **Préfixe des reçus encore « JP- »** — vient de l'ancien nom JàngPay. Passer à
+  « FJ- » demande un bloc final qui remplace `numeroter_recu` .(2026-11-09)
+- **Signature de `inscrire_eleve` gardée en tranche 2** — mêmes 14 paramètres, refus de l'encaissement
+  retiré, lignes de paiement validées avant tout cast. Commit `865f9d2`. (2026-11-10)
+- **Parent existant à l'inscription** : même téléphone dans l'école = même parent ; son nom et son lien
+  ne changent pas (un parent désactivé est réutilisé sans être réactivé). (2026-11-10)
+- **Service d'un élève parti sans aucun versement : c'est un dû** (M-A) — tranché par l'humain : `repartirReprise`
+  rattache le service, obligatoire ou optionnel, pour le mois du départ, avec un avertissement. Commit `0c83e9d`. (2026-11-11)
+- **`bodySizeLimit: "3mb"` vaut pour toutes les Server Actions : risque accepté** — `next.config.ts` : Next 15 n'a
+  pas de réglage par action, le corps (3 Mo au lieu de 1) est mis en mémoire avant le contrôle de session. Accepté
+  pour l'import (2 Mo + enveloppe multipart). À rouvrir seulement si Next permet une limite par route.
+  (review security tranche 2 « reprise de l'existant », 2026-11-11 ; rangé ici le 2026-11-12)
