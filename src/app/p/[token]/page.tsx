@@ -181,7 +181,7 @@ export default async function ParentPage({ params }: { params: Promise<{ token: 
                         <p className="text-xs font-bold">
                           {resumeRecu(r.lignes)} · {formatFCFA(r.total)}
                         </p>
-                        <p className="text-[10px] text-neutral-500">{formatDate(p.paye_le)} · {LIBELLE_MODE[p.mode]} · {p.numero_recu}{estRecuDeReprise(p.encaisse_par) && " · Reprise de l'existant"}</p>
+                        <p className="text-[10px] text-neutral-500">{formatDate(p.paye_le)} · {LIBELLE_MODE[p.mode]} · {p.numero_recu}{estRecuDeReprise(p.encaisse_par) ? " · Reprise de l'existant" : p.encaisse_par ? ` · Encaissé par ${p.encaisse_par}` : ""}</p>
                       </div>
                     );
                     const lien = (

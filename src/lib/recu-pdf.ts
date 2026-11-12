@@ -14,6 +14,8 @@ export interface DonneesRecu {
   annule: boolean;
   /** Reçu de « Reprise de l'existant » (versements antérieurs à FayJàng) */
   reprise?: boolean;
+  /** Nom de l'utilisateur qui a encaissé (null pour un reçu ancien ; ignoré pour une reprise) */
+  encaissePar?: string | null;
   /** Lignes du reçu (une mensualité, plusieurs mois, mensualité + tranche du dernier mois...) */
   lignes: Array<Pick<Paiement, "type" | "mois" | "libelle" | "montant" | "annule">>;
   eleve: { prenom: string; nom: string; matricule: string };
@@ -107,6 +109,7 @@ export async function genererRecuPdf(d: DonneesRecu): Promise<Uint8Array> {
   info("Classe", `${d.classe} (${d.anneeScolaire})`);
   info("Mode de paiement", LIBELLE_MODE[d.mode] + (d.reference ? ` - réf. ${d.reference}` : ""));
   if (d.reprise) info("Encaissé par", ENCAISSE_PAR_REPRISE);
+  else if (d.encaissePar) info("Encaissé par", d.encaissePar);
 
   // Détail des lignes
   y -= 10;
