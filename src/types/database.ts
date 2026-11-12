@@ -8,6 +8,8 @@ export type Niveau = "prescolaire" | "elementaire" | "moyen" | "secondaire";
 export type StatutInscription = "active" | "abandon" | "transfert";
 export type TypePaiement = "inscription" | "mensualite" | "autre";
 export type ModePaiement = "especes" | "wave" | "orange_money" | "free_money" | "virement" | "cheque";
+/** Rôle d'un membre de l'administration de l'école (D09, bloc v1.21) */
+export type RoleUtilisateur = "directeur" | "caissier";
 
 /** Row complet ; Insert = colonnes obligatoires + optionnelles ; Update = tout optionnel */
 type Table<Row, Requis extends keyof Row> = {
@@ -52,6 +54,25 @@ export type AccesEcole = {
   ecole_id: string;
   code_hash: string;
   updated_at: string;
+}
+
+/**
+ * Compte d'un membre de l'administration (bloc v1.21). Aucun droit direct pour l'application : lu et écrit
+ * seulement par les fonctions SQL (echanger_utilisateur_ecole, session_utilisateur_valide,
+ * changer_mon_mot_de_passe) ou le client admin (inscription d'une école). code_hash : bcrypt, ne sort jamais.
+ */
+export type UtilisateurEcole = {
+  id: string;
+  ecole_id: string;
+  nom: string;
+  /** En minuscules, unique dans tout FayJàng */
+  email: string;
+  code_hash: string;
+  role: RoleUtilisateur;
+  actif: boolean;
+  /** Dernier changement du mot de passe : coupe les sessions émises avant */
+  mdp_modifie_at: string;
+  created_at: string;
 }
 
 export type Classe = {
@@ -179,6 +200,7 @@ export type Database = {
     Tables: {
       ecoles: Table<Ecole, "nom" | "slug">;
       acces_ecole: Table<AccesEcole, "ecole_id" | "code_hash">;
+      utilisateurs_ecole: Table<UtilisateurEcole, "ecole_id" | "nom" | "email" | "code_hash" | "role">;
       classes: Table<Classe, "ecole_id" | "nom" | "annee_scolaire">;
       parents: Table<Parent, "ecole_id" | "nom" | "telephone">;
       eleves: Table<Eleve, "ecole_id" | "matricule" | "prenom" | "nom">;

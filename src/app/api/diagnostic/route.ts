@@ -61,7 +61,13 @@ export async function GET(request: Request) {
   // JWT signé par le serveur et accepté par Supabase : une école fictive ne voit aucune ligne
   let jwtRls: string;
   try {
-    const { data, error } = await createClientEcole("00000000-0000-0000-0000-000000000000").from("ecoles").select("id").limit(1);
+    const { data, error } = await createClientEcole({
+      ecoleId: "00000000-0000-0000-0000-000000000000",
+      utilisateurId: "00000000-0000-0000-0000-000000000000",
+      role: "caissier",
+      nom: "diagnostic",
+      email: "diagnostic@fayjang.invalid",
+    }).from("ecoles").select("id").limit(1);
     jwtRls = error ? echec("jwt", error) : (data ?? []).length === 0 ? "ok" : "ATTENTION : la RLS laisse passer des lignes";
   } catch (err) {
     jwtRls = echec("jwt", err);

@@ -1,6 +1,7 @@
 import "server-only";
 import { serverClient, type SupabaseServeur } from "./client-serveur";
-import { getEcoleId, hashCode } from "@/lib/ecole-session";
+import { getSessionEcole, hashCode, type SessionEcole } from "@/lib/ecole-session";
+import type { RoleUtilisateur } from "@/types/database";
 import { signerJetonSupabase, type ClaimsFayJang } from "./jeton";
 import { ipVisiteur } from "@/lib/ip";
 
@@ -11,7 +12,7 @@ export type { SupabaseServeur };
  *
  * Pattern hybride : l'identifiant reçu (cookie École, token parent dans l'URL) est d'abord échangé par
  * une fonction SQL SECURITY DEFINER, puis le serveur signe un JWT court dont les claims (role_app,
- * ecole_id, parent_id) filtrent les tables. Le JWT ne quitte jamais le serveur.
+ * ecole_id, utilisateur_id, role_utilisateur, parent_id) filtrent les tables. Le JWT ne quitte jamais le serveur.
  * Le client admin (RLS contournée) est réservé à ./admin.ts.
  */
 
@@ -20,16 +21,21 @@ export function createClientAvecClaims(claims: ClaimsFayJang): SupabaseServeur {
   return serverClient(signerJetonSupabase(claims));
 }
 
-/** Client de l'école connectée (cookie de session déjà vérifié par getEcoleId) */
-export function createClientEcole(ecoleId: string): SupabaseServeur {
-  return createClientAvecClaims({ role_app: "ecole", ecole_id: ecoleId });
+/** Client de l'utilisateur connecté (session déjà vérifiée par getSessionEcole) */
+export function createClientEcole(session: SessionEcole): SupabaseServeur {
+  return createClientAvecClaims({
+    role_app: "ecole",
+    ecole_id: session.ecoleId,
+    utilisateur_id: session.utilisateurId,
+    role_utilisateur: session.role,
+  });
 }
 
 /** Client École à partir du cookie de session, ou null si personne n'est connecté */
-export async function createClientEcoleSession(): Promise<{ ecoleId: string; supabase: SupabaseServeur } | null> {
-  const ecoleId = await getEcoleId();
-  if (!ecoleId) return null;
-  return { ecoleId, supabase: createClientEcole(ecoleId) };
+export async function createClientEcoleSession(): Promise<{ ecoleId: string; session: SessionEcole; supabase: SupabaseServeur } | null> {
+  const session = await getSessionEcole();
+  if (!session) return null;
+  return { ecoleId: session.ecoleId, session, supabase: createClientEcole(session) };
 }
 
 /** Code SQLSTATE levé par controler_tentatives */
@@ -47,14 +53,20 @@ async function appelerEchange<T>(fonction: string, args: Record<string, string>,
   return (data ?? null) as T | null;
 }
 
-/** Échange identifiant (slug ou e-mail) + code contre l'id de l'école, ou null si incorrect */
-export async function echangerAccesEcole(identifiant: string, code: string): Promise<string | null> {
+/** Utilisateur reconnu par echanger_utilisateur_ecole */
+export type UtilisateurConnecte = { utilisateurId: string; ecoleId: string; role: RoleUtilisateur; nom: string };
+
+/** Échange e-mail + mot de passe contre l'utilisateur de l'Espace École, ou null si incorrect */
+export async function echangerUtilisateurEcole(email: string, motDePasse: string): Promise<UtilisateurConnecte | null> {
   const ip = await ipVisiteur();
-  return appelerEchange<string>(
-    "echanger_acces_ecole",
-    { p_identifiant: identifiant, p_code_hash: hashCode(code), ...(ip ? { p_ip: ip } : {}) },
+  const lignes = await appelerEchange<Array<{ utilisateur_id: string; ecole_id: string; role: RoleUtilisateur; nom: string }>>(
+    "echanger_utilisateur_ecole",
+    { p_email: email, p_code_hash: hashCode(motDePasse), ...(ip ? { p_ip: ip } : {}) },
     true
   );
+  const ligne = lignes?.[0];
+  if (!ligne) return null;
+  return { utilisateurId: ligne.utilisateur_id, ecoleId: ligne.ecole_id, role: ligne.role, nom: ligne.nom };
 }
 
 /** Échange le token du lien magique parent contre un client limité à ce parent */

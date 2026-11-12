@@ -2,7 +2,7 @@
 
 import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
-import { getEcoleId, hashCode } from "@/lib/ecole-session";
+import { getSessionEcole, hashCode } from "@/lib/ecole-session";
 import { createClientEcole } from "@/lib/supabase/server";
 import { generateToken, todayDakar } from "@/lib/config";
 import { isAnneeScolaireValide, isDateValide, moisScolaires } from "@/lib/dates";
@@ -16,6 +16,7 @@ import { lireArticles, type SaisieArticle } from "@/lib/classe-catalogue";
 import { estUuid, montant, texte } from "@/lib/saisie";
 import { lireResultatParametres, messageParametres } from "@/lib/parametres";
 import { refusLectureSeule } from "@/lib/abonnement-ecole";
+import { erreurMotDePasse, MOT_DE_PASSE_MAX } from "@/lib/mot-de-passe";
 import type { ModePaiement, Niveau, StatutInscription } from "@/types/database";
 
 export interface Resultat<T = undefined> {
@@ -27,10 +28,11 @@ export interface Resultat<T = undefined> {
 const SESSION_EXPIREE = "Session expirée : reconnectez-vous à l'Espace École.";
 const DATE_NAISSANCE_FUTURE = "La date de naissance ne peut pas être dans le futur.";
 
+/** Utilisateur connecté et son client (JWT portant l'école, l'utilisateur et son rôle), ou null */
 async function session() {
-  const ecoleId = await getEcoleId();
-  if (!ecoleId) return null;
-  return { ecoleId, supabase: createClientEcole(ecoleId) };
+  const utilisateur = await getSessionEcole();
+  if (!utilisateur) return null;
+  return { ecoleId: utilisateur.ecoleId, utilisateur, supabase: createClientEcole(utilisateur) };
 }
 
 /**
@@ -840,15 +842,17 @@ export async function enregistrerParametres(saisie: SaisieParametres): Promise<R
   }
 }
 
-export async function changerCodeAcces(ancien: string, nouveau: string): Promise<Resultat> {
+/** Changement de son propre mot de passe (directeur ou caissier) ; permis en lecture seule (décision F21) */
+export async function changerMonMotDePasse(ancien: string, nouveau: string): Promise<Resultat> {
   const s = await session();
   if (!s) return { success: false, message: SESSION_EXPIREE };
-  if (nouveau.trim().length < 8) return { success: false, message: "Le nouveau code doit faire au moins 8 caractères." };
-  const { data, error } = await (s.supabase as any).rpc("changer_code_ecole", {
-    p_ancien_hash: hashCode(ancien),
+  const refus = erreurMotDePasse(String(nouveau ?? ""));
+  if (refus) return { success: false, message: refus };
+  const { data, error } = await (s.supabase as any).rpc("changer_mon_mot_de_passe", {
+    p_ancien_hash: hashCode(String(ancien ?? "").slice(0, MOT_DE_PASSE_MAX)),
     p_nouveau_hash: hashCode(nouveau),
   });
-  if (error) return { success: false, message: messageErreur("code", error) };
-  if (data !== true) return { success: false, message: "Code actuel incorrect." };
-  return { success: true, message: "Code changé : reconnectez-vous avec le nouveau code." };
+  if (error) return { success: false, message: messageErreur("mot-de-passe", error) };
+  if (data !== true) return { success: false, message: "Mot de passe actuel incorrect." };
+  return { success: true, message: "Mot de passe changé : reconnectez-vous avec le nouveau mot de passe." };
 }

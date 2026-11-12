@@ -18,29 +18,30 @@ export default function EcoleLoginPage() {
           <h1 className="text-xl font-extrabold text-neutral-900">
             Espace École <span className="text-jang-600">FayJàng</span>
           </h1>
-          <p className="text-xs text-neutral-500 mt-1">Connectez-vous avec le code choisi à l&apos;ouverture de votre compte.</p>
+          <p className="text-xs text-neutral-500 mt-1">Connectez-vous avec votre e-mail et votre mot de passe.</p>
         </div>
 
         {state?.error && <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-2xl text-xs">{state.error}</div>}
 
         <form action={formAction} className="space-y-3">
           <div>
-            <label className="block text-xs font-bold text-neutral-700 mb-1">Identifiant école ou e-mail</label>
+            <label className="block text-xs font-bold text-neutral-700 mb-1">E-mail</label>
             <input
-              type="text"
-              name="identifiant"
+              type="email"
+              name="email"
               required
+              autoComplete="username"
               autoCapitalize="none"
               autoCorrect="off"
-              placeholder="ex: cours-sainte-marie ou direction@ecole.sn"
+              placeholder="ex: direction@ecole.sn"
               className="w-full text-xs px-3 py-2.5 rounded-xl border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-jang-500"
             />
           </div>
           <div>
-            <label className="block text-xs font-bold text-neutral-700 mb-1">Code d&apos;accès</label>
+            <label className="block text-xs font-bold text-neutral-700 mb-1">Mot de passe</label>
             <input
               type="password"
-              name="code"
+              name="mot_de_passe"
               required
               autoComplete="current-password"
               className="w-full text-xs px-3 py-2.5 rounded-xl border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-jang-500"

@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClientEcole } from "@/lib/supabase/server";
-import { getEcoleId } from "@/lib/ecole-session";
+import { getSessionEcole } from "@/lib/ecole-session";
 import { getAppBaseUrl, todayDakar } from "@/lib/config";
 import { situationInscription } from "@/lib/scolarite";
 import { lireAbonnementEcole } from "@/lib/abonnement-ecole";
@@ -16,11 +16,12 @@ interface PageProps {
 }
 
 export default async function EcolePage({ searchParams }: PageProps) {
-  const ecoleId = await getEcoleId();
-  if (!ecoleId) redirect("/ecole/login");
+  const session = await getSessionEcole();
+  if (!session) redirect("/ecole/login");
+  const { ecoleId } = session;
 
   const { bienvenue } = await searchParams;
-  const supabase = createClientEcole(ecoleId);
+  const supabase = createClientEcole(session);
   const aujourdhui = todayDakar();
   const appBaseUrl = getAppBaseUrl();
 
@@ -226,6 +227,7 @@ export default async function EcolePage({ searchParams }: PageProps) {
       paiements={paiementsVue}
       aujourdhui={aujourdhui}
       abonnement={abonnement}
+      utilisateur={{ nom: session.nom, email: session.email, role: session.role }}
       bienvenue={bienvenue === "1"}
       numeroWave={process.env.WAVE_NUMERO_PAIEMENT || null}
     />

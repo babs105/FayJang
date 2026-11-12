@@ -1,12 +1,15 @@
 import "server-only";
 import { createPrivateKey, sign, type KeyObject } from "crypto";
+import type { RoleUtilisateur } from "@/types/database";
 
 /** Durée de vie d'un JWT : il est signé à chaque requête serveur, il n'a donc pas besoin de durer */
 const DUREE_JETON_SECONDES = 5 * 60;
 
 /** Claims lus par les politiques RLS (fonctions public.jwt_* de supabase/schema.sql) */
 export type ClaimsFayJang =
-  | { role_app: "ecole"; ecole_id: string }
+  // utilisateur_id / role_utilisateur : membre de l'administration connecté (D09), lus par jwt_utilisateur_id()
+  // et jwt_role_utilisateur()
+  | { role_app: "ecole"; ecole_id: string; utilisateur_id: string; role_utilisateur: RoleUtilisateur }
   | { role_app: "parent"; ecole_id: string; parent_id: string }
   // Appel des fonctions de connexion par le serveur : ce rôle n'ouvre aucune table, il atteste seulement
   // que l'appel (et donc l'IP transmise) vient de Next.js et pas d'un appel direct.
@@ -50,7 +53,7 @@ export function signerJetonSupabase(claims: ClaimsFayJang): string {
   const { kid, cle } = getCleSignature();
   const maintenant = Math.floor(Date.now() / 1000);
   const sujet =
-    claims.role_app === "parent" ? claims.parent_id : claims.role_app === "ecole" ? claims.ecole_id : "connexion";
+    claims.role_app === "parent" ? claims.parent_id : claims.role_app === "ecole" ? claims.utilisateur_id : "connexion";
 
   const entete = base64url(JSON.stringify({ alg: "ES256", typ: "JWT", kid }));
   const contenu = base64url(

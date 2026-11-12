@@ -1,4 +1,4 @@
-import type { ArticleClasse, Classe, Ecole, ModePaiement, StatutInscription, TypePaiement } from "@/types/database";
+import type { ArticleClasse, Classe, Ecole, ModePaiement, StatutInscription, TypePaiement, RoleUtilisateur } from "@/types/database";
 import type { Situation } from "@/lib/scolarite";
 
 /** Données préparées par page.tsx (serveur) pour l'Espace École (client) */
@@ -83,4 +83,11 @@ export interface EleveVue {
   /** Dernière modification de l'élève, de son inscription, de son parent ou de ses articles (ISO) ; null si jamais modifié */
   derniere_modification: string | null;
   situation: Situation | null;
+}
+
+/** Utilisateur connecté, tel que l'écran le voit (jamais de hash ni d'identifiant de session) */
+export interface UtilisateurVue {
+  nom: string;
+  email: string;
+  role: RoleUtilisateur;
 }

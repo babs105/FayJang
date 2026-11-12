@@ -1,6 +1,7 @@
 import "server-only";
 import { createServerClient } from "@supabase/ssr";
-import { Database } from "@/types/database";
+import type { Database, RoleUtilisateur } from "@/types/database";
+import { signerJetonSupabase } from "./jeton";
 
 /**
  * Client Supabase serveur avec la clé anon (la RLS s'applique). Séparé de ./server.ts pour que la
@@ -30,20 +31,27 @@ export function serverClient(jeton?: string) {
 
 export type SupabaseServeur = ReturnType<typeof serverClient>;
 
+/** Ligne renvoyée par session_utilisateur_valide (bloc v1.21) */
+export type LigneSessionUtilisateur = { ecole_id: string; role: RoleUtilisateur; nom: string; email: string };
+
 /**
- * Appelle session_ecole_valide avec la clé anon. Refus si la fonction échoue (réseau, schéma pas encore
- * relancé) : on ne laisse jamais passer une session qu'on n'a pas pu vérifier.
+ * Appelle session_utilisateur_valide avec le JWT « connexion » (la fonction refuse tout autre appelant). Refus si
+ * l'appel échoue (réseau, schéma pas encore relancé) : on ne laisse jamais passer une session qu'on n'a pas pu
+ * vérifier.
  */
-export async function sessionEncoreValide(fonction: "session_ecole_valide", args: Record<string, string>): Promise<boolean> {
+export async function lireSessionUtilisateur(utilisateurId: string, emisAt: string): Promise<LigneSessionUtilisateur | null> {
+  const fonction = "session_utilisateur_valide";
   try {
-    const { data, error } = await (serverClient() as any).rpc(fonction, args);
+    const client = serverClient(signerJetonSupabase({ role_app: "connexion" }));
+    const { data, error } = await (client as any).rpc(fonction, { p_utilisateur_id: utilisateurId, p_emis_at: emisAt });
     if (error) {
       console.error(`[session] ${fonction} :`, error.code);
-      return false;
+      return null;
     }
-    return data === true;
+    const ligne = (data as LigneSessionUtilisateur[] | null)?.[0];
+    return ligne && (ligne.role === "directeur" || ligne.role === "caissier") ? ligne : null;
   } catch {
     console.error(`[session] ${fonction} : appel impossible`);
-    return false;
+    return null;
   }
 }

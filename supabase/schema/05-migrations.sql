@@ -3167,3 +3167,224 @@ CREATE TRIGGER trg_abonnement_ecriture BEFORE INSERT OR DELETE ON public.parents
 DROP TRIGGER IF EXISTS trg_abonnement_modification ON public.parents;
 CREATE TRIGGER trg_abonnement_modification BEFORE UPDATE ON public.parents
     FOR EACH ROW EXECUTE FUNCTION public.exiger_ecriture_parent();
+
+-- ==============================================================================
+-- v1.21 : plusieurs utilisateurs par école, tranche 1 (feature D09) : connexion par e-mail + mot de passe.
+-- Bloc final : garder en dernier.
+--
+-- 1. Table utilisateurs_ecole : un compte par membre de l'administration (directeur ou caissier).
+--      - un seul directeur par école (index unique partiel) ; un e-mail = un seul compte dans tout FayJàng ;
+--      - code_hash : le serveur envoie le sha256 du mot de passe, le trigger le stocke en bcrypt et date le
+--        changement (mdp_modifie_at), qui coupe les sessions émises plus de 30 secondes avant (tolérance
+--        d'horloge entre Next.js et Postgres, reprise de session_ecole_valide) ;
+--      - aucun droit pour anon / authenticated (comme acces_ecole) : seules les fonctions SECURITY DEFINER
+--        ci-dessous la lisent et l'écrivent. Pas de branche dans verifier_meme_ecole : la table ne référence
+--        que ecoles ;
+--      - garde d'abonnement sur INSERT seulement : changer son mot de passe reste permis en lecture seule
+--        (décision « Lecture seule (F21) »).
+-- 2. Contrôle bloquant (décision du 2026-11-12) : une école sans compte directeur qui n'a pas de code d'accès,
+--    d'e-mail valide ou de nom de responsable, ou dont l'e-mail est déjà pris (par un compte ou par une autre
+--    école, à la casse et aux espaces près), arrête le script, avec la liste des écoles à compléter.
+-- 3. Reprise des écoles existantes : un directeur par école, e-mail = ecoles.email_contact, nom =
+--    ecoles.responsable_nom, mot de passe = hash bcrypt de acces_ecole recopié tel quel (le code habituel
+--    reste valable). Rejouable : une école qui a déjà son directeur est sautée. Après la création, l'e-mail de
+--    connexion du directeur ne suit plus ecoles.email_contact.
+-- 4. Fonctions :
+--      - jwt_utilisateur_id(), jwt_role_utilisateur() : claims portés par le JWT de l'école ;
+--      - echanger_utilisateur_ecole(e-mail, sha256, ip) : connexion, mêmes compteurs que echanger_acces_ecole
+--        (5 échecs par IP et e-mail, 30 par e-mail, 50 par IP) ;
+--      - session_utilisateur_valide(id, émis le) : utilisateur et école actifs, mot de passe inchangé depuis
+--        l'émission du cookie ; appelée par le serveur avec le JWT « connexion » ;
+--      - changer_mon_mot_de_passe(ancien, nouveau) : sur l'utilisateur du JWT ; pour le directeur, le nouveau
+--        hash est aussi recopié dans acces_ecole (retour arrière vers l'ancien code sans perte).
+-- echanger_acces_ecole, session_ecole_valide, changer_code_ecole et acces_ecole restent en place, inchangés.
+-- Retour arrière : redéployer l'ancien code (acces_ecole est à jour) ; la table peut rester.
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.utilisateurs_ecole (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    ecole_id UUID NOT NULL REFERENCES public.ecoles(id) ON DELETE CASCADE,
+    nom TEXT NOT NULL CHECK (length(trim(nom)) BETWEEN 1 AND 100),
+    email TEXT NOT NULL CHECK (
+        email = lower(trim(email)) AND length(email) <= 120
+        AND email ~ '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]{2,}$'
+    ),
+    code_hash TEXT NOT NULL,
+    role TEXT NOT NULL CHECK (role IN ('directeur', 'caissier')),
+    actif BOOLEAN NOT NULL DEFAULT true,
+    mdp_modifie_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_utilisateurs_ecole_email ON public.utilisateurs_ecole (email);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_utilisateurs_ecole_directeur ON public.utilisateurs_ecole (ecole_id)
+    WHERE role = 'directeur';
+CREATE INDEX IF NOT EXISTS idx_utilisateurs_ecole_ecole ON public.utilisateurs_ecole (ecole_id);
+ALTER TABLE public.utilisateurs_ecole ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.utilisateurs_ecole FROM PUBLIC, anon, authenticated;
+
+CREATE OR REPLACE FUNCTION public.hacher_mot_de_passe_utilisateur()
+RETURNS TRIGGER LANGUAGE plpgsql SET search_path = extensions, public AS $$
+BEGIN
+    IF NEW.code_hash ~ '^[0-9a-fA-F]{64}$' THEN
+        NEW.code_hash := crypt(lower(NEW.code_hash), gen_salt('bf', 10));
+        NEW.mdp_modifie_at := now();
+    ELSIF TG_OP = 'UPDATE' AND NEW.code_hash IS DISTINCT FROM OLD.code_hash THEN
+        NEW.mdp_modifie_at := now();
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_hacher_mot_de_passe ON public.utilisateurs_ecole;
+CREATE TRIGGER trg_hacher_mot_de_passe
+    BEFORE INSERT OR UPDATE OF code_hash ON public.utilisateurs_ecole
+    FOR EACH ROW EXECUTE FUNCTION public.hacher_mot_de_passe_utilisateur();
+
+DROP TRIGGER IF EXISTS trg_abonnement_ecriture ON public.utilisateurs_ecole;
+CREATE TRIGGER trg_abonnement_ecriture BEFORE INSERT ON public.utilisateurs_ecole
+    FOR EACH STATEMENT EXECUTE FUNCTION public.exiger_ecriture_ecole();
+
+-- Contrôle bloquant avant la reprise
+DO $$
+DECLARE
+    v_liste TEXT;
+BEGIN
+    SELECT string_agg(format('%s (%s)', e.nom, e.id), ', ' ORDER BY e.nom) INTO v_liste
+    FROM public.ecoles e
+    LEFT JOIN public.acces_ecole a ON a.ecole_id = e.id
+    WHERE NOT EXISTS (SELECT 1 FROM public.utilisateurs_ecole u WHERE u.ecole_id = e.id AND u.role = 'directeur')
+      AND (a.ecole_id IS NULL
+           OR e.email_contact IS NULL
+           OR length(lower(trim(e.email_contact))) > 120
+           OR lower(trim(e.email_contact)) !~ '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]{2,}$'
+           OR coalesce(trim(e.responsable_nom), '') = ''
+           OR EXISTS (SELECT 1 FROM public.utilisateurs_ecole u2 WHERE u2.email = lower(trim(e.email_contact)))
+           OR EXISTS (SELECT 1 FROM public.ecoles e2
+                      WHERE e2.id <> e.id AND lower(trim(e2.email_contact)) = lower(trim(e.email_contact))));
+    IF v_liste IS NOT NULL THEN
+        RAISE EXCEPTION 'v1.21 : écoles sans compte directeur possible (e-mail invalide ou déjà pris, responsable ou code d''accès manquant) : %. Complétez ecoles.email_contact et ecoles.responsable_nom, puis relancez le script.', v_liste;
+    END IF;
+END $$;
+
+-- Reprise : un directeur par école existante
+INSERT INTO public.utilisateurs_ecole (ecole_id, nom, email, code_hash, role)
+SELECT e.id, left(trim(e.responsable_nom), 100), lower(trim(e.email_contact)), a.code_hash, 'directeur'
+FROM public.ecoles e
+JOIN public.acces_ecole a ON a.ecole_id = e.id
+WHERE NOT EXISTS (SELECT 1 FROM public.utilisateurs_ecole u WHERE u.ecole_id = e.id AND u.role = 'directeur')
+ON CONFLICT DO NOTHING;
+
+CREATE OR REPLACE FUNCTION public.jwt_utilisateur_id() RETURNS UUID
+LANGUAGE sql STABLE AS $$ SELECT NULLIF(auth.jwt() ->> 'utilisateur_id', '')::uuid $$;
+
+CREATE OR REPLACE FUNCTION public.jwt_role_utilisateur() RETURNS TEXT
+LANGUAGE sql STABLE AS $$ SELECT auth.jwt() ->> 'role_utilisateur' $$;
+
+-- Connexion à l'Espace École (e-mail + mot de passe). L'IP n'est crue que si l'appel vient du serveur
+-- Next.js (JWT « connexion »). Aucune ligne renvoyée si l'e-mail ou le mot de passe est incorrect.
+CREATE OR REPLACE FUNCTION public.echanger_utilisateur_ecole(p_email TEXT, p_code_hash TEXT, p_ip TEXT DEFAULT NULL)
+RETURNS TABLE (utilisateur_id UUID, ecole_id UUID, role TEXT, nom TEXT)
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public AS $$
+#variable_conflict use_column
+DECLARE
+    v_email TEXT := lower(trim(coalesce(p_email, '')));
+    v_email_cle TEXT := md5(left(v_email, 120));
+    v_cle TEXT := 'utilisateur:' || v_email_cle;
+    v_ip TEXT := public.ip_pour_cle(CASE WHEN public.jwt_role_app() = 'connexion' THEN p_ip END);
+    v_cle_ip TEXT := 'utilisateurip:' || v_ip || '|' || v_email_cle;
+    v_cle_glob TEXT := CASE WHEN v_ip <> 'inconnue' THEN 'ecoleipglob:' || v_ip END;
+    v_id UUID;
+    v_ecole UUID;
+    v_role TEXT;
+    v_nom TEXT;
+    v_stocke TEXT;
+BEGIN
+    PERFORM pg_advisory_xact_lock(hashtextextended(v_cle, 0));
+    PERFORM public.controler_tentatives(v_cle);
+    PERFORM public.controler_tentatives(v_cle_ip);
+    IF v_cle_glob IS NOT NULL THEN
+        PERFORM public.controler_tentatives(v_cle_glob);
+    END IF;
+
+    SELECT u.id, u.ecole_id, u.role, u.nom, u.code_hash INTO v_id, v_ecole, v_role, v_nom, v_stocke
+    FROM public.utilisateurs_ecole u
+    JOIN public.ecoles e ON e.id = u.ecole_id
+    WHERE u.email = v_email AND u.actif AND e.is_active
+    LIMIT 1;
+    IF NOT public.code_correspond(v_stocke, p_code_hash) THEN
+        v_id := NULL;
+    END IF;
+
+    IF v_id IS NULL THEN
+        IF v_cle_glob IS NOT NULL THEN
+            PERFORM public.noter_echec_plafonne(v_cle_glob, 50);
+        END IF;
+        PERFORM public.noter_echec_plafonne(v_cle_ip, 5);
+        PERFORM public.noter_echec_plafonne(v_cle, 30);
+        RETURN;
+    END IF;
+
+    PERFORM public.effacer_tentatives(v_cle_ip);
+    RETURN QUERY SELECT v_id, v_ecole, v_role, v_nom;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.echanger_utilisateur_ecole(TEXT, TEXT, TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.echanger_utilisateur_ecole(TEXT, TEXT, TEXT) TO authenticated, service_role;
+
+-- Session École : utilisateur et école actifs, mot de passe inchangé depuis l'émission du cookie (à 30 secondes
+-- près : un cookie émis moins de 30 s avant un changement de mot de passe reste valide).
+-- Réservée au serveur (JWT « connexion ») : elle renvoie le nom et l'e-mail de l'utilisateur.
+CREATE OR REPLACE FUNCTION public.session_utilisateur_valide(p_utilisateur_id UUID, p_emis_at TIMESTAMPTZ)
+RETURNS TABLE (ecole_id UUID, role TEXT, nom TEXT, email TEXT)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+    SELECT u.ecole_id, u.role, u.nom, u.email
+    FROM public.utilisateurs_ecole u
+    JOIN public.ecoles e ON e.id = u.ecole_id
+    WHERE public.jwt_role_app() = 'connexion'
+      AND u.id = p_utilisateur_id AND u.actif AND e.is_active
+      AND u.mdp_modifie_at <= p_emis_at + interval '30 seconds'
+$$;
+REVOKE EXECUTE ON FUNCTION public.session_utilisateur_valide(UUID, TIMESTAMPTZ) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.session_utilisateur_valide(UUID, TIMESTAMPTZ) TO authenticated, service_role;
+
+-- Changement de son propre mot de passe : vérifie l'ancien sans que l'école lise jamais le hash
+CREATE OR REPLACE FUNCTION public.changer_mon_mot_de_passe(p_ancien_hash TEXT, p_nouveau_hash TEXT)
+RETURNS BOOLEAN
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+    v_utilisateur UUID := public.jwt_utilisateur_id();
+    v_ecole UUID := public.jwt_ecole_id();
+    v_cle TEXT;
+    v_stocke TEXT;
+    v_role TEXT;
+BEGIN
+    IF public.jwt_role_app() IS DISTINCT FROM 'ecole' OR v_utilisateur IS NULL OR v_ecole IS NULL THEN
+        RAISE EXCEPTION 'Accès refusé';
+    END IF;
+    IF p_nouveau_hash IS NULL OR p_nouveau_hash !~ '^[0-9a-f]{64}$' THEN
+        RAISE EXCEPTION 'Nouveau mot de passe invalide';
+    END IF;
+
+    v_cle := 'changemdp:' || v_utilisateur::text;
+    PERFORM pg_advisory_xact_lock(hashtextextended(v_cle, 0));
+    PERFORM public.controler_tentatives(v_cle);
+
+    SELECT code_hash, role INTO v_stocke, v_role
+    FROM public.utilisateurs_ecole
+    WHERE id = v_utilisateur AND ecole_id = v_ecole AND actif;
+    IF NOT public.code_correspond(v_stocke, p_ancien_hash) THEN
+        PERFORM public.noter_echec_plafonne(v_cle, 5);
+        RETURN false;
+    END IF;
+    PERFORM public.effacer_tentatives(v_cle);
+
+    UPDATE public.utilisateurs_ecole SET code_hash = p_nouveau_hash WHERE id = v_utilisateur;
+    IF v_role = 'directeur' THEN
+        UPDATE public.acces_ecole a SET code_hash = u.code_hash, updated_at = now()
+        FROM public.utilisateurs_ecole u
+        WHERE u.id = v_utilisateur AND a.ecole_id = v_ecole;
+    END IF;
+    RETURN true;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.changer_mon_mot_de_passe(TEXT, TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.changer_mon_mot_de_passe(TEXT, TEXT) TO authenticated;
