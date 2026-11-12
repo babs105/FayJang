@@ -4,7 +4,8 @@
 // (fonction importer_reprise) plafonne ensuite chaque montant d'après les tarifs de la classe.
 import type { EleveApercu } from "@/lib/reprise-validation";
 
-/** Nombre maximal d'élèves par appel à la base (borne aussi la durée d'une transaction) */
+/** Nombre maximal d'élèves par appel à la base (borne aussi la durée d'une transaction). Ne pas dépasser 25 :
+ *  importer_reprise refuse au-delà et garde le verrou du compteur de reçus de l'école pendant tout le lot. */
 export const TAILLE_LOT = 25;
 
 /** Découpe une liste en paquets de `taille` au plus, dans l'ordre */

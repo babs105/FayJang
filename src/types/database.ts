@@ -221,6 +221,11 @@ export type Database = {
         };
         Returns: Json;
       };
+      /** Prochain matricule FayJàng de l'école (bloc v1.19) : appelée par inscrire_eleve et importer_reprise, pas par le code */
+      prochain_matricule: {
+        Args: { p_annee: string };
+        Returns: string;
+      };
       /** Encaissement atomique (supabase/schema/05-migrations.sql, bloc v1.8) ; retour : voir ResultatEncaissement (src/lib/encaissement.ts) */
       encaisser_paiement: {
         Args: {

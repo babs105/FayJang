@@ -3,7 +3,7 @@
 > **Fichier généré automatiquement.** Ne pas éditer à la main.
 > Régénérer : `bash scripts/schema-index.sh`
 
-**Total : 2932 lignes.**
+**Total : 3650 lignes.**
 
 ## Tables
 
@@ -35,14 +35,16 @@
 - `enregistrer_classe` — L1538
 - `enregistrer_parametres` — L1973
 - `hacher_code_bcrypt` — L257
-- `importer_reprise` — L2583
-- `inscrire_eleve` — L1693 **(active)** · remplace L994
+- `importer_reprise` — L3276 **(active)** · remplace L2583
+- `inscrire_eleve` — L2980 **(active)** · remplace L994, L1693
+- `interdire_suppression_paiement` — L3639
 - `ip_pour_cle` — L237
 - `jwt_ecole_id` — L179
 - `jwt_parent_id` — L182
 - `jwt_role_app` — L176
 - `noter_echec_plafonne` — L198
 - `numeroter_recu` — L786 **(active)** · remplace L417
+- `prochain_matricule` — L2954
 - `proteger_article_inscription` — L2114 **(active)** · remplace L958
 - `proteger_colonnes_ecole` — L377
 - `proteger_inscription` — L465
@@ -73,6 +75,7 @@
 
 ## Triggers
 
+- `trg_interdire_suppression_paiement` sur `paiements` — L3649
 - `trg_meme_ecole` sur `articles_classe` — L915
 - `trg_meme_ecole` sur `articles_inscription` — L918
 - `trg_meme_ecole` sur `eleves` — L574
@@ -127,6 +130,7 @@
 - L2293 : v1.16 : un service mensuel ne s'encaisse que dans sa période (finding H4 du BACKLOG).
 - L2548 : v1.17 : matricule de l'ancien système (reprise de l'existant, tranche 5).
 - L2565 : v1.18 : import des élèves d'une école existante par lots (fonction importer_reprise, tranche 5).
+- L2935 : v1.19 : durcissements de l'inscription et de l'import, matricule factorisé, paiement protégé de la suppression.
 
 ## Notes pour l'agent
 
