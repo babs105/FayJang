@@ -10,7 +10,7 @@ import type { DonneesEcole } from "./ecole-dashboard-client";
 
 const MOIS = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
 
-export function ParametresPanel({ ecole, numeroWave }: DonneesEcole & { numeroWave: string | null }) {
+export function ParametresPanel({ ecole, abonnement, numeroWave }: DonneesEcole & { numeroWave: string | null }) {
   const [f, setF] = useState({
     nom: ecole.nom,
     ville: ecole.ville ?? "",
@@ -182,12 +182,17 @@ export function ParametresPanel({ ecole, numeroWave }: DonneesEcole & { numeroWa
         <Carte className="space-y-2">
           <h3 className="text-sm font-extrabold">Abonnement FayJàng</h3>
           <div className="flex items-center gap-2 text-xs">
-            <Badge ton={ecole.statut_abonnement === "actif" ? "vert" : ecole.statut_abonnement === "essai" ? "bleu" : "rouge"}>
-              {ecole.statut_abonnement === "essai" ? "Essai gratuit" : ecole.statut_abonnement === "actif" ? "Actif" : ecole.statut_abonnement === "expire" ? "Expiré" : "Suspendu"}
+            <Badge ton={abonnement.etat === "lecture_seule" ? "rouge" : abonnement.etat === "grace" || abonnement.etat === "alerte" ? "orange" : ecole.statut_abonnement === "actif" ? "vert" : "bleu"}>
+              {abonnement.etat === "lecture_seule"
+                ? ecole.statut_abonnement === "suspendu" ? "Suspendu" : "Expiré"
+                : abonnement.etat === "grace"
+                  ? "Délai de grâce"
+                  : ecole.statut_abonnement === "essai" ? "Essai gratuit" : "Actif"}
             </Badge>
             <span className="text-neutral-500">
-              {ecole.statut_abonnement === "essai" && ecole.trial_ends_at && `jusqu'au ${formatDate(ecole.trial_ends_at)}`}
-              {ecole.statut_abonnement === "actif" && ecole.abonnement_fin && `jusqu'au ${formatDate(ecole.abonnement_fin)}`}
+              {abonnement.etat === "lecture_seule" && "lecture seule"}
+              {abonnement.etat === "grace" && abonnement.fin && abonnement.finGrace && `terminé le ${formatDate(abonnement.fin)}, lecture seule après le ${formatDate(abonnement.finGrace)}`}
+              {(abonnement.etat === "normal" || abonnement.etat === "alerte") && abonnement.fin && `jusqu'au ${formatDate(abonnement.fin)}`}
             </span>
           </div>
           {numeroWave && (
