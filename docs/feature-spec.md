@@ -51,7 +51,7 @@
 | F18 | Console SuperAdmin | `/admin` | Livrée (main) |
 | F19 | Sécurité et exploitation | Transverse | Livrée, en-têtes et CSP sur la branche |
 | F20 | Reprise de l'existant (import Excel) | Onglet Importer | **Terminée sur la branche, pas encore sur `main`** |
-| D01 à D07 | Features à développer | — | Voir section 6, fiche à remplir selon la section 8 |
+| D01 à D07 | Features à développer (D03 livrée sur la branche) | — | Voir section 6, fiche à remplir selon la section 8 |
 | P01 à P06 | Pistes à trancher | — | Voir section 7 |
 
 ## 4. Features livrées
@@ -98,6 +98,8 @@
 - **L'école peut** annuler un reçu avec un motif (3 caractères minimum).
 - **Règles** : l'annulation porte sur toutes les lignes du reçu ; le reçu reste consultable, barré ; un reçu déjà
   annulé par un autre poste est signalé comme tel.
+- **Sur la branche (ex-D03)** : un paiement ne se supprime plus, même depuis l'éditeur SQL de Supabase (bloc v1.19) ;
+  le nettoyage de données de test passe par un drapeau posé dans la transaction.
 
 ### F08 — Dernier mois payé par tranches
 - **L'école peut** répartir la mensualité du dernier mois en tranches dues avec les mensualités précédentes.
@@ -143,6 +145,8 @@
 - **L'école et le parent peuvent** télécharger le reçu d'un encaissement.
 - **Règles** : numéro attribué par la base ; mention « ANNULÉ » ou « Reprise de l'existant » ; plusieurs pages si
   le reçu a beaucoup de lignes.
+- **Sur la branche** : un nom d'école, d'élève, de classe ou un libellé trop long est coupé (« ... ») au lieu de
+  chevaucher le montant ; au-delà de 300 lignes, le reste est regroupé en « Autres lignes (n) », total exact.
 
 ### F17 — Export Excel
 - **L'école peut** télécharger un classeur avec les onglets Paiements et Soldes.
@@ -151,13 +155,16 @@
 ### F18 — Console SuperAdmin
 - **Le SuperAdmin peut** voir les écoles et leurs totaux, changer plan, statut d'abonnement, date de fin, et
   activer ou désactiver une école.
-- **Limite connue** : totaux tronqués au-delà de 1000 lignes (au backlog).
+- **Sur la branche** : les totaux sont lus en entier (plus de troncature à 1000 lignes) ; un bandeau prévient
+  s'ils sont indisponibles.
 
 ### F19 — Sécurité et exploitation (transverse)
 - RLS sur toutes les tables, JWT de 5 minutes signé par le serveur, pas de middleware (chaque route se protège).
 - Limite de tentatives sur toutes les connexions ; messages d'erreur sans détail technique.
 - `/api/diagnostic` protégé par un secret pour contrôler la configuration en production.
-- Sur la branche : en-têtes de sécurité, Content-Security-Policy, ESLint, 350 tests automatiques (Vitest).
+- Sur la branche : en-têtes de sécurité, Content-Security-Policy, ESLint, 356 tests automatiques (Vitest) ;
+  message dédié quand une école dépasse le nombre de lignes lisibles ; inscription et import prennent leurs
+  verrous dans le même ordre, avec un calcul du matricule unique (bloc v1.19).
 
 ## 5. Feature terminée, à mettre en production
 
@@ -166,8 +173,13 @@
   fichier Excel modèle : aperçu chiffré élève par élève, création des classes et du catalogue, puis import par lots.
 - **Règles** : un reçu « Reprise de l'existant » par élève ; période d'un service (arrêt puis reprise) respectée ;
   fichier de 2 Mo au maximum, taille réelle contrôlée ; la reprise reste hors des totaux de caisse.
-- **État** : 7 tranches livrées sur `feat/import-reprise`. **Reste à faire** : merge vers `main`, relance du
-  schéma en production (blocs v1.16 à v1.18), contrôles de `docs/mise-en-prod.md`.
+- **Règles ajoutées après les 7 tranches** : deux périodes d'un service qui se suivent sans mois d'arrêt ne font
+  qu'une ligne ; un élève à qui il manque un article obligatoire de sa classe est refusé par la base ; un nom qui
+  commence par =, +, - ou @ est refusé ; un lot dont la réponse s'est perdue est signalé « peut-être enregistré »
+  et se reprend sans risque.
+- **État** : 7 tranches livrées sur `feat/import-reprise`, plus les corrections du backlog (commits `d38b5f1` et
+  `626d80b`). **Reste à faire** : merge vers `main`, relance du schéma en production (blocs v1.16 à v1.19),
+  contrôles de `docs/mise-en-prod.md`.
 
 ## 6. Features à développer (identifiées dans le projet)
 
@@ -177,11 +189,13 @@ Chaque ligne cite sa source. Aucune n'a encore de plan `architect`.
 |---|---|---|---|---|
 | D01 | **Changement de classe en cours d'année** | Passer un élève dans une autre classe sans le réinscrire | Règle posée le 2026-11-10 (« on paie d'abord ») | Déjà tranché : seulement si l'élève a soldé son dû à date ; mois passés à l'ancien tarif, nouveau tarif dès le mois du changement. À trancher : sort des articles de l'ancienne classe |
 | D02 | **Abonnement appliqué automatiquement** | L'école voit la fin de son essai et son accès suit son abonnement | Constat dans le code : le statut est géré à la main dans `/admin`, la fin d'essai (`trial_ends_at`) ne bloque rien | Que se passe-t-il à l'expiration : lecture seule, blocage, délai de grâce ? |
-| D03 | **Protection d'un paiement contre la suppression en éditeur SQL** | Un reçu réel ne peut plus être supprimé par accident | `BACKLOG.md` (1 h, touche le schéma) | Aucun |
 | D04 | **Sauvegarde régulière des paiements** | L'école et FayJàng gardent une copie hors de la base | `docs/mise-en-prod.md`, section 5 | Export mensuel par école, ou offre Supabase avec sauvegardes |
 | D05 | **Mobile money dans les reçus de reprise** | Reprendre un versement fait par Wave ou Orange Money | `BACKLOG.md` | Référence de transaction obligatoire ou non pour un versement ancien |
 | D06 | **Limites de fréquence sur l'export et l'analyse d'import** | Aucun changement visible ; le serveur est protégé | `BACKLOG.md` (S10) | Seuils (une génération par minute et par école ?) |
 | D07 | **Tests de non-régression SQL** | Aucun changement visible ; les fonctions `encaisser_paiement` et `importer_reprise` sont testées sur une base | `BACKLOG.md` (H4) | Base de test dédiée |
+
+D03 (protection d'un paiement contre la suppression en éditeur SQL) est livrée sur la branche avec le bloc v1.19 :
+voir F07. Son numéro n'est pas réattribué.
 
 ## 7. Pistes proposées (à trancher, rien n'est décidé)
 
