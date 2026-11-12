@@ -3,7 +3,7 @@
 > **Fichier généré automatiquement.** Ne pas éditer à la main.
 > Régénérer : `bash scripts/schema-index.sh`
 
-**Total : 3998 lignes.**
+**Total : 4624 lignes.**
 
 ## Tables
 
@@ -35,7 +35,7 @@
 - `echanger_jeton_parent` — L332
 - `echanger_utilisateur_ecole` — L3892
 - `effacer_tentatives` — L227
-- `encaisser_paiement` — L2300 **(active)** · remplace L1276
+- `encaisser_paiement` — L4045 **(active)** · remplace L1276, L2300
 - `enregistrer_classe` — L1538
 - `enregistrer_parametres` — L1973
 - `exiger_ecriture_ecole` — L3737
@@ -43,7 +43,7 @@
 - `hacher_code_bcrypt` — L257
 - `hacher_mot_de_passe_utilisateur` — L3832
 - `importer_reprise` — L3276 **(active)** · remplace L2583
-- `inscrire_eleve` — L2980 **(active)** · remplace L994, L1693
+- `inscrire_eleve` — L4329 **(active)** · remplace L994, L1693, L2980
 - `interdire_suppression_paiement` — L3639
 - `ip_pour_cle` — L237
 - `jwt_ecole_id` — L179
@@ -51,13 +51,14 @@
 - `jwt_role_app` — L176
 - `jwt_role_utilisateur` — L3887
 - `jwt_utilisateur_id` — L3884
+- `nom_utilisateur_courant` — L4035
 - `noter_echec_plafonne` — L198
 - `numeroter_recu` — L786 **(active)** · remplace L417
 - `prochain_matricule` — L2954
 - `proteger_article_inscription` — L2114 **(active)** · remplace L958
 - `proteger_colonnes_ecole` — L377
 - `proteger_inscription` — L465
-- `proteger_paiement` — L925 **(active)** · remplace L436, L826
+- `proteger_paiement` — L4297 **(active)** · remplace L436, L826, L925
 - `session_ecole_valide` — L318
 - `session_utilisateur_valide` — L3944
 - `set_updated_at` — L2264
@@ -152,6 +153,7 @@
 - L2935 : v1.19 : durcissements de l'inscription et de l'import, matricule factorisé, paiement protégé de la suppression.
 - L3653 : v1.20 : abonnement appliqué automatiquement (feature D02, tranche 1).
 - L3780 : v1.21 : plusieurs utilisateurs par école, tranche 1 (feature D09) : connexion par e-mail + mot de passe.
+- L4001 : v1.22 : chaque reçu dit qui l'a encaissé (D09, tranche 2).
 
 ## Notes pour l'agent
 

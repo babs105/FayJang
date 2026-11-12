@@ -658,6 +658,7 @@ export function FicheEleve({
                           {p.numero_recu} · {formatDate(p.paye_le)} · {LIBELLE_MODE[p.mode]}
                           {p.reference ? ` (${p.reference})` : ""}
                           {estRecuDeReprise(p.encaisse_par) && <> · <Badge ton="bleu">Reprise de l'existant</Badge></>}
+                          {p.encaisse_par && !estRecuDeReprise(p.encaisse_par) && ` · Encaissé par ${p.encaisse_par}`}
                           {r.annule && <> · <Badge ton="rouge">Annulé</Badge>{r.motif_annulation ? ` ${r.motif_annulation}` : ""}</>}
                         </p>
                       </div>

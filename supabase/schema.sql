@@ -3996,3 +3996,629 @@ END;
 $$;
 REVOKE EXECUTE ON FUNCTION public.changer_mon_mot_de_passe(TEXT, TEXT) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.changer_mon_mot_de_passe(TEXT, TEXT) TO authenticated;
+
+-- ==============================================================================
+-- v1.22 : chaque reçu dit qui l'a encaissé (D09, tranche 2).
+-- Bloc final : garder en dernier.
+--   - nom_utilisateur_courant() : nom de l'utilisateur du JWT (SECURITY DEFINER : la table utilisateurs_ecole n'est
+--     lisible par personne côté École). NULL si le JWT n'a pas d'utilisateur ou si l'utilisateur est d'une autre école.
+--   - encaisser_paiement : même signature, renseigne paiements.encaisse_par avec ce nom (jamais un paramètre).
+--     Le reste de la fonction est celui de la version active (v1.19), sans changement.
+--   - inscrire_eleve : même signature, même changement pour l'encaissement fait à l'inscription (décision de
+--     l'humain du 2026-11-12) ; le reste de la fonction est celui de la version active (v1.19).
+--   - proteger_paiement : encaisse_par devient immuable (il ne l'était pas). importer_reprise ne fait que des INSERT.
+--   - CHECK sur utilisateurs_ecole.nom : le nom « Reprise de l'existant » (marqueur de importer_reprise, casse et
+--     apostrophe typographique et espaces multiples ou insécables ignorés) est interdit, pour qu'un utilisateur ne se fasse pas passer pour une reprise. Contrôle
+--     préalable bloquant : les noms existants (directeurs repris de ecoles.responsable_nom) sont vérifiés.
+--   - Les paiements antérieurs gardent encaisse_par NULL. Aucun effet sur les soldes.
+-- ==============================================================================
+DO $$
+DECLARE v_liste TEXT;
+BEGIN
+    SELECT string_agg(id::text, ', ') INTO v_liste FROM public.utilisateurs_ecole
+    -- Même normalisation que la contrainte : casse, apostrophes typographiques, espaces multiples ou insécables
+    WHERE btrim(regexp_replace(translate(lower(nom), '’‘ʼ`´' || chr(160), repeat(chr(39), 5) || ' '), '\s+', ' ', 'g')) = 'reprise de l''existant';
+    IF v_liste IS NOT NULL THEN
+        RAISE EXCEPTION 'v1.22 : utilisateurs dont le nom est réservé (« Reprise de l''existant ») : %. Renommez-les puis relancez le script.', v_liste;
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'utilisateurs_ecole_nom_reserve_check') THEN
+        ALTER TABLE public.utilisateurs_ecole ADD CONSTRAINT utilisateurs_ecole_nom_reserve_check
+            CHECK (btrim(regexp_replace(translate(lower(nom), '’‘ʼ`´' || chr(160), repeat(chr(39), 5) || ' '), '\s+', ' ', 'g'))
+                   <> 'reprise de l''existant');
+    END IF;
+END $$;
+
+CREATE OR REPLACE FUNCTION public.nom_utilisateur_courant() RETURNS TEXT
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+    SELECT u.nom FROM public.utilisateurs_ecole u
+    WHERE public.jwt_role_app() = 'ecole'
+      AND u.id = public.jwt_utilisateur_id()
+      AND u.ecole_id = public.jwt_ecole_id()
+$$;
+REVOKE EXECUTE ON FUNCTION public.nom_utilisateur_courant() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.nom_utilisateur_courant() TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.encaisser_paiement(
+    p_inscription_id UUID,
+    p_lot_id UUID,
+    p_mode TEXT,
+    p_reference TEXT,
+    p_lignes JSONB,
+    p_nb_paiements INTEGER,
+    p_total_actif BIGINT
+) RETURNS JSONB
+LANGUAGE plpgsql VOLATILE SECURITY INVOKER SET search_path = public AS $$
+DECLARE
+    v_ecole UUID := public.jwt_ecole_id();
+    v_lignes JSONB := coalesce(p_lignes, '[]'::jsonb);
+    v_reference TEXT := nullif(btrim(coalesce(p_reference, '')), '');
+    v_ins public.inscriptions%ROWTYPE;
+    v_mois_debut INTEGER;
+    v_nb_mois INTEGER;
+    v_mois_liste DATE[];
+    v_dernier DATE;
+    v_nb_demande INTEGER;
+    v_total_demande BIGINT;
+    v_nb_lot INTEGER;
+    v_total_lot BIGINT;
+    v_ins_lot INTEGER;
+    v_ins_lot_id UUID;
+    v_lot_annule BOOLEAN;
+    v_identique BOOLEAN;
+    v_nb_actuel INTEGER;
+    v_total_actuel BIGINT;
+    v_l RECORD;
+    v_type TEXT;
+    v_montant INTEGER;
+    v_mois DATE;
+    v_article UUID;
+    v_art public.articles_inscription%ROWTYPE;
+    v_du BIGINT;
+    v_deja BIGINT;
+    v_numero TEXT;
+    v_encaisse BIGINT;
+    v_ids UUID[];
+    v_noms TEXT[];
+    v_nom_encaisseur TEXT;
+BEGIN
+    IF public.jwt_role_app() IS DISTINCT FROM 'ecole' OR v_ecole IS NULL THEN
+        RAISE EXCEPTION 'Accès refusé.' USING ERRCODE = 'FJ403';
+    END IF;
+    IF p_inscription_id IS NULL OR p_lot_id IS NULL OR p_nb_paiements IS NULL OR p_total_actif IS NULL
+       OR p_nb_paiements < 0 OR p_total_actif < 0 THEN
+        RAISE EXCEPTION 'Encaissement incomplet, réessayez.' USING ERRCODE = 'FJ422';
+    END IF;
+
+    -- Mode et référence (obligatoire pour le mobile money)
+    IF p_mode IS NULL OR p_mode NOT IN ('especes', 'wave', 'orange_money', 'free_money', 'virement', 'cheque') THEN
+        RAISE EXCEPTION 'Mode de paiement inconnu.' USING ERRCODE = 'FJ422';
+    END IF;
+    IF p_mode IN ('wave', 'orange_money', 'free_money') AND v_reference IS NULL THEN
+        RAISE EXCEPTION 'Indiquez la référence de la transaction mobile money.' USING ERRCODE = 'FJ422';
+    END IF;
+    IF length(v_reference) > 60 THEN
+        RAISE EXCEPTION 'Référence trop longue.' USING ERRCODE = 'FJ422';
+    END IF;
+
+    -- Forme des lignes, vérifiée champ par champ avant tout cast
+    IF jsonb_typeof(v_lignes) IS DISTINCT FROM 'array' THEN
+        RAISE EXCEPTION 'Montant à encaisser incohérent avec le tarif, réessayez.' USING ERRCODE = 'FJ422';
+    END IF;
+    IF jsonb_array_length(v_lignes) NOT BETWEEN 1 AND 50
+       OR EXISTS (SELECT 1 FROM jsonb_array_elements(v_lignes) AS c(e)
+                  WHERE jsonb_typeof(c.e) IS DISTINCT FROM 'object'
+                     OR coalesce(c.e ->> 'type', '') NOT IN ('inscription', 'mensualite', 'autre')
+                     OR jsonb_typeof(c.e -> 'montant') IS DISTINCT FROM 'number'
+                     OR coalesce(c.e ->> 'montant', '') !~ '^[1-9][0-9]{0,7}$'
+                     OR coalesce(jsonb_typeof(c.e -> 'mois'), 'null') NOT IN ('string', 'null')
+                     OR coalesce(jsonb_typeof(c.e -> 'article_id'), 'null') NOT IN ('string', 'null')
+                     OR coalesce(jsonb_typeof(c.e -> 'libelle'), 'null') NOT IN ('string', 'null')
+                     OR coalesce(c.e ->> 'mois', '2000-01-01') !~ '^20[0-9]{2}-(0[1-9]|1[0-2])-01$'
+                     OR coalesce(c.e ->> 'article_id', '00000000-0000-0000-0000-000000000000')
+                        !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+                     OR length(coalesce(c.e ->> 'libelle', '')) > 120
+                     OR (c.e ->> 'type' = 'inscription' AND (c.e ->> 'mois' IS NOT NULL OR c.e ->> 'article_id' IS NOT NULL))
+                     OR (c.e ->> 'type' = 'mensualite' AND (c.e ->> 'mois' IS NULL OR c.e ->> 'article_id' IS NOT NULL))
+                     -- Paiement libre (sans article) : un libellé de 1 à 80 caractères, pas de mois
+                     OR (c.e ->> 'type' = 'autre' AND c.e ->> 'article_id' IS NULL
+                         AND (c.e ->> 'mois' IS NOT NULL
+                              OR length(btrim(coalesce(c.e ->> 'libelle', ''))) NOT BETWEEN 1 AND 80)))
+       OR (SELECT count(*) FROM jsonb_array_elements(v_lignes))
+          <> (SELECT count(DISTINCT (c.e ->> 'type') || '|' || coalesce(c.e ->> 'mois', '') || '|' || lower(coalesce(c.e ->> 'article_id', ''))
+                                    || '|' || CASE WHEN c.e ->> 'article_id' IS NULL AND c.e ->> 'type' = 'autre' THEN btrim(c.e ->> 'libelle') ELSE '' END)
+              FROM jsonb_array_elements(v_lignes) AS c(e)) THEN
+        RAISE EXCEPTION 'Montant à encaisser incohérent avec le tarif, réessayez.' USING ERRCODE = 'FJ422';
+    END IF;
+    SELECT count(*), sum((c.e ->> 'montant')::int) INTO v_nb_demande, v_total_demande FROM jsonb_array_elements(v_lignes) AS c(e);
+
+    -- Verrou de l'inscription : les encaissements simultanés d'un même élève passent l'un après l'autre
+    SELECT * INTO v_ins FROM public.inscriptions WHERE id = p_inscription_id AND ecole_id = v_ecole FOR NO KEY UPDATE;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Inscription introuvable.' USING ERRCODE = 'FJ404';
+    END IF;
+    IF v_ins.annee_scolaire !~ '^[0-9]{4}-[0-9]{4}$' THEN
+        RAISE EXCEPTION 'Année scolaire invalide pour cette inscription.' USING ERRCODE = 'FJ422';
+    END IF;
+    -- Un même lot_id demandé pour deux élèves à la fois ne doit pas échapper au contrôle du trigger numeroter_recu
+    PERFORM pg_advisory_xact_lock(hashtextextended('lot:' || v_ecole::text || ':' || p_lot_id::text, 0));
+    SELECT mois_debut, nb_mensualites INTO v_mois_debut, v_nb_mois FROM public.ecoles WHERE id = v_ecole;
+    IF v_mois_debut IS NULL THEN
+        RAISE EXCEPTION 'École introuvable.' USING ERRCODE = 'FJ404';
+    END IF;
+
+    -- 1. Rejeu : la clé a déjà servi
+    SELECT count(*), coalesce(sum(montant), 0), count(DISTINCT inscription_id), min(inscription_id::text)::uuid,
+           min(numero_recu), array_agg(id ORDER BY created_at, id), bool_or(annule)
+      INTO v_nb_lot, v_total_lot, v_ins_lot, v_ins_lot_id, v_numero, v_ids, v_lot_annule
+    FROM public.paiements WHERE ecole_id = v_ecole AND lot_id = p_lot_id;
+    IF v_nb_lot > 0 THEN
+        IF v_lot_annule THEN
+            RAISE EXCEPTION 'Ce reçu a été annulé : recommencez un nouvel encaissement.' USING ERRCODE = 'FJ412';
+        END IF;
+        -- Même élève et exactement les mêmes lignes (comparaison de multiensembles dans les deux sens)
+        v_identique := v_ins_lot = 1 AND v_ins_lot_id = p_inscription_id AND v_total_lot = v_total_demande AND v_nb_lot = v_nb_demande
+            AND NOT EXISTS (
+                (SELECT type, mois, article_id, montant::bigint,
+                        CASE WHEN type = 'autre' AND article_id IS NULL THEN nullif(btrim(coalesce(libelle, '')), '') END
+                 FROM public.paiements WHERE ecole_id = v_ecole AND lot_id = p_lot_id
+                 EXCEPT ALL
+                 SELECT c.e ->> 'type', (c.e ->> 'mois')::date, (c.e ->> 'article_id')::uuid, (c.e ->> 'montant')::bigint,
+                        CASE WHEN c.e ->> 'type' = 'autre' AND c.e ->> 'article_id' IS NULL THEN nullif(btrim(coalesce(c.e ->> 'libelle', '')), '') END
+                 FROM jsonb_array_elements(v_lignes) AS c(e))
+                UNION ALL
+                (SELECT c.e ->> 'type', (c.e ->> 'mois')::date, (c.e ->> 'article_id')::uuid, (c.e ->> 'montant')::bigint,
+                        CASE WHEN c.e ->> 'type' = 'autre' AND c.e ->> 'article_id' IS NULL THEN nullif(btrim(coalesce(c.e ->> 'libelle', '')), '') END
+                 FROM jsonb_array_elements(v_lignes) AS c(e)
+                 EXCEPT ALL
+                 SELECT type, mois, article_id, montant::bigint,
+                        CASE WHEN type = 'autre' AND article_id IS NULL THEN nullif(btrim(coalesce(libelle, '')), '') END
+                 FROM public.paiements WHERE ecole_id = v_ecole AND lot_id = p_lot_id)
+            );
+        IF v_identique THEN
+            RETURN jsonb_build_object('numero_recu', v_numero, 'montant_encaisse', v_total_lot, 'ids', to_jsonb(v_ids), 'rejoue', true);
+        END IF;
+        RAISE EXCEPTION 'Cette clé d''encaissement a déjà servi pour un autre encaissement : rechargez la page et recommencez.'
+            USING ERRCODE = 'FJ412';
+    END IF;
+
+    -- 2. Empreinte : rien n'a bougé pour cet élève depuis la lecture du serveur
+    SELECT count(*), coalesce(sum(montant) FILTER (WHERE NOT annule), 0) INTO v_nb_actuel, v_total_actuel
+    FROM public.paiements WHERE inscription_id = p_inscription_id AND ecole_id = v_ecole;
+    IF v_nb_actuel <> p_nb_paiements OR v_total_actuel <> p_total_actif THEN
+        RAISE EXCEPTION 'Un autre encaissement ou une annulation vient d''être enregistré pour cet élève : vérifiez la fiche et recommencez.'
+            USING ERRCODE = 'FJ412';
+    END IF;
+
+    -- 3. Plafonds, d'après les tarifs figés de l'inscription
+    SELECT array_agg((make_date(substr(v_ins.annee_scolaire, 1, 4)::int, 1, 1) + ((v_mois_debut - 1 + i) * interval '1 month'))::date ORDER BY i)
+      INTO v_mois_liste FROM generate_series(0, v_nb_mois - 1) AS g(i);
+    v_dernier := v_mois_liste[array_length(v_mois_liste, 1)];
+
+    FOR v_l IN SELECT c.e AS e FROM jsonb_array_elements(v_lignes) WITH ORDINALITY AS c(e, n) ORDER BY c.n LOOP
+        v_type := v_l.e ->> 'type';
+        v_montant := (v_l.e ->> 'montant')::int;
+        v_mois := (v_l.e ->> 'mois')::date;
+        v_article := (v_l.e ->> 'article_id')::uuid;
+
+        IF v_type = 'inscription' THEN
+            v_du := v_ins.frais_inscription;
+            SELECT coalesce(sum(montant), 0) INTO v_deja FROM public.paiements
+            WHERE inscription_id = v_ins.id AND ecole_id = v_ecole AND NOT annule AND type = 'inscription';
+
+        ELSIF v_type = 'mensualite' THEN
+            IF NOT (v_mois = ANY (v_mois_liste)) THEN
+                RAISE EXCEPTION 'Mois invalide pour cette année scolaire.' USING ERRCODE = 'FJ422';
+            END IF;
+            -- Dû du mois : tarif du dernier mois pour le dernier, mensualité sinon, moins la réduction
+            v_du := greatest(0, (CASE WHEN v_mois = v_dernier THEN coalesce(v_ins.mensualite_dernier_mois, v_ins.mensualite)
+                                      ELSE v_ins.mensualite END) - v_ins.reduction_mensuelle);
+            SELECT coalesce(sum(montant), 0) INTO v_deja FROM public.paiements
+            WHERE inscription_id = v_ins.id AND ecole_id = v_ecole AND NOT annule AND type = 'mensualite' AND mois = v_mois;
+
+        ELSIF v_article IS NOT NULL THEN
+            SELECT * INTO v_art FROM public.articles_inscription
+            WHERE id = v_article AND inscription_id = v_ins.id AND ecole_id = v_ecole;
+            IF NOT FOUND THEN
+                RAISE EXCEPTION 'Article introuvable pour cet élève.' USING ERRCODE = 'FJ404';
+            END IF;
+            IF v_art.nature = 'unique' THEN
+                IF v_mois IS NOT NULL THEN
+                    RAISE EXCEPTION 'Montant à encaisser incohérent avec le tarif, réessayez.' USING ERRCODE = 'FJ422';
+                END IF;
+                v_du := v_art.prix_unitaire::bigint * v_art.quantite;
+                SELECT coalesce(sum(montant), 0) INTO v_deja FROM public.paiements
+                WHERE inscription_id = v_ins.id AND ecole_id = v_ecole AND NOT annule AND article_id = v_art.id;
+            ELSE
+                -- Service mensuel : un mois de l'année, prix_unitaire par mois
+                IF v_mois IS NULL OR NOT (v_mois = ANY (v_mois_liste)) THEN
+                    RAISE EXCEPTION 'Mois invalide pour cette année scolaire.' USING ERRCODE = 'FJ422';
+                END IF;
+                -- Période du service : hors de [mois_debut, mois_fin] -> refus (NULL = bord de l'année scolaire)
+                IF v_mois < coalesce(v_art.mois_debut, v_mois_liste[1])
+                   OR v_mois > coalesce(v_art.mois_fin, v_dernier) THEN
+                    v_noms := ARRAY['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août',
+                                    'septembre', 'octobre', 'novembre', 'décembre'];
+                    RAISE EXCEPTION '% : % % est hors de la période du service (% % à % %).',
+                        v_art.libelle,
+                        v_noms[extract(month FROM v_mois)::int], extract(year FROM v_mois)::int,
+                        v_noms[extract(month FROM coalesce(v_art.mois_debut, v_mois_liste[1]))::int],
+                        extract(year FROM coalesce(v_art.mois_debut, v_mois_liste[1]))::int,
+                        v_noms[extract(month FROM coalesce(v_art.mois_fin, v_dernier))::int],
+                        extract(year FROM coalesce(v_art.mois_fin, v_dernier))::int
+                        USING ERRCODE = 'FJ412';
+                END IF;
+                v_du := v_art.prix_unitaire;
+                SELECT coalesce(sum(montant), 0) INTO v_deja FROM public.paiements
+                WHERE inscription_id = v_ins.id AND ecole_id = v_ecole AND NOT annule AND article_id = v_art.id AND mois = v_mois;
+            END IF;
+
+        ELSE
+            -- Paiement libre hors catalogue : réservé à un élève encore inscrit, sans plafond de cumul
+            IF v_ins.statut <> 'active' THEN
+                RAISE EXCEPTION 'Élève parti : seul le solde dû peut être encaissé.' USING ERRCODE = 'FJ412';
+            END IF;
+            v_du := 99999999;
+            v_deja := 0;
+        END IF;
+
+        IF v_deja + v_montant > v_du THEN
+            RAISE EXCEPTION 'Le montant dépasse ce qui reste dû pour cet élément : vérifiez la fiche et recommencez.' USING ERRCODE = 'FJ412';
+        END IF;
+    END LOOP;
+
+    -- Nom de celui qui encaisse, lu en base d'après le JWT (jamais un paramètre) ; NULL si le JWT n'a pas d'utilisateur
+    v_nom_encaisseur := public.nom_utilisateur_courant();
+
+    -- 4. Un seul INSERT : les lignes partagent p_lot_id, donc le même numéro de reçu (trigger numeroter_recu).
+    -- paye_le reste au DEFAULT de la colonne (date du jour à Dakar).
+    WITH inseres AS (
+        INSERT INTO public.paiements (ecole_id, inscription_id, type, mois, montant, mode, reference, libelle, lot_id, article_id, encaisse_par)
+        SELECT v_ecole, v_ins.id, c.e ->> 'type', (c.e ->> 'mois')::date, (c.e ->> 'montant')::int,
+               p_mode, v_reference, nullif(btrim(coalesce(c.e ->> 'libelle', '')), ''), p_lot_id, (c.e ->> 'article_id')::uuid,
+               v_nom_encaisseur
+        FROM jsonb_array_elements(v_lignes) WITH ORDINALITY AS c(e, n)
+        ORDER BY c.n
+        RETURNING id, numero_recu, montant
+    )
+    SELECT min(numero_recu), sum(montant), array_agg(id) INTO v_numero, v_encaisse, v_ids FROM inseres;
+
+    RETURN jsonb_build_object('numero_recu', v_numero, 'montant_encaisse', v_encaisse, 'ids', to_jsonb(v_ids), 'rejoue', false);
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.encaisser_paiement(UUID, UUID, TEXT, TEXT, JSONB, INTEGER, BIGINT)
+    FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.encaisser_paiement(UUID, UUID, TEXT, TEXT, JSONB, INTEGER, BIGINT)
+    TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.proteger_paiement()
+RETURNS TRIGGER LANGUAGE plpgsql SET search_path = public AS $$
+BEGIN
+    IF OLD.annule THEN
+        RAISE EXCEPTION 'Ce paiement est déjà annulé.' USING ERRCODE = 'FJ412';
+    END IF;
+    IF NEW.inscription_id IS DISTINCT FROM OLD.inscription_id
+       OR NEW.ecole_id IS DISTINCT FROM OLD.ecole_id
+       OR NEW.type IS DISTINCT FROM OLD.type
+       OR NEW.mois IS DISTINCT FROM OLD.mois
+       OR NEW.montant IS DISTINCT FROM OLD.montant
+       OR NEW.mode IS DISTINCT FROM OLD.mode
+       OR NEW.reference IS DISTINCT FROM OLD.reference
+       OR NEW.libelle IS DISTINCT FROM OLD.libelle
+       OR NEW.numero_recu IS DISTINCT FROM OLD.numero_recu
+       OR NEW.lot_id IS DISTINCT FROM OLD.lot_id
+       OR NEW.article_id IS DISTINCT FROM OLD.article_id
+       OR NEW.paye_le IS DISTINCT FROM OLD.paye_le
+       OR NEW.encaisse_par IS DISTINCT FROM OLD.encaisse_par
+       OR NEW.created_at IS DISTINCT FROM OLD.created_at THEN
+        RAISE EXCEPTION 'Un paiement encaissé ne se modifie pas : annulez-le puis saisissez le bon.' USING ERRCODE = 'FJ412';
+    END IF;
+    IF NEW.annule AND length(trim(coalesce(NEW.motif_annulation, ''))) < 3 THEN
+        RAISE EXCEPTION 'Indiquez le motif de l''annulation.' USING ERRCODE = 'FJ422';
+    END IF;
+    IF NEW.annule THEN
+        NEW.annule_at := now();
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.inscrire_eleve(
+    p_classe_id UUID,
+    p_eleve_id UUID DEFAULT NULL,
+    p_prenom TEXT DEFAULT NULL,
+    p_nom TEXT DEFAULT NULL,
+    p_sexe TEXT DEFAULT NULL,
+    p_date_naissance DATE DEFAULT NULL,
+    p_parent_nom TEXT DEFAULT NULL,
+    p_parent_telephone TEXT DEFAULT NULL,
+    p_reduction INTEGER DEFAULT 0,
+    p_articles JSONB DEFAULT '[]'::jsonb,
+    p_mois_debut_services DATE DEFAULT NULL,
+    p_mode TEXT DEFAULT NULL,
+    p_reference TEXT DEFAULT NULL,
+    p_lignes_paiement JSONB DEFAULT '[]'::jsonb
+) RETURNS JSONB
+LANGUAGE plpgsql VOLATILE SECURITY INVOKER SET search_path = public AS $$
+DECLARE
+    v_ecole UUID := public.jwt_ecole_id();
+    v_annee TEXT;
+    v_classe public.classes%ROWTYPE;
+    v_choix JSONB := coalesce(p_articles, '[]'::jsonb);
+    v_lignes JSONB := coalesce(p_lignes_paiement, '[]'::jsonb);
+    v_prenom TEXT := btrim(coalesce(p_prenom, ''));
+    v_nom TEXT := btrim(coalesce(p_nom, ''));
+    v_parent_nom TEXT := btrim(coalesce(p_parent_nom, ''));
+    v_manquant TEXT;
+    v_eleve UUID;
+    v_parent UUID;
+    v_parent_cree BOOLEAN := false;
+    v_matricule TEXT;
+    v_inscription UUID;
+    v_reference TEXT := nullif(btrim(coalesce(p_reference, '')), '');
+    v_mois_debut INTEGER;
+    v_nb_mois INTEGER;
+    v_lot UUID;
+    v_numero_recu TEXT;
+    v_montant_encaisse BIGINT := 0;
+    v_nom_encaisseur TEXT := public.nom_utilisateur_courant(); -- D09 : lu d'après le JWT, jamais un paramètre
+BEGIN
+    IF public.jwt_role_app() IS DISTINCT FROM 'ecole' OR v_ecole IS NULL THEN
+        RAISE EXCEPTION 'Accès refusé.' USING ERRCODE = 'FJ403';
+    END IF;
+    -- Encaissement demandé : mode valide, référence (obligatoire pour le mobile money), lignes bien formées.
+    -- Aucun cast avant que la forme de chaque champ soit vérifiée.
+    IF jsonb_typeof(v_lignes) IS DISTINCT FROM 'array' THEN
+        RAISE EXCEPTION 'Lignes de paiement mal formées, réessayez.' USING ERRCODE = 'FJ422';
+    END IF;
+    IF p_mode IS NULL THEN
+        IF v_reference IS NOT NULL OR jsonb_array_length(v_lignes) > 0 THEN
+            RAISE EXCEPTION 'Mode de paiement manquant.' USING ERRCODE = 'FJ422';
+        END IF;
+    ELSE
+        IF p_mode NOT IN ('especes', 'wave', 'orange_money', 'free_money', 'virement', 'cheque') THEN
+            RAISE EXCEPTION 'Mode de paiement inconnu.' USING ERRCODE = 'FJ422';
+        END IF;
+        IF p_mode IN ('wave', 'orange_money', 'free_money') AND v_reference IS NULL THEN
+            RAISE EXCEPTION 'Indiquez la référence de la transaction mobile money.' USING ERRCODE = 'FJ422';
+        END IF;
+        IF length(v_reference) > 60 THEN
+            RAISE EXCEPTION 'Référence trop longue.' USING ERRCODE = 'FJ422';
+        END IF;
+        -- v1.19 : un message par cause (nombre de lignes, forme, libellé, doublon)
+        IF jsonb_array_length(v_lignes) NOT BETWEEN 1 AND 50 THEN
+            RAISE EXCEPTION 'Un encaissement compte de 1 à 50 lignes.' USING ERRCODE = 'FJ422';
+        END IF;
+        IF EXISTS (SELECT 1 FROM jsonb_array_elements(v_lignes) AS c(e)
+                      WHERE jsonb_typeof(c.e) IS DISTINCT FROM 'object'
+                         OR coalesce(c.e ->> 'type', '') NOT IN ('inscription', 'mensualite', 'autre')
+                         OR jsonb_typeof(c.e -> 'montant') IS DISTINCT FROM 'number'
+                         OR coalesce(c.e ->> 'montant', '') !~ '^[1-9][0-9]{0,7}$'
+                         OR coalesce(jsonb_typeof(c.e -> 'mois'), 'null') NOT IN ('string', 'null')
+                         OR coalesce(jsonb_typeof(c.e -> 'article_classe_id'), 'null') NOT IN ('string', 'null')
+                         OR coalesce(jsonb_typeof(c.e -> 'libelle'), 'null') NOT IN ('string', 'null')
+                         OR coalesce(c.e ->> 'mois', '2000-01-01') !~ '^20[0-9]{2}-(0[1-9]|1[0-2])-01$'
+                         OR coalesce(c.e ->> 'article_classe_id', '00000000-0000-0000-0000-000000000000')
+                            !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+                         -- Cohérence du type : inscription sans mois ni article, mensualité avec mois, article avec type « autre »
+                         OR (c.e ->> 'type' = 'inscription' AND (c.e ->> 'mois' IS NOT NULL OR c.e ->> 'article_classe_id' IS NOT NULL))
+                         OR (c.e ->> 'type' = 'mensualite' AND (c.e ->> 'mois' IS NULL OR c.e ->> 'article_classe_id' IS NOT NULL))
+                         OR (c.e ->> 'type' = 'autre' AND (c.e ->> 'mois' IS NOT NULL OR c.e ->> 'article_classe_id' IS NULL))) THEN
+            RAISE EXCEPTION 'Lignes de paiement mal formées, réessayez.' USING ERRCODE = 'FJ422';
+        END IF;
+        IF EXISTS (SELECT 1 FROM jsonb_array_elements(v_lignes) AS c(e) WHERE length(coalesce(c.e ->> 'libelle', '')) > 120) THEN
+            RAISE EXCEPTION 'Libellé de paiement trop long (120 caractères au plus).' USING ERRCODE = 'FJ422';
+        END IF;
+        IF (SELECT count(*) FROM jsonb_array_elements(v_lignes))
+           <> (SELECT count(DISTINCT (c.e ->> 'type') || '|' || coalesce(c.e ->> 'mois', '') || '|' || lower(coalesce(c.e ->> 'article_classe_id', '')))
+               FROM jsonb_array_elements(v_lignes) AS c(e)) THEN
+            RAISE EXCEPTION 'Une même ligne de paiement est citée deux fois.' USING ERRCODE = 'FJ422';
+        END IF;
+    END IF;
+
+    -- Année scolaire de l'école et classe choisie (active, de la même année)
+    SELECT annee_scolaire, mois_debut, nb_mensualites INTO v_annee, v_mois_debut, v_nb_mois FROM public.ecoles WHERE id = v_ecole;
+    IF v_annee IS NULL THEN
+        RAISE EXCEPTION 'École introuvable.' USING ERRCODE = 'FJ404';
+    END IF;
+    -- Verrou partagé de la classe (v1.10) : un enregistrement du catalogue (enregistrer_classe, FOR NO KEY UPDATE)
+    -- passe avant ou après cette inscription, jamais pendant. Deux inscriptions dans la même classe ne se bloquent pas.
+    SELECT * INTO v_classe FROM public.classes WHERE id = p_classe_id AND ecole_id = v_ecole AND is_active FOR SHARE;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Classe introuvable ou désactivée.' USING ERRCODE = 'FJ404';
+    END IF;
+    IF v_classe.annee_scolaire IS DISTINCT FROM v_annee THEN
+        RAISE EXCEPTION 'Cette classe appartient à l''année %.', v_classe.annee_scolaire USING ERRCODE = 'FJ412';
+    END IF;
+    IF p_reduction IS NULL OR p_reduction < 0 THEN
+        RAISE EXCEPTION 'Réduction invalide.' USING ERRCODE = 'FJ422';
+    END IF;
+    IF p_reduction > v_classe.mensualite THEN
+        RAISE EXCEPTION 'La réduction dépasse la mensualité.' USING ERRCODE = 'FJ422';
+    END IF;
+
+    -- Articles retenus : [{article_classe_id, quantite}], chacun du catalogue de cette classe, une seule fois
+    -- v1.19 : CASE, l'ordre d'évaluation d'un OR n'est pas garanti (jsonb_array_length échoue hors tableau)
+    IF (CASE WHEN jsonb_typeof(v_choix) IS DISTINCT FROM 'array' THEN true ELSE jsonb_array_length(v_choix) > 50 END) THEN
+        RAISE EXCEPTION 'Articles invalides.' USING ERRCODE = 'FJ422';
+    END IF;
+    IF EXISTS (SELECT 1 FROM jsonb_array_elements(v_choix) AS c(e)
+                  WHERE jsonb_typeof(c.e) IS DISTINCT FROM 'object'
+                     OR coalesce(c.e ->> 'article_classe_id', '') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+                     OR coalesce(c.e ->> 'quantite', '') !~ '^[0-9]{1,2}$')
+       OR (SELECT count(*) FROM jsonb_array_elements(v_choix))
+          <> (SELECT count(DISTINCT lower(e ->> 'article_classe_id')) FROM jsonb_array_elements(v_choix) AS c(e)) THEN
+        RAISE EXCEPTION 'Articles invalides.' USING ERRCODE = 'FJ422';
+    END IF;
+    IF EXISTS (SELECT 1 FROM jsonb_array_elements(v_choix) AS c(e)
+               WHERE NOT EXISTS (SELECT 1 FROM public.articles_classe a
+                                 WHERE a.id = (c.e ->> 'article_classe_id')::uuid
+                                   AND a.classe_id = v_classe.id AND a.ecole_id = v_ecole)) THEN
+        RAISE EXCEPTION 'Article introuvable pour cette classe.' USING ERRCODE = 'FJ404';
+    END IF;
+    -- Un article obligatoire (service mensuel, ou frais unique avec une quantité par défaut) doit être retenu
+    SELECT a.libelle INTO v_manquant
+    FROM public.articles_classe a
+    WHERE a.classe_id = v_classe.id AND a.ecole_id = v_ecole AND a.obligatoire
+      AND (a.nature = 'mensuel' OR a.quantite_defaut > 0)
+      AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(v_choix) AS c(e)
+                      WHERE (c.e ->> 'article_classe_id')::uuid = a.id
+                        AND (a.nature = 'mensuel' OR (c.e ->> 'quantite')::int > 0))
+    ORDER BY a.ordre
+    LIMIT 1;
+    IF v_manquant IS NOT NULL THEN
+        RAISE EXCEPTION '« % » est obligatoire pour cette classe.', v_manquant USING ERRCODE = 'FJ422';
+    END IF;
+    IF p_mois_debut_services IS NULL
+       AND EXISTS (SELECT 1 FROM jsonb_array_elements(v_choix) AS c(e)
+                   JOIN public.articles_classe a ON a.id = (c.e ->> 'article_classe_id')::uuid
+                   WHERE a.nature = 'mensuel') THEN
+        RAISE EXCEPTION 'Mois de début des services manquant.' USING ERRCODE = 'FJ422';
+    END IF;
+    IF p_mois_debut_services IS NOT NULL AND extract(day FROM p_mois_debut_services) <> 1 THEN
+        RAISE EXCEPTION 'Mois de début des services invalide.' USING ERRCODE = 'FJ422';
+    END IF;
+
+    IF p_eleve_id IS NOT NULL THEN
+        -- Réinscription : l'élève existe dans l'école, son parent ne change pas
+        SELECT id, parent_id INTO v_eleve, v_parent FROM public.eleves WHERE id = p_eleve_id AND ecole_id = v_ecole;
+        IF NOT FOUND THEN
+            RAISE EXCEPTION 'Élève introuvable.' USING ERRCODE = 'FJ404';
+        END IF;
+    ELSE
+        IF v_prenom = '' OR v_nom = '' THEN
+            RAISE EXCEPTION 'Prénom et nom de l''élève obligatoires.' USING ERRCODE = 'FJ422';
+        END IF;
+        IF length(v_prenom) > 60 OR length(v_nom) > 60 THEN
+            RAISE EXCEPTION 'Prénom ou nom de l''élève trop long.' USING ERRCODE = 'FJ422';
+        END IF;
+        IF v_parent_nom = '' OR length(v_parent_nom) > 80 OR coalesce(p_parent_telephone, '') !~ '^\+[0-9]{9,15}$' THEN
+            RAISE EXCEPTION 'Nom et téléphone du parent obligatoires (ex : 77 123 45 67).' USING ERRCODE = 'FJ422';
+        END IF;
+        IF p_sexe IS NOT NULL AND p_sexe NOT IN ('M', 'F') THEN
+            RAISE EXCEPTION 'Sexe invalide.' USING ERRCODE = 'FJ422';
+        END IF;
+
+        -- Matricule (v1.19) : calculé par prochain_matricule, qui prend le verrou « matricule: » AVANT toute écriture
+        -- du parent, dans le même ordre que importer_reprise (plus d'interblocage entre inscription et import).
+        v_matricule := public.prochain_matricule(v_annee);
+
+        -- Parent : le même téléphone dans l'école désigne le même parent (son nom et son lien ne changent pas).
+        -- DO NOTHING (v1.19) : la ligne d'un parent connu n'est ni réécrite ni verrouillée.
+        INSERT INTO public.parents (ecole_id, nom, telephone)
+        VALUES (v_ecole, v_parent_nom, p_parent_telephone)
+        ON CONFLICT (ecole_id, telephone) DO NOTHING
+        RETURNING id INTO v_parent;
+        v_parent_cree := v_parent IS NOT NULL;
+        IF v_parent IS NULL THEN
+            SELECT id INTO v_parent FROM public.parents WHERE ecole_id = v_ecole AND telephone = p_parent_telephone;
+            IF v_parent IS NULL THEN
+                RAISE EXCEPTION 'Parent introuvable, réessayez.' USING ERRCODE = 'FJ404';
+            END IF;
+        END IF;
+
+        INSERT INTO public.eleves (ecole_id, parent_id, matricule, prenom, nom, sexe, date_naissance)
+        VALUES (v_ecole, v_parent, v_matricule, v_prenom, v_nom, p_sexe, p_date_naissance)
+        RETURNING id INTO v_eleve;
+    END IF;
+
+    -- Inscription : tarifs figés depuis la classe (un élève déjà inscrit cette année lève 23505)
+    INSERT INTO public.inscriptions (ecole_id, eleve_id, classe_id, annee_scolaire, frais_inscription, mensualite,
+                                     mensualite_dernier_mois, reduction_mensuelle)
+    VALUES (v_ecole, v_eleve, v_classe.id, v_annee, v_classe.frais_inscription, v_classe.mensualite,
+            v_classe.mensualite_dernier_mois, p_reduction)
+    RETURNING id INTO v_inscription;
+
+    -- Articles : libellé, nature, prix et obligation recopiés du catalogue ; un service mensuel compte pour 1
+    INSERT INTO public.articles_inscription (ecole_id, inscription_id, article_classe_id, libelle, nature,
+                                             prix_unitaire, quantite, obligatoire, mois_debut)
+    SELECT v_ecole, v_inscription, a.id, a.libelle, a.nature, a.prix_unitaire,
+           CASE WHEN a.nature = 'mensuel' THEN 1 ELSE (c.e ->> 'quantite')::int END,
+           a.obligatoire,
+           CASE WHEN a.nature = 'mensuel' THEN p_mois_debut_services END
+    FROM jsonb_array_elements(v_choix) AS c(e)
+    JOIN public.articles_classe a ON a.id = (c.e ->> 'article_classe_id')::uuid
+                                  AND a.classe_id = v_classe.id AND a.ecole_id = v_ecole
+    WHERE a.nature = 'mensuel' OR (c.e ->> 'quantite')::int > 0
+    ORDER BY a.ordre;
+
+    -- Encaissement : chaque ligne doit correspondre à un élément réellement dû d'une inscription neuve
+    -- (aucun paiement antérieur), avec 0 < montant <= reste dû. Le montant exact est calculé par le serveur.
+    IF p_mode IS NOT NULL THEN
+        -- v1.19 : un message par cause, avant le contrôle des plafonds (inchangé)
+        IF EXISTS (SELECT 1 FROM jsonb_array_elements(v_lignes) AS c(e)
+                   WHERE CASE WHEN c.e ->> 'type' = 'mensualite' THEN
+                       (c.e ->> 'mois')::date NOT IN (
+                           SELECT (make_date(substr(v_annee, 1, 4)::int, 1, 1) + ((v_mois_debut - 1 + i) * interval '1 month'))::date
+                           FROM generate_series(0, v_nb_mois - 1) AS g(i))
+                   ELSE false END) THEN
+            RAISE EXCEPTION 'Un mois à encaisser est hors de l''année scolaire.' USING ERRCODE = 'FJ422';
+        END IF;
+        IF EXISTS (SELECT 1 FROM jsonb_array_elements(v_lignes) AS c(e)
+                   LEFT JOIN public.articles_inscription ai
+                          ON ai.inscription_id = v_inscription AND ai.ecole_id = v_ecole
+                         AND ai.article_classe_id = (c.e ->> 'article_classe_id')::uuid
+                   WHERE c.e ->> 'type' = 'autre' AND (ai.id IS NULL OR ai.nature <> 'unique')) THEN
+            RAISE EXCEPTION 'Seul un frais unique retenu pour l''élève s''encaisse à l''inscription.' USING ERRCODE = 'FJ422';
+        END IF;
+        IF EXISTS (
+            SELECT 1
+            FROM jsonb_array_elements(v_lignes) AS c(e)
+            LEFT JOIN public.articles_inscription ai
+                   ON ai.inscription_id = v_inscription AND ai.ecole_id = v_ecole
+                  AND ai.article_classe_id = (c.e ->> 'article_classe_id')::uuid
+            WHERE CASE c.e ->> 'type'
+                WHEN 'inscription' THEN (c.e ->> 'montant')::int > v_classe.frais_inscription
+                WHEN 'mensualite' THEN
+                    (c.e ->> 'mois')::date NOT IN (
+                        SELECT (make_date(substr(v_annee, 1, 4)::int, 1, 1) + ((v_mois_debut - 1 + i) * interval '1 month'))::date
+                        FROM generate_series(0, v_nb_mois - 1) AS g(i))
+                    -- Dû exact du mois (comme situationInscription) : tarif du dernier mois pour le dernier, mensualité sinon
+                    OR (c.e ->> 'montant')::int >
+                       CASE WHEN (c.e ->> 'mois')::date =
+                                 (make_date(substr(v_annee, 1, 4)::int, 1, 1) + ((v_mois_debut - 1 + v_nb_mois - 1) * interval '1 month'))::date
+                            THEN coalesce(v_classe.mensualite_dernier_mois, v_classe.mensualite)
+                            ELSE v_classe.mensualite END - p_reduction
+                ELSE ai.id IS NULL OR ai.nature <> 'unique' OR (c.e ->> 'montant')::int > ai.prix_unitaire::bigint * ai.quantite
+            END
+        ) THEN
+            RAISE EXCEPTION 'Un montant à encaisser dépasse ce qui est dû, réessayez.' USING ERRCODE = 'FJ422';
+        END IF;
+
+        -- Un seul INSERT : les lignes partagent le lot_id, donc le même numéro de reçu (trigger numeroter_recu).
+        -- paye_le reste au DEFAULT de la colonne (date du jour à Dakar).
+        v_lot := gen_random_uuid();
+        -- Même verrou de lot que encaisser_paiement (v1.19, finding M4)
+        PERFORM pg_advisory_xact_lock(hashtextextended('lot:' || v_ecole::text || ':' || v_lot::text, 0));
+        WITH inseres AS (
+            INSERT INTO public.paiements (ecole_id, inscription_id, type, mois, montant, mode, reference, libelle, lot_id, article_id, encaisse_par)
+            SELECT v_ecole, v_inscription, c.e ->> 'type', (c.e ->> 'mois')::date, (c.e ->> 'montant')::int,
+                   p_mode, v_reference, nullif(btrim(coalesce(c.e ->> 'libelle', '')), ''), v_lot, ai.id, v_nom_encaisseur
+            FROM jsonb_array_elements(v_lignes) WITH ORDINALITY AS c(e, n)
+            LEFT JOIN public.articles_inscription ai
+                   ON ai.inscription_id = v_inscription AND ai.ecole_id = v_ecole
+                  AND ai.article_classe_id = (c.e ->> 'article_classe_id')::uuid
+            ORDER BY c.n
+            RETURNING numero_recu, montant
+        )
+        SELECT min(numero_recu), sum(montant) INTO v_numero_recu, v_montant_encaisse FROM inseres;
+    END IF;
+
+    RETURN jsonb_build_object(
+        'eleve_id', v_eleve,
+        'inscription_id', v_inscription,
+        'parent_id', v_parent,
+        'parent_cree', v_parent_cree,
+        'matricule', v_matricule,
+        'numero_recu', v_numero_recu,
+        'montant_encaisse', v_montant_encaisse
+    );
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.inscrire_eleve(UUID, UUID, TEXT, TEXT, TEXT, DATE, TEXT, TEXT, INTEGER, JSONB, DATE, TEXT, TEXT, JSONB)
+    FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.inscrire_eleve(UUID, UUID, TEXT, TEXT, TEXT, DATE, TEXT, TEXT, INTEGER, JSONB, DATE, TEXT, TEXT, JSONB)
+    TO authenticated;
