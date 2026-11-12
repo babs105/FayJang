@@ -36,7 +36,16 @@
   | Nouvelle feature ou piste retenue | Une ligne en section 6 ou 7 | L'humain l'a demandée ou validée |
   | Fiche validée | Fiche ajoutée, ligne à « planifiée » | « fiche validée » |
   | Règle qui change en cours de feature | La fiche, avec la date | Décision de l'humain citée |
+  | Correction (backlog ou bug) qui change un comportement décrit | La règle de la feature concernée, marquée « Sur la branche » jusqu'au merge | Proposée par la session dans le même tour, puis validée |
   | Feature mergée sur `main` | Ligne à « Livrée », fiche réduite en section 4 | Merge confirmé |
+
+- **La session propose la mise à jour à chaque changement, sans attendre
+  qu'on la lui demande.** Dès qu'un tour modifie un comportement, une règle,
+  un statut ou un chiffre décrit dans `docs/feature-spec.md` (feature livrée,
+  correction du backlog, bloc de schéma appliqué), la session termine son tour
+  en listant les passages du spec devenus faux et en demandant l'accord pour
+  les corriger. Elle fait de même pour `BACKLOG.md`. Une correction sans effet
+  sur ce que le spec décrit (refactor, typo, test ajouté) ne demande rien.
 
 - **Les agents ne modifient jamais ce fichier.** `architect` et les reviewers
   (lecture seule) signalent dans leur rapport une fiche fausse ou incomplète.
