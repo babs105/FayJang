@@ -4,7 +4,7 @@
 > **feature-specific** du projet (`.claude/WORKFLOW.md`) : une feature = un flow utilisateur
 > livrable de bout en bout, découpé en tranches verticales par `architect`.
 >
-> État au **2026-11-12**, branche `feat/import-reprise`. Ce document décrit le **quoi** ; le plan
+> État au **2026-11-12**, branche `main` (merge `ccf271e`). Ce document décrit le **quoi** ; le plan
 > d'une feature (tranches, scope des reviews) reste produit par `architect` au moment de la lancer.
 > Les bugs dont la correction est reportée ne sont pas ici : ils vivent dans `BACKLOG.md` (backlog de bugs).
 > À l'inverse, un **besoin** (nouvelle feature à développer) ou une **piste** repéré pendant une review ou un
@@ -51,9 +51,9 @@
 | F16 | Reçu PDF | `/ecole/recu/[id]`, `/p/[token]/recu/[id]` | Livrée (main) |
 | F17 | Export Excel | `/ecole/export` | Livrée (main) |
 | F18 | Console SuperAdmin | `/admin` | Livrée (main) |
-| F19 | Sécurité et exploitation | Transverse | Livrée, en-têtes et CSP sur la branche |
-| F20 | Reprise de l'existant (import Excel) | Onglet Importer | **Terminée sur la branche, pas encore sur `main`** |
-| D01 à D08 | Features à développer, c'est-à-dire les besoins (D03 livrée sur la branche) | — | Voir section 6, fiche à remplir selon la section 8 |
+| F19 | Sécurité et exploitation | Transverse | Livrée (main) |
+| F20 | Reprise de l'existant (import Excel) | Onglet Importer | Livrée (main, merge `ccf271e`) |
+| D01 à D08 | Features à développer, c'est-à-dire les besoins (D03 livrée, voir F07) | — | Voir section 6, fiche à remplir selon la section 8 |
 | P01 à P06 | Pistes à trancher | — | Voir section 7 |
 
 ## 4. Features livrées
@@ -94,13 +94,13 @@
 - **Règles** : référence obligatoire pour le mobile money ; montant plafonné au reste dû ; un encaissement = un
   lot = un reçu ; `encaisser_paiement` travaille sous verrou de l'inscription, avec empreinte des paiements lus
   (deux postes ne peuvent pas encaisser deux fois) et clé d'idempotence (double clic sans doublon) ; un service
-  mensuel ne s'encaisse pas hors de sa période (bloc v1.16, sur la branche, part en production avec F20).
+  mensuel ne s'encaisse pas hors de sa période (bloc v1.16, livré avec F20).
 
 ### F07 — Annulation d'un reçu
 - **L'école peut** annuler un reçu avec un motif (3 caractères minimum).
 - **Règles** : l'annulation porte sur toutes les lignes du reçu ; le reçu reste consultable, barré ; un reçu déjà
   annulé par un autre poste est signalé comme tel.
-- **Sur la branche (ex-D03)** : un paiement ne se supprime plus, même depuis l'éditeur SQL de Supabase (bloc v1.19) ;
+- **Depuis le bloc v1.19 (ex-D03)** : un paiement ne se supprime plus, même depuis l'éditeur SQL de Supabase (bloc v1.19) ;
   le nettoyage de données de test passe par un drapeau posé dans la transaction.
 
 ### F08 — Dernier mois payé par tranches
@@ -147,7 +147,7 @@
 - **L'école et le parent peuvent** télécharger le reçu d'un encaissement.
 - **Règles** : numéro attribué par la base ; mention « ANNULÉ » ou « Reprise de l'existant » ; plusieurs pages si
   le reçu a beaucoup de lignes.
-- **Sur la branche** : un nom d'école, d'élève, de classe ou un libellé trop long est coupé (« ... ») au lieu de
+- **Depuis F20** : un nom d'école, d'élève, de classe ou un libellé trop long est coupé (« ... ») au lieu de
   chevaucher le montant ; au-delà de 300 lignes, le reste est regroupé en « Autres lignes (n) », total exact.
 
 ### F17 — Export Excel
@@ -157,18 +157,18 @@
 ### F18 — Console SuperAdmin
 - **Le SuperAdmin peut** voir les écoles et leurs totaux, changer plan, statut d'abonnement, date de fin, et
   activer ou désactiver une école.
-- **Sur la branche** : les totaux sont lus en entier (plus de troncature à 1000 lignes) ; un bandeau prévient
+- **Depuis F20** : les totaux sont lus en entier (plus de troncature à 1000 lignes) ; un bandeau prévient
   s'ils sont indisponibles.
 
 ### F19 — Sécurité et exploitation (transverse)
 - RLS sur toutes les tables, JWT de 5 minutes signé par le serveur, pas de middleware (chaque route se protège).
 - Limite de tentatives sur toutes les connexions ; messages d'erreur sans détail technique.
 - `/api/diagnostic` protégé par un secret pour contrôler la configuration en production.
-- Sur la branche : en-têtes de sécurité, Content-Security-Policy, ESLint, 356 tests automatiques (Vitest) ;
+- Depuis F20 : en-têtes de sécurité, Content-Security-Policy, ESLint, 356 tests automatiques (Vitest) ;
   message dédié quand une école dépasse le nombre de lignes lisibles ; inscription et import prennent leurs
   verrous dans le même ordre, avec un calcul du matricule unique (bloc v1.19).
 
-## 5. Feature terminée, à mettre en production
+## 5. Dernière feature livrée
 
 ### F20 — Reprise de l'existant (import Excel)
 - **L'école peut** reprendre en cours d'année ses classes, ses élèves et ce qu'ils ont déjà versé, depuis un
@@ -179,9 +179,9 @@
   qu'une ligne ; un élève à qui il manque un article obligatoire de sa classe est refusé par la base ; un nom qui
   commence par =, +, - ou @ est refusé ; un lot dont la réponse s'est perdue est signalé « peut-être enregistré »
   et se reprend sans risque.
-- **État** : 7 tranches livrées sur `feat/import-reprise`, plus les corrections du backlog (commits `d38b5f1` et
-  `626d80b`). **Reste à faire** : merge vers `main`, relance du schéma en production (blocs v1.16 à v1.19),
-  contrôles de `docs/mise-en-prod.md`.
+- **État** : livrée sur `main` le 2026-11-12, merge `ccf271e` (7 tranches, plus les corrections du backlog, commits
+  `d38b5f1` et `626d80b`). Schéma relancé en production (blocs v1.16 à v1.19). **Reste à faire** : vérifications en
+  production de `docs/mise-en-prod.md` (section 4, « Reprise de l'existant »).
 
 ## 6. Features à développer (identifiées dans le projet)
 
@@ -202,7 +202,7 @@ n'a encore de plan `architect`.
 | D07 | **Tests de non-régression SQL** | Aucun changement visible ; les fonctions `encaisser_paiement` et `importer_reprise` sont testées sur une base | Review database de la tranche 3 et tranche 5 « reprise de l'existant » (H4, 2026-11-11) | Base de test dédiée |
 | D08 | **Import : analyse du fichier gardée entre les étapes** | Aucun changement visible ; un gros fichier s'importe plus vite (le fichier n'est plus relu ni réanalysé à chaque clic et à chaque lot de 25) | Review security de la tranche 4 et tranche 5 « reprise de l'existant » (S10/S13, 2026-11-11) | Où garder l'analyse : table temporaire ou cache signé |
 
-D03 (protection d'un paiement contre la suppression en éditeur SQL) est livrée sur la branche avec le bloc v1.19 :
+D03 (protection d'un paiement contre la suppression en éditeur SQL) est livrée avec le bloc v1.19 :
 voir F07. Son numéro n'est pas réattribué.
 
 ## 7. Pistes proposées (à trancher, rien n'est décidé)
