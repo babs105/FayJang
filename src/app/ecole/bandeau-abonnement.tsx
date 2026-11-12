@@ -55,3 +55,12 @@ export function BandeauAbonnement({
     </div>
   );
 }
+
+/** Remplace un bouton d'écriture quand l'Espace École est en lecture seule (abonnement expiré ou suspendu) */
+export function MentionLectureSeule({ className }: { className?: string }) {
+  return (
+    <p className={cn("inline-flex items-center gap-1 text-[11px] font-bold text-red-700", className)}>
+      <Lock className="w-3.5 h-3.5 shrink-0" /> Lecture seule : abonnement expiré ou suspendu
+    </p>
+  );
+}

@@ -13,7 +13,7 @@ import { ClassesPanel } from "./classes-panel";
 import { ParametresPanel } from "./parametres-panel";
 import { FicheEleve } from "./fiche-eleve";
 import { BandeauAbonnement } from "./bandeau-abonnement";
-import type { SituationAbonnement } from "@/lib/abonnement";
+import { peutEcrire, type SituationAbonnement } from "@/lib/abonnement";
 import type { ClasseVue, EcoleVue, EleveVue, PaiementVue } from "./types";
 
 export type Onglet = "tableau" | "eleves" | "paiements" | "impayes" | "classes" | "parametres";
@@ -82,13 +82,15 @@ export function EcoleDashboardClient(props: DonneesEcole & { bienvenue: boolean;
               )}
             </button>
           ))}
-          <Link
-            href="/ecole/import"
-            className="flex items-center gap-1.5 px-3 py-2.5 text-xs font-bold border-b-2 border-transparent whitespace-nowrap text-neutral-500 hover:text-neutral-800 transition"
-          >
-            <Upload className="w-4 h-4" />
-            Importer
-          </Link>
+          {peutEcrire(props.abonnement.etat) && (
+            <Link
+              href="/ecole/import"
+              className="flex items-center gap-1.5 px-3 py-2.5 text-xs font-bold border-b-2 border-transparent whitespace-nowrap text-neutral-500 hover:text-neutral-800 transition"
+            >
+              <Upload className="w-4 h-4" />
+              Importer
+            </Link>
+          )}
         </nav>
       </header>
 
@@ -119,6 +121,7 @@ export function EcoleDashboardClient(props: DonneesEcole & { bienvenue: boolean;
           classes={props.classes}
           aujourdhui={props.aujourdhui}
           paiements={props.paiements.filter((p) => p.eleve_id === eleve.id)}
+          lectureSeule={!peutEcrire(props.abonnement.etat)}
           onClose={() => setEleveOuvert(null)}
         />
       )}
