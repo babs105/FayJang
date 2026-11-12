@@ -249,7 +249,7 @@ export function FicheEleve({
               <Resume label="Reste sur l'année" valeur={formatFCFA(s.resteAnnee)} />
             </div>
 
-            {totalInscription > 0 && (
+            {totalInscription > 0 && !lectureSeule && (
               <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-amber-50 border border-amber-200 p-2.5">
                 <p className="text-[11px] text-amber-800">
                   Reste dû à l'inscription : <b>{formatFCFA(totalInscription)}</b>
@@ -279,7 +279,7 @@ export function FicheEleve({
               <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
                 <button
                   type="button"
-                  disabled={s.inscriptionPayee >= s.inscriptionDue}
+                  disabled={lectureSeule || s.inscriptionPayee >= s.inscriptionDue}
                   onClick={() => {
                     setLibre(false);
                     setInscriptionChoisie(!inscriptionChoisie);
@@ -300,7 +300,7 @@ export function FicheEleve({
                     <button
                       key={m.mois}
                       type="button"
-                      disabled={!payable}
+                      disabled={lectureSeule || !payable}
                       onClick={() => {
                         setLibre(false);
                         setMoisChoisis(basculer(moisChoisis, m.mois));
@@ -337,7 +337,7 @@ export function FicheEleve({
                       <div key={a.cle} className="relative">
                         <button
                           type="button"
-                          disabled={a.reste === 0}
+                          disabled={lectureSeule || a.reste === 0}
                           onClick={() => {
                             setLibre(false);
                             setArticlesChoisis(basculer(articlesChoisis, a.cle));
@@ -387,7 +387,7 @@ export function FicheEleve({
                           <button
                             key={l.cle}
                             type="button"
-                            disabled={l.reste === 0}
+                            disabled={lectureSeule || l.reste === 0}
                             onClick={() => {
                               setLibre(false);
                               setArticlesChoisis(basculer(articlesChoisis, l.cle));
@@ -425,6 +425,14 @@ export function FicheEleve({
               </div>
             )}
 
+            {lectureSeule ? (
+              <div className="rounded-2xl bg-neutral-50 p-4 space-y-1">
+                <MentionLectureSeule />
+                <p className="text-[11px] text-neutral-600">
+                  Aucun paiement ne peut être saisi ni annulé. Les reçus existants restent téléchargeables ; l'encaissement reprend dès que l'abonnement est rétabli.
+                </p>
+              </div>
+            ) : (
             <form onSubmit={encaisser} className="rounded-2xl bg-neutral-50 p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-extrabold text-neutral-900">Encaisser un paiement</p>
@@ -537,6 +545,7 @@ export function FicheEleve({
                 {isPending ? "Enregistrement..." : `Encaisser ${totalSelection > 0 ? formatFCFA(totalSelection) : ""}`}
               </Bouton>
             </form>
+            )}
 
             {!lectureSeule && (
             <div className="flex flex-wrap gap-2 text-xs">
@@ -655,7 +664,7 @@ export function FicheEleve({
                       <a href={`/ecole/recu/${p.id}`} target="_blank" className="p-1.5 rounded-lg hover:bg-neutral-100" title="Reçu PDF">
                         <FileText className="w-4 h-4 text-neutral-600" />
                       </a>
-                      {!r.annule && (
+                      {!r.annule && !lectureSeule && (
                         <button
                           title="Annuler ce reçu"
                           className="p-1.5 rounded-lg hover:bg-red-50"

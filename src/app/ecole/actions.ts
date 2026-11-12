@@ -532,8 +532,8 @@ export interface SaisiePaiement {
 }
 
 export async function encaisserPaiement(saisie: SaisiePaiement): Promise<Resultat<{ ids: string[] }>> {
-  const s = await session();
-  if (!s) return { success: false, message: SESSION_EXPIREE };
+  const s = await sessionEcriture();
+  if (typeof s === "string") return { success: false, message: s };
 
   if (!estUuid(saisie.inscription_id)) return { success: false, message: "Inscription introuvable." };
   const reglement = lireMode(saisie.mode, saisie.reference);
@@ -723,8 +723,8 @@ export async function retirerArticleInscription(id: string): Promise<Resultat> {
 }
 
 export async function annulerPaiement(id: string, motif: string): Promise<Resultat> {
-  const s = await session();
-  if (!s) return { success: false, message: SESSION_EXPIREE };
+  const s = await sessionEcriture();
+  if (typeof s === "string") return { success: false, message: s };
   const m = texte(motif, 200);
   if (m.length < 3) return { success: false, message: "Indiquez le motif de l'annulation." };
   // Un reçu est un document : l'annulation porte sur toutes ses lignes (même lot)
