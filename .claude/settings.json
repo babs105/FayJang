@@ -2,8 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(npx tsc --noEmit)",
-      "Bash(npm run build)",
+      "Bash(NEXT_DIST_DIR=.next-build npm run build)",
       "Bash(npm run lint)",
+      "Bash(npm test)",
       "Bash(git status *)",
       "Bash(git diff *)",
       "Bash(git log *)",
@@ -35,6 +36,16 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/block-sql-bash.sh\"",
+            "timeout": 10
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -55,8 +66,8 @@
           {
             "type": "command",
             "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/verifier-types.sh\"",
-            "timeout": 90,
-            "statusMessage": "Vérification TypeScript..."
+            "timeout": 180,
+            "statusMessage": "Vérification TypeScript et tests..."
           }
         ]
       }

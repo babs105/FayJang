@@ -175,7 +175,9 @@ navigateur, quel que soit le type TypeScript. Le projet valide **à la main**
 - téléphone via `normaliserTelephone()` (`src/lib/telephone.ts`) ;
 - montants via `montant()` (entier, 0 à 50 000 000) ;
 - valeurs d'énumération contrôlées contre une liste (`MODES_PAIEMENT`, `NIVEAUX`, statuts) ;
-- dates via `isDateValide()`, année scolaire via `isAnneeScolaireValide()` ;
+- dates via `isDateValide()` (refuse aussi une date inexistante, ex. 31 février),
+  année scolaire via `isAnneeScolaireValide()` ;
+- identifiants via `estUuid()` (`src/lib/saisie.ts`) avant toute requête ;
 - **jamais** d'`ecole_id` ou de `parent_id` d'appartenance reçu en paramètre :
   ils viennent de la session ou de l'échange de token ;
 - **jamais** de montant à encaisser cru depuis le client : l'action recalcule
@@ -208,11 +210,27 @@ Aujourd'hui aucune redirection ne dépend d'une entrée : en introduire une est
 
 ### S9 — Headers de sécurité
 
-À définir dans `next.config.ts` (`headers()`) : `X-Frame-Options: DENY`,
-`X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`
-(important : les URLs parent contiennent un token), `Permissions-Policy`, et une
-CSP compatible avec `https://*.supabase.co`. HSTS : Vercel l'active en production.
-**Finding connu** : aucun de ces headers n'est défini aujourd'hui (voir `BACKLOG.md`).
+Définis dans `next.config.ts` (`headers()`, source `/:path*`) :
+`X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`,
+`Referrer-Policy: no-referrer` (les URLs parent contiennent le token : rien ne
+doit partir vers un autre site), `Permissions-Policy` (caméra, micro,
+géolocalisation coupés), et une `Content-Security-Policy` : tout en `'self'`
+(aucune police, image ni script externe ; le navigateur n'appelle jamais
+Supabase), `frame-ancestors 'none'`, `form-action 'self'`, `object-src 'none'`.
+HSTS : Vercel l'active en production.
+
+- Toute modification de `next.config.ts` doit **garder** ces cinq en-têtes.
+- Toute ressource externe ajoutée (police, image, script, appel `fetch` depuis
+  le navigateur) doit être ajoutée à la CSP **dans la même tranche** et testée
+  en preview, console ouverte : sinon elle est bloquée en silence.
+- `'unsafe-inline'` est accepté pour les scripts et styles de Next (des nonces
+  exigeraient un middleware, que le projet n'a pas) ; `'unsafe-eval'` et
+  `ws:` n'existent qu'en développement. Les élargir est une décision à escalader.
+- Un assouplissement de `Referrer-Policy` ou de `X-Frame-Options` (affichage
+  dans un `iframe`) est une décision à escalader.
+```bash
+grep -n "X-Frame-Options\|nosniff\|Referrer-Policy\|Permissions-Policy\|Content-Security-Policy" next.config.ts   # 5 en-têtes attendus
+```
 
 ### S10 — Limite de tentatives
 

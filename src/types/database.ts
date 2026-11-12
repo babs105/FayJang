@@ -91,6 +91,8 @@ export type Eleve = {
   nom: string;
   sexe: "M" | "F" | null;
   date_naissance: string | null;
+  /** Numéro de l'ancien système (reprise de l'existant), lecture seule ; unique par école */
+  matricule_ancien: string | null;
   is_active: boolean;
   created_at: string;
   /** Dernière modification réelle (trigger set_updated_at) ; = created_at si jamais modifiée */
@@ -209,6 +211,20 @@ export type Database = {
           p_lignes_paiement?: Json;
         };
         Returns: Json;
+      };
+      /** Import d'élèves par lots de 25 au plus (supabase/schema/05-migrations.sql, bloc v1.18) ;
+       * retour : voir ResultatLotReprise (src/lib/reprise-lots.ts) */
+      importer_reprise: {
+        Args: {
+          p_eleves: Json;
+          p_mode?: string;
+        };
+        Returns: Json;
+      };
+      /** Prochain matricule FayJàng de l'école (bloc v1.19) : appelée par inscrire_eleve et importer_reprise, pas par le code */
+      prochain_matricule: {
+        Args: { p_annee: string };
+        Returns: string;
       };
       /** Encaissement atomique (supabase/schema/05-migrations.sql, bloc v1.8) ; retour : voir ResultatEncaissement (src/lib/encaissement.ts) */
       encaisser_paiement: {

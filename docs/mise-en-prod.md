@@ -1,18 +1,40 @@
-# Mise en production de FayJàng (v1.5 + v1.6)
+# Mise en production de FayJàng
 
 Projet Vercel : `fayjang` (https://fayjang.vercel.app), dépôt `babs105/FayJang`, branche `main`.
-Schéma : `supabase/schema.sql` v1.5 (articles et services par classe, mensualité du dernier mois, mois payés à l'inscription,
-mois payé par tranches au choix) et v1.6 (date de départ d'un élève, `inscriptions.date_depart`).
 
-**Ordre de déploiement (une feature = un merge vers `main`) :**
-1. Relancer `supabase/schema.sql` **de `feat/depart-eleve`** (contient v1.5 et v1.6) sur la base de production.
-   Les deux blocs ne font qu'ajouter : le code actuellement en production continue de fonctionner.
-2. Merger `feat/frais-classe` → `main` et pousser (déploiement v1.5), puis faire les vérifications v1.5 (section 4).
-3. Merger `feat/depart-eleve` → `main` et pousser (déploiement v1.6), puis les vérifications « Départ ».
+## 0. Livraison en cours : F20 « Reprise de l'existant » (blocs v1.16 à v1.19)
 
-**Ordre impératif : schéma d'abord, code ensuite.** Le code de la v1.5 lit `articles_classe`, `articles_inscription`,
-`paiements.article_id`, `mensualite_dernier_mois`, `rang_mois_tranches`, `premier_mois_a_linscription` et
-`dernier_mois_a_linscription` : sans le schéma, l'Espace École affiche « base pas à jour » et l'encaissement échoue.
+`main` contient le schéma jusqu'au bloc v1.15. La branche `feat/import-reprise` ajoute :
+
+| Bloc | Ce qu'il apporte |
+|---|---|
+| v1.16 | `encaisser_paiement` refuse un service mensuel hors de sa période (FJ412) |
+| v1.17 | Colonne `eleves.matricule_ancien`, sa contrainte et son index unique par école |
+| v1.18 | Fonction `importer_reprise` (import par lots de 25) |
+| v1.19 | `prochain_matricule`, `inscrire_eleve` et `importer_reprise` redéfinies (mêmes signatures), trigger `trg_interdire_suppression_paiement` |
+
+**Ordre impératif : schéma d'abord, code ensuite.** Le nouveau code lit `eleves.matricule_ancien` et appelle
+`importer_reprise` : sans le schéma, l'onglet Importer échoue. Les quatre blocs ne font qu'ajouter ou redéfinir à
+signature égale (d'après leurs en-têtes) : le code actuellement en production continue de fonctionner entre les deux étapes.
+
+1. Sauvegarde (section 1), puis relancer `supabase/schema.sql` **de `feat/import-reprise`** sur la base de production.
+2. Contrôles de la section 2, dont ceux de F20.
+3. `NEXT_DIST_DIR=.next-build npm run build` et `npm test` sur la branche, puis accord explicite pour le merge.
+4. Merger `feat/import-reprise` → `main` et pousser (un seul déploiement).
+5. Vérifications de la section 4, dont « Reprise de l'existant ».
+6. Passer F20 à « Livrée » dans `docs/feature-spec.md` avec le commit de merge, et lever les mentions « Sur la branche ».
+
+**À savoir après v1.19** : un paiement ne se supprime plus, même depuis l'éditeur SQL. Pour nettoyer des données de
+test, dans une même transaction : `BEGIN; SET LOCAL fayjang.allow_paiement_delete = 'on'; DELETE ... ; COMMIT;`
+
+<details>
+<summary>Livraisons précédentes (v1.5 et v1.6), pour mémoire</summary>
+
+Schéma v1.5 (articles et services par classe, mensualité du dernier mois, mois payés à l'inscription, mois payé par
+tranches au choix) et v1.6 (date de départ d'un élève, `inscriptions.date_depart`), livrés par `feat/frais-classe`
+puis `feat/depart-eleve`, schéma d'abord. Leurs contrôles restent dans les sections 2 et 4.
+
+</details>
 
 ---
 
@@ -31,7 +53,8 @@ mois payé par tranches au choix) et v1.6 (date de départ d'un élève, `inscri
 
 ## 2. Relance du schéma
 
-- [ ] Coller `supabase/schema.sql` **de `main`** en entier, en une seule exécution.
+- [ ] Coller `supabase/schema.sql` en entier, en une seule exécution : celui de la **branche à livrer** quand le
+  schéma passe avant le code (cas de F20, section 0), celui de `main` sinon.
 - [ ] Contrôles après relance :
   ```sql
   SELECT column_name FROM information_schema.columns
@@ -44,6 +67,31 @@ mois payé par tranches au choix) et v1.6 (date de départ d'un élève, `inscri
   SELECT count(*) FROM pg_policies WHERE schemaname = 'public';                                     -- 17
   SELECT table_name, privilege_type FROM information_schema.role_table_grants
   WHERE table_schema = 'public' AND grantee = 'anon';                                                -- 0 ligne
+  ```
+- [x] **Version unique de `encaisser_paiement` à vérifier en base** — après application du schéma :
+  `SELECT oid::regprocedure FROM pg_proc WHERE proname = 'encaisser_paiement';` doit renvoyer une ligne (PGRST203
+  sinon). *Estimé : 2 min. Croise : mise en production de « encaissement atomique ».*
+  (plan architect « encaissement atomique », 2026-11-10)
+- [X] **Version unique de `inscrire_eleve` à vérifier en base** — après application du schéma, s'assurer qu'une
+  seule signature existe : `SELECT oid::regprocedure FROM pg_proc WHERE proname = 'inscrire_eleve';` doit renvoyer
+  une ligne (une surcharge donnerait l'erreur PostgREST PGRST203). *Estimé : 2 min. Croise : mise en production
+  de « inscription atomique ».* (review database tranche 2 « inscription atomique », 2026-11-10)
+- [ ] Une seule version de chaque fonction v1.9 à v1.11 (une surcharge donnerait l'erreur PostgREST PGRST203).
+  Vérifié en base locale, pas encore sur Supabase :
+  ```sql
+  SELECT oid::regprocedure FROM pg_proc
+  WHERE proname IN ('enregistrer_classe', 'enregistrer_parametres', 'inscrire_eleve');               -- 3 lignes
+  ```
+- [ ] **Contrôles de F20 (blocs v1.16 à v1.19)** :
+  ```sql
+  SELECT column_name FROM information_schema.columns
+  WHERE table_schema = 'public' AND table_name = 'eleves' AND column_name = 'matricule_ancien';     -- 1 ligne
+  SELECT indexname FROM pg_indexes
+  WHERE schemaname = 'public' AND indexname = 'idx_eleves_matricule_ancien';                         -- 1 ligne
+  SELECT oid::regprocedure FROM pg_proc
+  WHERE proname IN ('encaisser_paiement', 'importer_reprise', 'prochain_matricule', 'inscrire_eleve'); -- 4 lignes
+  SELECT tgname FROM pg_trigger
+  WHERE tgname = 'trg_interdire_suppression_paiement' AND NOT tgisinternal;                          -- 1 ligne
   ```
 
 ## 3. Variables Vercel (Production, et Preview si utilisé)
@@ -93,6 +141,15 @@ Avec l'école de test, pas les données d'une vraie école.
 **Console**
 - [ ] `/admin/login` avec `SUPERADMIN_CODE` ; désactiver l'école de test → connexion et lien parent refusés ; réactiver.
 
+**Reprise de l'existant (F20), avec l'école de test**
+- [ ] Onglet Importer : envoyer le fichier modèle rempli → aperçu chiffré élève par élève, sans rien écrire.
+- [ ] Créer les classes manquantes, puis importer : un reçu « Reprise de l'existant » par élève qui a versé,
+  aucun reçu pour un élève sans versement.
+- [ ] Rejouer le même fichier → 0 création (doublons écartés).
+- [ ] Tableau de bord : la reprise ne compte ni dans le jour ni dans le mois, seulement dans l'année (« dont … repris »).
+- [ ] Encaisser un service mensuel hors de sa période → refus « … est hors de la période du service ».
+- [ ] Supprimer un paiement depuis l'éditeur SQL → refusé par la base.
+
 **Départ d'un élève (v1.6), avec un élève de test**
 - [ ] Fiche élève → statut « Abandon », date du jour → bandeau « Parti le … », mois suivants grisés, arriéré = mois dus
   jusqu'au départ (ex. inscription 25 000 non payée + octobre et novembre = 65 000).
@@ -104,6 +161,7 @@ Avec l'école de test, pas les données d'une vraie école.
 
 ## 5. Avant les premiers vrais reçus
 
-- [ ] Décider du préfixe des reçus (« JP- » hérité de l'ancien nom, ou « FJ- ») : voir `BACKLOG.md`.
+- [ ] Décider du préfixe des reçus (« JP- » hérité de l'ancien nom, ou « FJ- ») : voir la section 9
+  « Décisions tranchées » de `docs/feature-spec.md`.
 - [ ] Prévoir une sauvegarde régulière des paiements (export Excel mensuel par école, ou offre Supabase avec sauvegardes).
 - [ ] Désactiver ou supprimer l'école de test.

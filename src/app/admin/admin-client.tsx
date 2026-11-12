@@ -13,7 +13,7 @@ export type EcoleAdmin = Pick<
   "id" | "nom" | "slug" | "ville" | "responsable_nom" | "email_contact" | "telephone_contact" | "annee_scolaire" | "plan" | "statut_abonnement" | "trial_ends_at" | "abonnement_fin" | "is_active" | "created_at"
 > & { eleves: number; encaisse: number };
 
-export function AdminClient({ ecoles }: { ecoles: EcoleAdmin[] }) {
+export function AdminClient({ ecoles, totauxDisponibles = true }: { ecoles: EcoleAdmin[]; totauxDisponibles?: boolean }) {
   return (
     <div className="min-h-screen bg-neutral-50">
       <header className="bg-neutral-900 text-white px-4 py-3 flex justify-between items-center">
@@ -23,6 +23,11 @@ export function AdminClient({ ecoles }: { ecoles: EcoleAdmin[] }) {
         </form>
       </header>
       <main className="max-w-6xl mx-auto px-4 py-6 space-y-4">
+        {!totauxDisponibles && (
+          <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-2xl p-3">
+            Les totaux (élèves, encaissé) n&apos;ont pas pu être lus : ils sont affichés à zéro. Rechargez la page.
+          </p>
+        )}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <Kpi label="Écoles" valeur={String(ecoles.length)} />
           <Kpi label="Abonnées" valeur={String(ecoles.filter((e) => e.statut_abonnement === "actif").length)} ton="vert" />

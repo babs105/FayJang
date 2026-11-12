@@ -77,7 +77,7 @@ export function ParametresPanel({ ecole, numeroWave }: DonneesEcole & { numeroWa
           className="space-y-3"
           onSubmit={(e) => {
             e.preventDefault();
-            if (changementAnnee && !confirm(`Passer à l'année ${f.annee_scolaire} ? Les classes seront reprises et les élèves devront être réinscrits.`)) return;
+            if (changementAnnee && !confirm(`Passer à l'année ${f.annee_scolaire} ? Si cette année n'a pas encore de classes, les classes actives seront copiées avec leurs tarifs ; sinon rien n'est copié. Les élèves devront être réinscrits.`)) return;
             if (probleme) return setRetour({ ok: false, texte: probleme });
             executer(() => enregistrerParametres({ ...f, nb_tranches: nbTranches }));
           }}
@@ -171,7 +171,7 @@ export function ParametresPanel({ ecole, numeroWave }: DonneesEcole & { numeroWa
           </p>
           {changementAnnee && (
             <p className="text-[11px] text-amber-700 bg-amber-50 rounded-xl p-2.5">
-              Nouvelle année : les classes actives seront copiées avec leurs tarifs. L'historique de {ecole.annee_scolaire} reste conservé.
+              Nouvelle année : les classes actives seront copiées avec leurs tarifs, sauf si {f.annee_scolaire} a déjà ses classes. L'historique de {ecole.annee_scolaire} reste conservé.
             </p>
           )}
           <Bouton type="submit" disabled={isPending}>Enregistrer</Bouton>

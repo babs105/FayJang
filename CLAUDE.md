@@ -18,6 +18,7 @@ Répondre et écrire en **français** : messages, commentaires de code, libellé
 
 - `npm run dev` : serveur de dev (ou preview `fayjang`, port 3126). L'app exige les clés Supabase de `.env.local`.
 - `npx tsc --noEmit` : vérification des types
+- `npm run lint` : ESLint (`eslint.config.mjs`, règles Next + TypeScript). 0 erreur attendue ; les `any` volontaires restent en avertissement.
 - `npm run build` : à lancer avant tout push, c'est ce que Vercel exécute
 - `npm test` : tests automatiques (Vitest) de la logique pure de `src/lib` (fichiers `*.test.ts` à côté du code). À lancer avant tout push.
 
@@ -32,9 +33,10 @@ Répondre et écrire en **français** : messages, commentaires de code, libellé
 - `supabase/schema.sql` : schéma complet et **idempotent** (relancé en entier dans l'éditeur SQL Supabase)
 - `.claude/SCHEMA-INDEX.md` : index du schéma (tables, fonctions, policies, triggers avec leurs lignes), **généré** par
   `bash scripts/schema-index.sh` : à régénérer après chaque modification de `schema.sql`, jamais édité à la main
-- `BACKLOG.md` : findings d'audit en attente d'une feature (géré par le dev, agent ou session principale : il ajoute librement ses findings non corrigés, mais ne coche, supprime, modifie ou tranche qu'avec l'accord explicite de l'humain) ; `docs/mise-en-prod.md` : checklist de mise en production
+- `docs/feature-spec.md` : inventaire des features (livrées, à développer, pistes) et **fiche de feature** à faire valider par l'humain avant tout plan `architect` (procédure en section 8)
+- `BACKLOG.md` : backlog de **bugs**, seulement ceux dont la correction a été reportée ; un besoin (nouvelle feature à développer) ou une piste repéré en review va dans `docs/feature-spec.md` (section 6 ou 7), proposé par la session et validé par l'humain (géré par le dev, agent ou session principale : il ajoute librement ses bugs non corrigés, mais ne coche, supprime ou modifie qu'avec l'accord explicite de l'humain ; les décisions tranchées sont en section 9 du feature spec) ; `docs/mise-en-prod.md` : checklist de mise en production
 
-Espaces : `/ecole` (Espace École, 6 onglets dans `ecole-dashboard-client.tsx` + `fiche-eleve.tsx`), `/p/[token]`
+Espaces : `/ecole` (Espace École, 7 onglets dans `ecole-dashboard-client.tsx`, dont Importer, + `fiche-eleve.tsx`), `/p/[token]`
 (parent, page serveur sans JS client), `/admin` (SuperAdmin), `/inscription` (ouverture d'un compte école).
 
 ## Règles du code
@@ -86,7 +88,7 @@ Toute action École suit ce modèle, dans cet ordre :
   Puis `bash supabase/scripts/build-schema.sh` pour régénérer `schema.sql`,
   puis `bash scripts/schema-index.sh` pour l'index, puis mettre à jour
   `src/types/database.ts` **dans le même commit** (cohérence obligatoire).
-- L'édition de `supabase/schema.sql` par un agent dev n'est autorisée qu'après accord explicite de l'humain dans la conversation.   L'agent édite (nouveau bloc en fin de fichier), régénère l'index(`bash scripts/schema-index.sh`), puis s'arrête. L'humain relit le diff (`git diff supabase/schema.sql`) et applique en base. Sans accord,l'agent ne fait que proposer.
+- L'édition d'une source du schéma (`supabase/schema/*.sql`) par un agent dev n'est autorisée qu'après accord explicite de l'humain dans la conversation. L'agent édite la source (nouveau bloc `vX.Y` en fin de `05-migrations.sql`), lance `bash supabase/scripts/build-schema.sh` puis `bash scripts/schema-index.sh`, puis s'arrête. L'humain relit le diff (`git diff supabase/schema/ supabase/schema.sql`) et applique en base. Sans accord, l'agent ne fait que proposer. Deux hooks demandent l'accord à chaque écriture d'un `.sql` (`block-sql-writes.sh` pour Write/Edit, `block-sql-bash.sh` pour une commande shell).
 - Nouvelle table : `ecole_id`, RLS activée et politiques (section 9). Codes d'erreur métier : `FJ403`, `FJ404`, `FJ412`, `FJ422`, `FJ429` (`src/lib/erreurs.ts`).
 - Le schéma est appliqué à la main par l'utilisateur dans Supabase : lui rappeler de le relancer.
 
@@ -111,7 +113,7 @@ Année scolaire « 2026-2027 », mois des mensualités au format `YYYY-MM-01` (`
 
 ## Vérifier un changement
 
-1. `npx tsc --noEmit` (un hook le lance automatiquement en fin de tour si des fichiers .ts/.tsx ont changé), puis `npm test`
+1. `npx tsc --noEmit`, puis `npm test` (un hook lance les deux automatiquement en fin de tour si des fichiers .ts/.tsx ont changé)
 2. Si l'interface change : preview `fayjang` (port 3126), sans créer ni modifier de données réelles sans accord
 3. Avant un push : `NEXT_DIST_DIR=.next-build npm run build` (ne jamais écrire dans le `.next` du `npm run dev`)
 

@@ -1,150 +1,46 @@
 # Backlog — FayJàng
 
-> Les findings d'audit qui ne sont pas corrigés dans la PR courante arrivent ici.
-> Un finding dans ce fichier **n'est pas une urgence**. Il attend qu'une feature
-> le croise.
+> **Backlog de bugs** : seuls les bugs dont la correction a été reportée arrivent ici
+> (le code livré fait autre chose que ce que disent le feature spec, `CLAUDE.md` ou une
+> décision tranchée). Un bug dans ce fichier **n'est pas une urgence**. Il attend qu'une
+> feature le croise.
 >
 > Règles :
+> - Un besoin (nouvelle feature à développer) ou une piste
+>   ne s'écrit pas ici : il va dans `docs/feature-spec.md`, section 6 ou 7.
 > - Ne rien corriger depuis ce fichier sans passer par `architect`.
 > - Ne rien supprimer sans avoir la preuve que c'est fait (commit, PR, numéro de ligne).
-> - Une décision tranchée ne se rouvre pas sans raison nouvelle.
+> - Les décisions tranchées (métier, projet, risques acceptés) ne sont pas ici : `docs/feature-spec.md`, section 9.
+> - Un bug corrigé passe en « Bugs corrigés » avec sa preuve (commit) ; il ne se rouvre pas sans raison nouvelle.
 > - Le dev (`dev-encaissement` ou la session principale) gère ce fichier avec l'autorisation de l'humain :
->   il **ajoute** sans demander les findings non corrigés de sa tranche ; il **coche, supprime, modifie**
->   une entrée ou écrit dans « Décisions tranchées » seulement après l'accord explicite de l'humain.
+>   il **ajoute** sans demander les bugs non corrigés de sa tranche ; il **coche, supprime, modifie**
+>   une entrée ou la passe en « Bugs corrigés » seulement après l'accord explicite de l'humain.
 > - Classement (détail dans `.claude/WORKFLOW.md`, section « Le backlog ») :
->   - **Chantier** dès qu'un de ces points est vrai : plus d'1 h de travail, touche `schema.sql`,
+>   - **Bug à planifier** dès qu'un de ces points est vrai : plus d'1 h de travail, touche `schema.sql`,
 >     l'auth ou l'argent (encaissement, reçus, soldes), plus de 2 fichiers, ou décision métier à prendre ;
->   - **Correction mineure** sinon : correctif court et localisé.
+>   - **Bug mineur** sinon : correctif court et localisé.
 >   - Une nouvelle entrée s'ajoute à la fin de sa section, avec son origine (review, tranche, date).
 
 ---
 
-## Chantiers (feature-scale, à planifier avec architect)
+## Bugs à planifier (avec architect)
 
-- [ ] **Encaissement d'un mois hors période du service** (H4) — `encaisser_paiement` (bloc v1.8) accepte, pour un
-  article mensuel, n'importe quel mois de l'année sans le comparer à `mois_debut` ni à `mois_fin` : un service arrêté
-  en novembre peut encore être encaissé pour mars, ce qui repousse ensuite le dernier mois payé au-delà de l'arrêt.
-  Décision métier à prendre (refus en base FJ412, ou simple avertissement à l'école ; recommandation du reviewer :
-  refus). Correctif : après la lecture de `v_art`, refuser si `v_mois < mois_debut` ou `v_mois > mois_fin`, dans un
-  nouveau bloc en fin de `05-migrations.sql`. *Estimé : 1 h. Croise : services mensuels, arrêt de service.*
-  (review database tranche 1 « intégrité des données », 2026-11-10)
+_Aucun bug à planifier en attente._
 
 ---
 
-## Corrections mineures (à appliquer quand une feature croise le sujet)
+## Bugs mineurs (à corriger quand une feature croise le sujet)
 
-- [ ] **Suppression accidentelle d'un paiement en éditeur SQL** — aucune policy
-  `FOR DELETE`, aucun trigger `BEFORE DELETE` sur `paiements`. La RLS protège
-  l'application (JWT), mais l'éditeur SQL (rôle postgres) bypass la RLS. Un
-  humain peut supprimer un vrai reçu par accident. Correctif : trigger
-  `BEFORE DELETE` + flag `SET LOCAL fayjang.allow_paiement_delete = 'on'` pour
-  le nettoyage de tests. *Estimé : 1 h. Croise : mise en production avec de
-  vrais reçus.*
-
-- [ ] **Headers de sécurité absents** (S9) — aucun `X-Frame-Options`,
-  `X-Content-Type-Options`, `Referrer-Policy`, CSP dans `next.config.ts`. Le
-  `Referrer-Policy` compte : l'URL de la page parent contient le token. Correctif :
-  `headers()` dans `next.config.ts`. *Estimé : 1 h. Croise : prochaine tranche sur /p/[token].*
-
-
-- [ ] **Dates saisies : 31 février accepté** — `isDateValide` (`src/lib/dates.ts`) accepte une date
-  inexistante (ex. 2026-02-31) ; corrigé pour la date de départ (contrôle par aller-retour dans
-  `modifierInscription`), mais pas pour la date de naissance (`inscrireEleve`, `modifierEleve`).
-  Correctif : renforcer `isDateValide` par l'aller-retour ISO. *Estimé : 15 min. Croise : prochaine
-  tranche sur la fiche élève.* (review tranche 2 « départ d'un élève », 2026-11-08)
-
-- [ ] **Erreur 23514 de `modifierInscription` reconnue par sous-chaîne** — la contrainte de la date
-  de départ est repérée par « date_depart » dans le message ; toute autre contrainte CHECK future
-  afficherait le message de la réduction. Correctif : tester les noms complets des contraintes.
-  *Estimé : 10 min. Croise : prochaine modification de `modifierInscription`.* (review tranche 2, 2026-11-08)
-
-- [ ] **Formules Excel non neutralisées dans l'export** — les noms d'élève et de parent saisis
-  librement peuvent commencer par `=`, `+`, `-` ou `@` et être interprétés comme formules à
-  l'ouverture (`src/app/ecole/export/route.ts`). Correctif : préfixer d'une apostrophe ces chaînes
-  avant `addRow`. *Estimé : 20 min. Croise : toute évolution de l'export.* (review tranche 3 « départ d'un élève », 2026-11-08)
-
-- [ ] **`classe_id` et date de naissance non contrôlés à l'inscription** (S7) — `inscrireEleve` ne vérifie
-  pas que `classe_id` est un UUID, ni qu'une date de naissance n'est pas dans le futur : le message reste
-  générique (« Opération impossible… ») ou la date future est acceptée. `eleve_id` est contrôlé depuis la
-  tranche 2. Le 31 février relève de l'entrée « Dates saisies » ci-dessus. Correctif : regex UUID avec
-  « Choisissez une classe. » et `date_naissance <= todayDakar()`. *Estimé : 15 min. Croise : prochaine
-  tranche sur la fiche élève.*
-  (review security tranche 1 « inscription atomique », 2026-11-10)
-
-- [ ] **Message ambigu pour une classe désactivée** — `inscrire_eleve` (bloc v1.7 de
-  `supabase/schema/05-migrations.sql`) répond « Choisissez une classe. » pour une classe désactivée comme
-  pour une classe inexistante. Correctif : « Classe introuvable ou désactivée. », sans distinguer une classe
-  d'une autre école. *Estimé : 5 min. Croise : tranche 2 « inscription atomique ».*
-  (review database tranche 1 « inscription atomique », 2026-11-10)
-
-- [ ] **Parent connu réécrit à chaque inscription** — `ON CONFLICT … DO UPDATE SET nom = p.nom` dans
-  `inscrire_eleve` crée une nouvelle version de la ligne `parents` (un peu de bloat, verrou de ligne).
-  Correct fonctionnellement. Correctif si besoin : `ON CONFLICT DO NOTHING RETURNING id` puis `SELECT`.
-  *Estimé : 15 min. Croise : import Excel des élèves (inscriptions en masse).*
-  (review database tranche 1 « inscription atomique », 2026-11-10)
-
-- [ ] **Message FJ422 unique pour l'encaissement à l'inscription** — une ligne mal formée, un montant au-delà du
-  dû ou un libellé trop long donnent tous « Montant à encaisser incohérent avec le tarif, réessayez. » dans
-  `inscrire_eleve`. Correctif : messages distincts selon la cause. *Estimé : 20 min. Croise : prochaine évolution
-  de `inscrire_eleve`.* (review database tranche 2 « inscription atomique », 2026-11-10 ; la partie « libellé du
-  catalogue sans plafond » est réglée par le CHECK `articles_classe_libelle_longueur`, bloc v1.9, commit `29d748e`)
-
-- [ ] **Confirmation de changement d'année trompeuse** — `parametres-panel.tsx` demande « Les classes seront
-  reprises » même quand la nouvelle année a déjà ses classes (aucune copie, l'école le découvre après coup par le
-  message « existent déjà »). Correctif : adapter le texte du `confirm()` (ou dire « si la nouvelle année n'a pas
-  encore de classes »). *Estimé : 10 min. Croise : prochaine retouche de l'onglet Paramètres.*
-  (test preview « opérations atomiques », 2026-11-10)
-
-- [ ] **Version unique des fonctions v1.9 à v1.11 à vérifier en base** — après application du schéma :
-  `SELECT oid::regprocedure FROM pg_proc WHERE proname IN ('enregistrer_classe', 'enregistrer_parametres',
-  'inscrire_eleve');` doit renvoyer trois lignes (PGRST203 sinon). Vérifié en base locale, pas encore sur Supabase.
-  *Estimé : 2 min. Croise : mise en production de « opérations atomiques ».* (2026-11-10)
-
-- [ ] **« Rien à encaisser » reconnu par son texte** (S7) — `inscrireEleve` repère ce cas avec
-  `calcul.erreur.startsWith("Rien à encaisser")` ; si le libellé de `lignesAEncaisser` change, une inscription sans
-  rien à payer serait refusée à tort (rien créé). Correctif : indicateur explicite renvoyé par
-  `lignesPaiementInscription`. *Estimé : 15 min. Croise : prochaine évolution de `lignesAEncaisser`.*
-  (review security tranche 2 « inscription atomique », 2026-11-10)
-
-- [ ] **`inscription_id` non validé en UUID dans `encaisserPaiement`** (S7) — un identifiant malformé part en
-  base et revient en erreur 22P02, interceptée par `messageErreur` (message générique, aucune fuite). Correctif :
-  valider le format UUID avant la requête. *Estimé : 10 min. Croise : durcissement des Server Actions.*
-  (review security tranche 1 « encaissement atomique », 2026-11-10)
-
-- [ ] **Verrou de lot absent de `inscrire_eleve`** (M4) — `encaisser_paiement` prend `pg_advisory_xact_lock` sur
-  `(école, lot_id)`, pas `inscrire_eleve` : un même `lot_id` partagé entre les deux fonctions en parallèle n'est pas
-  couvert (deux UUID identiques, improbable). Correctif : prendre le même verrou dans `inscrire_eleve`.
-  *Estimé : 10 min. Croise : prochaine migration touchant `inscrire_eleve`.*
-  (review database tranche 1 « encaissement atomique », 2026-11-10)
-
+- [ ] **Commentaires de cellule écrits par openpyxl illisibles par exceljs** — un classeur produit par un outil qui
+  écrit ses commentaires comme openpyxl fait échouer `lireClasseur` (« Fichier Excel illisible »). Le modèle n'a plus de
+  commentaires ; un fichier enregistré depuis Excel ou LibreOffice n'est pas concerné. Correctif si une école bute
+  dessus : retirer les commentaires avant le chargement, ou message dédié. *Estimé : 1 h. Croise : V2 de l'import
+  (fichiers d'école tels quels).* (tranche 1 « reprise de l'existant », 2026-11-11)
 
 ---
 
-## Décisions tranchées (ne plus rouvrir)
+## Bugs corrigés (avec la preuve, ne plus rouvrir)
 
-- [x] **Un paiement ne se supprime ni ne se modifie** : annulation motivée seulement,
-  reçu barré « ANNULÉ », annulation par reçu entier (lot). (2026-11-07)
-- [x] **Le dernier mois peut se payer par tranches** : mois de début et nombre de
-  tranches réglés par l'école, tranche incluse dans le reçu de la mensualité, case
-  cochée par défaut. (2026-11-08)
-- [x] **Commits signés avec l'adresse noreply GitHub** dans ce dépôt (l'adresse Gmail
-  n'est pas reliée au compte, Vercel refusait le déploiement). (2026-11-08)
-- [x] **Nom de l'application : FayJàng** (identifiants techniques sans accent :
-  `fayjang`). (2026-11-08)
-- [x] **Réglages d'encaissement fixés par l'école en début d'année** (1er / dernier mois à
-  l'inscription, mois payé par tranches) : ils restent au niveau de l'école, pas figés sur
-  chaque inscription. (2026-11-08)
-- [x] **Départ d'un élève (abandon, transfert)** : une date de départ est enregistrée ; les mois
-  jusqu'au mois du départ inclus (mois entamé = dû) restent dus, ceux d'après ne le sont plus
-  (ce qui est déjà payé est gardé, pas de remboursement). Restent dus : frais d'inscription,
-  frais uniques (tenues…), 1er mois payé à l'inscription. Anciens abandons sans date : ancien
-  calcul + bandeau « date de départ manquante ». Le parent voit « Départ enregistré le … ». (2026-11-08)
-- [x] **Paiement libre refusé pour un élève parti** (abandon ou transfert). Appliqué dans
-  `encaisserPaiement` et l'interface (commit `3e3c4bb`). (2026-11-08)
-- [x] **Exception au gel du schéma** pour la seule colonne `inscriptions.date_depart` (ajout pur,
-  feature « départ d'un élève »). (2026-11-08)
-- [x] **Préfixe des reçus encore « JP- »** — vient de l'ancien nom JàngPay. Passer à
-  « FJ- » demande un bloc final qui remplace `numeroter_recu` .(2026-11-09)
 - [x] **Inscription d'élève atomique** — fonction SQL `inscrire_eleve` (bloc v1.7 de
   `supabase/schema/05-migrations.sql`) : parent, élève, inscription, articles et reçu d'inscription
   créés en une seule transaction ; un échec n'en laisse aucun et ne consomme pas de numéro de reçu.
@@ -154,10 +50,6 @@
 - [x] **Plafond de lignes sur le calcul du matricule** — le matricule est calculé par `inscrire_eleve`
   (plus grand suffixe numérique + 1, sous verrou), sans lecture plafonnée ni ordre texte ; testé : après
   269999 vient 2610000. Commit `561ff6d`. (2026-11-10)
-- [x] **Signature de `inscrire_eleve` gardée en tranche 2** — mêmes 14 paramètres, refus de l'encaissement
-  retiré, lignes de paiement validées avant tout cast. Commit `865f9d2`. (2026-11-10)
-- [x] **Parent existant à l'inscription** : même téléphone dans l'école = même parent ; son nom et son lien
-  ne changent pas (un parent désactivé est réutilisé sans être réactivé). (2026-11-10)
 - [x] **Encaissement atomique (paiements simultanés)** — fonction SQL `encaisser_paiement` (bloc v1.8 de
   `supabase/schema/05-migrations.sql`), SECURITY INVOKER : verrou de l'inscription (`FOR NO KEY UPDATE`),
   empreinte des paiements lus par le serveur (tout changement depuis la lecture → FJ412 « Un autre encaissement
@@ -171,14 +63,6 @@
 - [x] **Paiement libre refusé pour un élève parti, aussi en base** — `encaisser_paiement` refuse un paiement libre
   si l'inscription n'est pas active (FJ412). Couvre le seul chemin d'encaissement ; la policy RLS `ecole_encaisse`
   n'a pas changé. Commit `013056d`. (2026-11-10)
-- [x] **Version unique de `encaisser_paiement` à vérifier en base** — après application du schéma :
-  `SELECT oid::regprocedure FROM pg_proc WHERE proname = 'encaisser_paiement';` doit renvoyer une ligne (PGRST203
-  sinon). *Estimé : 2 min. Croise : mise en production de « encaissement atomique ».*
-  (plan architect « encaissement atomique », 2026-11-10)
-- [X] **Version unique de `inscrire_eleve` à vérifier en base** — après application du schéma, s'assurer qu'une
-  seule signature existe : `SELECT oid::regprocedure FROM pg_proc WHERE proname = 'inscrire_eleve';` doit renvoyer
-  une ligne (une surcharge donnerait l'erreur PostgREST PGRST203). *Estimé : 2 min. Croise : mise en production
-  de « inscription atomique ».* (review database tranche 2 « inscription atomique », 2026-11-10)
 - [x] **Opérations multi-étapes atomiques** — `enregistrer_classe` (bloc v1.9) : classe et catalogue en une seule
   transaction, classe verrouillée en FOR NO KEY UPDATE ; `enregistrer_parametres` (bloc v1.11) : réglages et copie
   des classes actives + catalogue vers la nouvelle année en une seule transaction, école verrouillée (FOR NO KEY
@@ -203,3 +87,79 @@
 - [x] **`updated_at` sur eleves, classes, inscriptions, parents et articles_inscription** (M1) — bloc v1.15, rattrapé
   à `created_at` ; valeur du client ignorée, UPDATE sans changement sans effet. Affiché dans la fiche élève côté École
   seulement (« Dernière modification »), ni page parent ni export. Commit `b340119`. (2026-11-10)
+- [x] **Service mensuel encaissé hors de sa période** (H4) — `encaisser_paiement` (bloc v1.16) refuse en FJ412 un mois
+  hors de `[mois_debut, mois_fin]` d'un service mensuel (bornes NULL = année entière), après le rejeu ; message
+  « Transport : mars 2027 est hors de la période du service (…) ». Commit `af25822`. (2026-11-11)
+- [x] **Reprise de l'existant : rattachement exact des articles et des paiements** (H-1, M-B, M-C) — `importer_reprise`
+  (bloc v1.18) écrit une ligne `articles_inscription` par période d'un service (arrêté puis repris), `mois_debut` /
+  `mois_fin` à l'INSERT, et rattache chaque paiement à sa ligne par `article_index` (boucle, jamais l'ordre d'un insert
+  groupé) ; un frais unique de quantité 0 n'est pas rattaché ; un service sans versement ni début explicite qui
+  commencerait après la fin de l'année non plus. Vérifié en réel (élève « Repris », Transport octobre puis novembre).
+  Commit `fb07b06`. (2026-11-11)
+- [x] **Import robuste aux coupures et aux grosses écoles** (S7, S13) — lecture complète qui refuse au-delà du plafond au
+  lieu de tronquer (doublons écartés aussi en base par `importer_reprise`) ; boucles de création des classes et des
+  élèves protégées (`try/catch`, `revalidatePath` dans un `finally`, `maxDuration = 60`). Commits `fb07b06`, `4d1dad0`.
+  (2026-11-11)
+- [x] **Espace École et export lus en entier** — lecture par curseur sur l'id (`src/lib/lecture-paginee.ts`), `.in()`
+  par paquets de 150 inscriptions, plafond de 50 000 lignes : plus de liste ni de solde tronqué à 1000 lignes, et une
+  écriture pendant la lecture ne duplique ni ne saute de ligne. L'import utilise le même helper. Commit `4d1dad0`. (2026-11-11)
+- [x] **Reçus de reprise hors des totaux de caisse** — `totauxCaisse` (`src/lib/caisse.ts`) : la reprise ne compte ni
+  dans le jour, ni dans le mois, ni par mode, ni dans les derniers paiements ; elle compte dans l'année (« dont …
+  repris »). Onglet Paiements : seulement dans « Toute l'année », avec un badge ; export : statut « Reprise de
+  l'existant ». Commit `4d1dad0`. (2026-11-11)
+- [x] **Formules Excel neutralisées dans l'export** — `celluleTexte` (`src/lib/export-sur.ts`) préfixe d'une apostrophe
+  tout texte libre commençant par =, +, -, @, tabulation ou retour chariot (téléphones +221 laissés tels quels).
+  Commit `4d1dad0`. (2026-11-11)
+- [x] **En-têtes de sécurité** (S9) — `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`,
+  `Referrer-Policy: no-referrer` (le lien magique du parent ne part vers aucun autre site) et `Permissions-Policy` sur
+  toutes les réponses (`headers()` de `next.config.ts`), plus une `Content-Security-Policy` tout en `'self'`
+  (`frame-ancestors 'none'`, `form-action 'self'` ; `'unsafe-inline'` gardé pour Next, faute de middleware pour des
+  nonces). Vérifié en preview : en-têtes servis, Espace École (6 onglets), reçu PDF, export, connexion et accueil sans
+  erreur de console. Commit `ce9f0b6`. (2026-11-11)
+- [x] **ESLint configuré** — `npm run lint` lance `eslint .` (`eslint.config.mjs`, règles Next + TypeScript) : 0 erreur ;
+  les `any` volontaires restent en avertissement. Commit `ce9f0b6`. (2026-11-11)
+- [x] **Dates saisies : une date inexistante est refusée** — `isDateValide` (`src/lib/dates.ts`) contrôle par
+  aller-retour ISO : le 31 février ou le 29 février d'une année non bissextile sont refusés (date de naissance, fin
+  d'abonnement). Tests dans `src/lib/dates.test.ts`. Commit `ce9f0b6`. (2026-11-11)
+- [x] **`inscription_id` validé en UUID dans `encaisserPaiement`** (S7) — `estUuid()` avant toute requête, message
+  « Inscription introuvable. » (`src/app/ecole/actions.ts`). Commit `ce9f0b6`. (2026-11-11)
+- [x] **`formatMois` : formateur créé une seule fois** — `FORMAT_MOIS` au niveau du module (`src/lib/dates.ts`), test
+  dans `src/lib/dates.test.ts`. Commit `ce9f0b6`. (2026-11-11)
+- [x] **Contrainte violée de `modifierInscription` reconnue par son nom** — `contrainteViolee()` (`src/lib/erreurs.ts`) lit
+  le nom de la contrainte de l'erreur 23514 : date de départ, réduction, sinon message générique. Le nom automatique
+  de la contrainte de réduction (`inscriptions_check`) n'a pas été vérifié en base. Commit `d38b5f1`. (2026-11-11)
+- [x] **Classe, élève et date de naissance contrôlés à l'inscription** (S7) — `estUuid()` sur `classe_id` et `eleve_id`,
+  date de naissance future refusée à l'inscription et à la modification (`src/app/ecole/actions.ts`). Commit `d38b5f1`. (2026-11-11)
+- [x] **Confirmation de changement d'année exacte** — le texte dit « si cette année n'a pas encore de classes »
+  (`parametres-panel.tsx`). Commit `d38b5f1`. (2026-11-11)
+- [x] **« Rien à encaisser » signalé par un indicateur** (S7) — constante `RIEN_A_ENCAISSER` (`src/lib/scolarite.ts`) et
+  drapeau `rienAEncaisser` renvoyé par `lignesPaiementInscription`, avec test. Commit `d38b5f1`. (2026-11-11)
+- [x] **Périodes contiguës d'un service fusionnées** — `repartirReprise` ne garde qu'une ligne quand deux périodes se
+  suivent sans mois d'arrêt ; montants inchangés (test de parité). Commit `d38b5f1`. (2026-11-11)
+- [x] **Lot d'import à l'issue incertaine** — après une réponse inattendue ou une coupure, l'écran dit que le lot a
+  peut-être été enregistré et qu'on peut le reprendre sans risque ; « Rien n'a été enregistré » est réservé au refus
+  de la base (`import/actions.ts`, `reprise-panel.tsx`). Commit `d38b5f1`. (2026-11-11)
+- [x] **Reçu PDF : textes coupés et détail plafonné** (S13) — école, élève, classe et libellés coupés avec « ... » par
+  `widthOfTextAtSize` ; au-delà de 300 lignes, le reste est regroupé en « Autres lignes (n) », total exact
+  (`src/lib/recu-pdf.ts`, tests dans `recu-pdf.test.ts`). Contrôlé sur un reçu de test, pas en preview. Commit `d38b5f1`. (2026-11-11)
+- [x] **Totaux SuperAdmin lus en entier** — `toutLire` dans `src/app/admin/page.tsx`, bandeau si les totaux sont
+  indisponibles. Commit `d38b5f1`. (2026-11-11)
+- [x] **Détection de formule à l'import alignée sur l'export** — `ressembleAUneFormule` réutilise `DEBUT_FORMULE`
+  (`src/lib/export-sur.ts`) : =, +, -, @, tabulation, retour chariot. Commit `d38b5f1`. (2026-11-11)
+- [x] **Écran dédié quand l'école dépasse le nombre de lignes** — message « contactez le support » distinct de la panne
+  passagère (`src/app/ecole/page.tsx`). Commit `d38b5f1`. (2026-11-11)
+- [x] **Paiement protégé de la suppression** — trigger `trg_interdire_suppression_paiement` (BEFORE DELETE), y compris
+  depuis l'éditeur SQL ; nettoyage de tests : `SET LOCAL fayjang.allow_paiement_delete = 'on'` dans la transaction. Bloc v1.19, commit `626d80b`, testé sur une base Postgres locale ; à appliquer sur Supabase. (2026-11-12)
+- [x] **Message de classe désactivée** — `inscrire_eleve` répond « Classe introuvable ou désactivée. ». Bloc v1.19, commit `626d80b`, testé sur une base Postgres locale ; à appliquer sur Supabase. (2026-11-12)
+- [x] **Parent connu non réécrit à l'inscription** — `ON CONFLICT DO NOTHING` puis lecture, comme l'import. Bloc v1.19, commit `626d80b`, testé sur une base Postgres locale ; à appliquer sur Supabase. (2026-11-12)
+- [x] **Un message FJ422 par cause à l'inscription** — nombre de lignes, forme, libellé, doublon, mois hors année,
+  article non encaissable, montant au-delà du dû ; les contrôles ne changent pas. Bloc v1.19, commit `626d80b`, testé sur une base Postgres locale ; à appliquer sur Supabase. (2026-11-12)
+- [x] **Verrou de lot dans `inscrire_eleve`** (M4) — même verrou « lot: » que `encaisser_paiement`. Bloc v1.19, commit `626d80b`, testé sur une base Postgres locale ; à appliquer sur Supabase. (2026-11-12)
+- [x] **Matricule FayJàng factorisé** — `prochain_matricule(annee)`, appelée par `inscrire_eleve` et `importer_reprise`. Bloc v1.19, commit `626d80b`, testé sur une base Postgres locale ; à appliquer sur Supabase. (2026-11-12)
+- [x] **Ordre des verrous inscription / import** (H5) — le verrou « matricule: » est pris avant l'écriture du parent des
+  deux côtés. Corrigé par construction, sans test de concurrence. Bloc v1.19, commit `626d80b`, testé sur une base Postgres locale ; à appliquer sur Supabase. (2026-11-12)
+- [x] **Articles obligatoires vérifiés par `importer_reprise`** — un élève à qui il manque un article obligatoire de sa
+  classe est refusé ; exception gardée : service sans versement après la fin de l'année. Bloc v1.19, commit `626d80b`, testé sur une base Postgres locale ; à appliquer sur Supabase. (2026-11-12)
+- [x] **Durcissements de `importer_reprise`** — `CASE` devant `jsonb_array_length` (aussi dans `inscrire_eleve`) ;
+  `TAILLE_LOT` documenté à 25 au plus (`src/lib/reprise-lots.ts`) ; homonymes et `revalidatePath` réglés par
+  `d38b5f1`. Bloc v1.19, commit `626d80b`, testé sur une base Postgres locale ; à appliquer sur Supabase. (2026-11-12)

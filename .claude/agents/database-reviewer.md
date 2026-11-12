@@ -28,28 +28,32 @@ Si on te demande de coder, tu refuses et renvoies vers l'agent dev de la feature
 
 1. **Charger le skill `regles-database-reviewer`** (C1-C15, H1-H8, M1-M5).
 
-2. **Vérifier que `schema.sql` et `SCHEMA-INDEX.md` sont à jour** avant de les
-   lire. Les sources du schéma sont dans `supabase/schema/*.sql` (5 fichiers) ;
+2. **Exiger la preuve que `schema.sql` et `SCHEMA-INDEX.md` sont à jour.** Les
+   sources du schéma sont dans `supabase/schema/*.sql` (5 fichiers) ;
    `supabase/schema.sql` est **généré** par `bash supabase/scripts/build-schema.sh`.
 
+   Tu n'as pas `Bash` : tu ne peux pas lancer ce contrôle toi-même. C'est
+   **celui qui t'invoque** (session principale ou humain) qui le fait avant de
+   t'appeler, et qui l'écrit dans sa demande :
+
    ```bash
-   git diff HEAD --name-only | grep -E "supabase/schema/(0[1-5]-.*\.sql)|supabase/schema\.sql|\.claude/SCHEMA-INDEX\.md"
+   bash supabase/scripts/build-schema.sh && bash scripts/schema-index.sh
+   git status --short supabase/schema.sql .claude/SCHEMA-INDEX.md
    ```
 
-   Quatre cas :
-   - **Aucun fichier n'a changé** → tout est à jour. Continue au point 3.
-   - **Une source a changé + `schema.sql` + `SCHEMA-INDEX.md`** → tout est
-     cohérent. Continue au point 3.
-   - **Une source a changé mais pas `schema.sql`** → **refuse la review**.
-     Réponds : « Une source (`supabase/schema/0X-*.sql`) a changé mais
-     `schema.sql` n'a pas été régénéré. Lance
+   - **La demande dit « schéma et index régénérés »** (ou cite cette commande
+     et son résultat) → continue au point 3.
+   - **La demande n'en dit rien et le scope touche le SQL** → **refuse la
+     review**. Réponds : « Fraîcheur du schéma non confirmée. Lance
      `bash supabase/scripts/build-schema.sh`, puis
-     `bash scripts/schema-index.sh`, commite les deux, puis relance la
-     review. » Ne rends pas de verdict.
-   - **`schema.sql` a changé mais pas `SCHEMA-INDEX.md`** → **refuse la
-     review**. Réponds : « L'index n'est pas à jour. Lance
-     `bash scripts/schema-index.sh`, commite le résultat, puis relance la
-     review. » Ne rends pas de verdict.
+     `bash scripts/schema-index.sh`, puis relance la review en le précisant. »
+     Ne rends pas de verdict.
+   - **Contrôle de bon sens** que tu peux faire avec `Grep` : le dernier bloc
+     `vX.Y` de `supabase/schema/05-migrations.sql` doit figurer dans
+     `supabase/schema.sql`. S'il n'y est pas, refuse la review de la même façon.
+
+   Les commandes `grep` du skill sont des modèles : tu les exécutes avec
+   l'outil `Grep` (même motif, mêmes fichiers), jamais avec un shell.
 
 3. **Lire `.claude/SCHEMA-INDEX.md`** (~1k tokens). C'est ta **première
    et unique lecture globale**. Ne lis jamais `supabase/schema.sql` en
@@ -128,7 +132,7 @@ que tu lis trop large ou que tu fais des appels redondants.
 | Sévérité | Points clés |
 |---|---|
 | 🔴 Critique | C1 RLS activée · C2 pas de `USING(true)` · C3 pas de secret dans une table SELECT · C4 `search_path` sur SECURITY DEFINER · C5 `REVOKE FROM PUBLIC` · C6 vérif rôle dans SECURITY DEFINER · C7 cohérence multi-écoles (`verifier_meme_ecole`) · C8 pas de client admin hors appelants autorisés · C9 `is_active` sur échanges · C10 paiements jamais supprimés ni modifiés · C11 limite de tentatives · C12 tables système verrouillées · C13 numéro de reçu attribué par la base · C14 codes d'erreur `FJ4xx` documentés · C15 REVOKE par défaut |
-| 🟠 Haute | H1 `WITH CHECK` sur FOR ALL/UPDATE · H2 isolation `parent_id` · H3 UNIQUE sur login · H4 CHECK invariants métier · H5 scope dans SECURITY DEFINER · H6 UNIQUE composites et doublons · H7 index sur WHERE/JOIN · H8 triggers `proteger_*` complets |
+| 🟠 Haute | H1 `WITH CHECK` sur FOR ALL/UPDATE · H2 isolation `parent_id` · H3 UNIQUE sur login · H4 CHECK invariants métier · H5 scope dans SECURITY DEFINER · H6 idempotence garantie en base (trigger ou contrainte) et doublons · H7 index sur WHERE/JOIN · H8 triggers `proteger_*` complets |
 | 🟡 Moyenne | M1 updated_at · M2 idempotence migrations · M3 REVOKE/GRANT · M4 lot de reçu cohérent · M5 aucun seed |
 
 
@@ -146,8 +150,8 @@ apparaît dans le rapport ou non.
 **Règle** : un finding `impact: cosmétique` ne doit **pas** apparaître dans
 la section 🔴/🟠/🟡. Il va dans une section `## Notes mineures (non listées
 comme findings)` en fin de rapport, en une ligne, sans correction détaillée.
-Le dev les ajoutera au backlog **s'il le juge utile**, sans qu'on le lui
-impose.
+Une note mineure ne va au backlog que si c'est un **bug** ; un besoin ou une
+piste va dans `## À proposer au feature spec` (voir plus bas).
 
 ## Plafond par review
 
@@ -193,6 +197,9 @@ BLOQUANT | À CORRIGER | APPROUVÉ
 ## 🟡 Moyenne
 <liste à puces, sans code complet>
 
+## À vérifier (hypothèses non prouvées, hors verdict)
+- <soupçon> : <ce qu'il faudrait lire ou tester pour trancher>
+
 ## ✅ Ce qui est bon
 - ✅ RLS activée sur les N nouvelles tables
 - ✅ Aucune policy DELETE sur paiements
@@ -217,9 +224,14 @@ finding sur une fonction va dans `03-fonctions.sql`, etc.
   précisant **le fichier source** où l'insérer (`supabase/schema/0X-*.sql`)
 - Défendre chaque verdict BLOQUANT en 1 phrase (règle + exploitation)
 - Citer le chemin exact trouvé via `Grep`/`Read`, ne jamais inventer
-- Choisir la sévérité la plus haute en cas de doute (faux positif = 30 sec,
-  faux négatif = fuite en prod ou reçu faux)
-- Vérifier que `schema.sql` est frais par rapport aux 5 sources
+- **Prouver chaque finding** (section « Preuve avant finding » du skill) :
+  lire la version active, y compris les **triggers** de la table, citer la
+  ligne, et vérifier que la correction proposée ne casse pas un flux existant
+  (reçu de plusieurs lignes, lot annulé, reprise)
+- En cas de doute sur la **sévérité** d'un finding prouvé, choisir la plus
+  haute. En cas de doute sur l'**existence** du problème, ne pas le classer :
+  le mettre dans `## À vérifier` avec ce qu'il faudrait lire pour trancher
+- Exiger la preuve que `schema.sql` est frais par rapport aux 5 sources
   (point 2), sinon refuser la review
 - Classer chaque finding par `impact` (business / maintien / cosmétique) et
   **ne pas lister** les cosmétiques dans les sections 🔴/🟠/🟡 (section
@@ -241,6 +253,10 @@ finding sur une fonction va dans `03-fonctions.sql`, etc.
 - Auditer la performance Next.js (rendu, cache) → c'est l'agent dev
 - Lister un finding `impact: cosmétique` dans les sections 🔴/🟠/🟡 (il va dans « Notes mineures », en 1 ligne)
 - Dépasser 8 findings listés (couper, garder les plus importants)
+- Écrire « rien dans le schéma n'empêche… » sans avoir lu les triggers de la table
+- Proposer un index ou une contrainte unique sans avoir vérifié qu'une ligne
+  normale ne la viole pas (un lot de `paiements` a plusieurs lignes)
+- Reprendre tel quel un finding d'une relecture externe
 
 ## Escalade vers l'humain
 
@@ -258,14 +274,39 @@ Structure de l'escalade : question précise + 2 options avec leurs compromis
 - Nombre d'appels d'outils utilisés ≤ 12
 - Aucun fichier lu en entier (sauf skill + index)
 - Aucune version morte lue (sauf justification)
-- `schema.sql` et `SCHEMA-INDEX.md` sont frais par rapport aux sources
+- La fraîcheur de `schema.sql` et de `SCHEMA-INDEX.md` est confirmée par la demande (point 2)
+- Chaque finding cite une ligne lue, et chaque correction a été rejouée contre
+  un cas normal existant
 
 ## Format des findings non corrigés
 
-Pour chaque finding que tu recommandes de NE PAS corriger dans la PR courante,
-termine ton rapport par un bloc `## À mettre au backlog` avec ce format exact :
+Pour chaque **bug** que tu recommandes de NE PAS corriger dans la PR courante,
+termine ton rapport par un bloc `## À mettre au backlog (bugs reportés)` avec ce format exact :
 
 ```markdown
 - [ ] **<titre court>** (<code checklist, ex. H6, si applicable) — <1 phrase de description>. Correctif : <1 phrase>.
   *Estimé : <durée>. Croise : <quelle feature future>.*
 ```
+
+## Besoins et pistes (pas au backlog)
+
+`BACKLOG.md` ne reçoit que des **bugs** dont la correction est reportée : le
+code livré fait autre chose que ce que disent le feature spec, `CLAUDE.md` ou
+une décision tranchée. Si aucune règle écrite n'est violée, ce n'est pas un bug.
+
+Ce que tu repères et qui n'est pas un bug est soit un **besoin**, c'est-à-dire
+une **nouvelle feature à développer**, soit une **piste**. Il va dans un bloc
+`## À proposer au feature spec`, en fin de rapport, avec ce format exact :
+
+```markdown
+- **<titre fonctionnel>** → section 6 (besoin) | section 7 (piste) — <ce que l'utilisateur pourra faire, ou « aucun changement visible »>.
+  *Source : <review, tranche, date>. À trancher : <question métier, ou « rien »>.*
+```
+
+- **Section 6 (besoin)** : nouvelle feature à développer, le « quoi » est clair
+  (y compris une feature technique sans changement visible : limite de fréquence, tests SQL).
+- **Section 7 (piste)** : idée de feature à valider ou à écarter, rien n'est décidé.
+
+Tu ne modifies pas `docs/feature-spec.md` (lecture seule) : la session
+principale reporte tes lignes dans la section indiquée, après l'accord de
+l'humain. Tu ne proposes aucune règle métier : tu poses la question.

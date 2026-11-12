@@ -1,5 +1,6 @@
 #!/bin/bash
-# Hook Stop : lance la vérification TypeScript en fin de tour si des fichiers .ts/.tsx ont changé.
+# Hook Stop : lance la vérification TypeScript puis les tests (Vitest) en fin de tour si des fichiers
+# .ts/.tsx ont changé.
 # Code 2 = Claude reçoit les erreurs et doit les corriger avant de terminer.
 entree=$(cat)
 
@@ -16,6 +17,12 @@ modifies=$( { git diff --name-only HEAD; git ls-files --others --exclude-standar
 if ! sortie=$(npx tsc --noEmit 2>&1); then
   echo "Vérification TypeScript (npx tsc --noEmit) en échec, à corriger :" >&2
   printf '%s\n' "$sortie" | head -40 >&2
+  exit 2
+fi
+
+if ! sortie=$(npm test --silent 2>&1); then
+  echo "Tests automatiques (npm test) en échec, à corriger :" >&2
+  printf '%s\n' "$sortie" | tail -40 >&2
   exit 2
 fi
 exit 0

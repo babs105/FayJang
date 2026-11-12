@@ -118,6 +118,13 @@ describe("lignesPaiementInscription", () => {
       articles: [{ article_classe_id: "transport", quantite: 1 }],
     });
     expect("erreur" in r && r.erreur).toMatch(/^Rien à encaisser/);
+    // L'appelant se fie à cet indicateur, pas au texte du message
+    expect("erreur" in r && r.rienAEncaisser).toBe(true);
+  });
+
+  it("un vrai refus ne porte pas l'indicateur « rien à encaisser »", () => {
+    const r = lignesPaiementInscription({ ...base, articles: [{ article_classe_id: "inconnu", quantite: 1 }] });
+    expect(r).toEqual({ erreur: "Article introuvable pour cette classe." });
   });
 
   it("dernier mois à l'inscription : utilise mensualite_dernier_mois, net de la réduction", () => {
