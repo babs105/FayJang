@@ -53,8 +53,8 @@
 | F18 | Console SuperAdmin | `/admin` | Livrée (main) |
 | F19 | Sécurité et exploitation | Transverse | Livrée (main) |
 | F20 | Reprise de l'existant (import Excel) | Onglet Importer | Livrée (main, merge `ccf271e`) |
-| D01 à D08 | Features à développer, c'est-à-dire les besoins (D03 livrée, voir F07) | — | Voir section 6, fiche à remplir selon la section 8 |
-| D02 | Abonnement appliqué automatiquement | Espace École, `/admin` | Fiche validée le 2026-11-12 (section 10), plan `architect` à produire |
+| F21 | Abonnement appliqué automatiquement (ex-D02) | Espace École, `/admin` | Livrée (main, merge `6c0121d`) |
+| D01 à D08 | Features à développer, c'est-à-dire les besoins (D02 livrée, voir F21 ; D03 livrée, voir F07) | — | Voir section 6, fiche à remplir selon la section 8 |
 | P01 à P06 | Pistes à trancher | — | Voir section 7 |
 
 ## 4. Features livrées
@@ -160,6 +160,8 @@
   activer ou désactiver une école.
 - **Depuis F20** : les totaux sont lus en entier (plus de troncature à 1000 lignes) ; un bandeau prévient
   s'ils sont indisponibles.
+- **Depuis F21** : chaque école affiche son état d'abonnement (normal, fin proche, délai de grâce, lecture seule) ;
+  le statut « Actif » est refusé sans date de fin, et une école « Actif » sans date est signalée.
 
 ### F19 — Sécurité et exploitation (transverse)
 - RLS sur toutes les tables, JWT de 5 minutes signé par le serveur, pas de middleware (chaque route se protège).
@@ -168,8 +170,6 @@
 - Depuis F20 : en-têtes de sécurité, Content-Security-Policy, ESLint, 356 tests automatiques (Vitest) ;
   message dédié quand une école dépasse le nombre de lignes lisibles ; inscription et import prennent leurs
   verrous dans le même ordre, avec un calcul du matricule unique (bloc v1.19).
-
-## 5. Dernière feature livrée
 
 ### F20 — Reprise de l'existant (import Excel)
 - **L'école peut** reprendre en cours d'année ses classes, ses élèves et ce qu'ils ont déjà versé, depuis un
@@ -184,6 +184,23 @@
   `d38b5f1` et `626d80b`). Schéma relancé en production (blocs v1.16 à v1.19). **Reste à faire** : vérifications en
   production de `docs/mise-en-prod.md` (section 4, « Reprise de l'existant »).
 
+## 5. Dernière feature livrée
+
+### F21 — Abonnement appliqué automatiquement (ex-D02)
+- **L'école peut** voir venir la fin de son essai ou de son abonnement (bandeau d'alerte 7 jours avant, bandeau
+  rouge pendant les 7 jours de grâce) ; ensuite son Espace École passe seul en lecture seule.
+- **Le SuperAdmin peut** voir l'état de chaque école dans `/admin` ; « Actif » exige une date de fin.
+- **Règles** : la fin est `trial_ends_at` en essai, `abonnement_fin` en actif (jour de Dakar) ; « Suspendu » ou
+  « Expiré » = lecture seule immédiate, sans grâce ; sans date de fin = normal. En lecture seule : consulter,
+  reçus PDF, export, relance WhatsApp, lien parent et code d'accès restent permis ; encaisser, annuler un reçu,
+  inscrire, modifier (élèves, inscriptions, articles, classes, paramètres) et importer sont refusés. La page
+  parent ne change pas ; la case « Active » décochée reste le blocage total. Aucun effet sur les reçus, les
+  arriérés ni le reste sur l'année.
+- **Où vit la règle** : uniquement en base (`situation_abonnement`, bloc v1.20) ; les triggers
+  `trg_abonnement_*` refusent les écritures (FJ403), les écrans et les actions lisent l'état calculé.
+- **État** : livrée sur `main` le 2026-11-12, merge `6c0121d` (4 tranches). Bloc v1.20 appliqué en production.
+  **Reste à faire** : vérifier le déploiement Vercel.
+
 ## 6. Features à développer (identifiées dans le projet)
 
 Un **besoin** est une nouvelle feature à développer : on sait qu'il faut la faire, il reste des points à trancher
@@ -196,9 +213,8 @@ n'a encore de plan `architect`.
 | N° | Feature | Ce que l'utilisateur pourra faire | Source | Points à trancher avant le plan |
 |---|---|---|---|---|
 | D01 | **Changement de classe en cours d'année** | Passer un élève dans une autre classe sans le réinscrire | Règle posée le 2026-11-10 (« on paie d'abord ») | Déjà tranché : seulement si l'élève a soldé son dû à date ; mois passés à l'ancien tarif, nouveau tarif dès le mois du changement. À trancher : sort des articles de l'ancienne classe |
-| D02 | **Abonnement appliqué automatiquement** | L'école voit la fin de son essai et son accès suit son abonnement | Constat dans le code : le statut est géré à la main dans `/admin`, la fin d'essai (`trial_ends_at`) ne bloque rien | Tout est tranché : fiche validée le 2026-11-12, voir section 10 |
 
-
+D02 (abonnement appliqué automatiquement) est livrée : voir F21. Son numéro n'est pas réattribué.
 
 ## 7. Pistes proposées (à trancher, rien n'est décidé)
 
@@ -340,57 +356,4 @@ session ajoute une ligne ici après l'accord de l'humain, avec la date. Les bugs
 Fiches validées par l'humain selon la section 8, en attente de plan ou en cours de développement. Une fiche
 livrée quitte cette section pour la section 4 (section 8.5).
 
-### D02 — Abonnement appliqué automatiquement
-**Acteur** : école (subit la règle), SuperAdmin (règle le statut et la date dans `/admin`)
-**Ce que l'utilisateur peut faire** : l'école voit venir la fin de son essai ou de son abonnement, et son Espace
-École passe seul en lecture seule si elle n'a pas réglé.
-**Règles métier** :
-- La fin est `trial_ends_at` pour une école en essai, `abonnement_fin` pour une école active (jour compté en heure
-  de Dakar).
-- De 7 jours avant la fin jusqu'au jour de la fin : bandeau d'alerte, tout fonctionne.
-- Pendant les 7 jours qui suivent la fin (délai de grâce) : bandeau rouge, tout fonctionne encore.
-- Ensuite : lecture seule. L'école consulte tout, télécharge reçus PDF et export Excel, relance par WhatsApp et
-  peut changer son code d'accès.
-- En lecture seule sont refusés : encaisser, annuler un reçu, inscrire, modifier un élève ou une inscription,
-  importer, modifier classes, articles et paramètres.
-- Le statut « Suspendu » a le même effet que l'expiration, immédiatement et sans délai de grâce.
-- La page parent ne change pas pendant l'expiration ou la suspension.
-- La case « Active » décochée dans `/admin` reste le blocage total (connexion et page parent), comme aujourd'hui.
-- `/admin` refuse le statut « Actif » sans date de fin.
-- Écoles déjà en production à la livraison : une école dont l'essai est fini depuis plus de 7 jours passe aussitôt
-  en lecture seule ; une école « Actif » sans date doit recevoir une date dans `/admin`.
-
-**Argent** : aucun effet sur les reçus, les arriérés ni le reste sur l'année. En lecture seule, aucun paiement ne
-peut être saisi ni annulé ; les reçus existants restent téléchargeables.
-**Données** : `ecoles.statut_abonnement`, `ecoles.trial_ends_at`, `ecoles.abonnement_fin`, `ecoles.is_active`
-(colonnes existantes, lues). Toute évolution du schéma relève du plan et demande l'accord de l'humain.
-**Hors feature** : paiement de l'abonnement dans l'application (piste P05, le SuperAdmin met toujours `/admin` à
-jour à la main après le règlement Wave) ; relance automatique de l'école par WhatsApp, SMS ou e-mail ; différences
-de fonctionnalités entre les plans Standard et Premium.
-**Critère de done** : une école dont l'essai est fini depuis plus de 7 jours se connecte, voit le bandeau
-« abonnement expiré », télécharge un reçu, et reçoit un refus lisible en tentant d'encaisser ; dès que le
-SuperAdmin la passe en « Actif » avec une date future, elle encaisse à nouveau.
-**Exemple chiffré** (pas de montants, les dates servent de cas de test) :
-
-| Cas | Fin | Alerte | Grâce | Lecture seule à partir du |
-|---|---|---|---|---|
-| Essai ouvert le 2026-11-12 | 2026-12-12 | du 2026-12-05 au 2026-12-12 | du 2026-12-13 au 2026-12-19 | 2026-12-20 |
-| Actif jusqu'au 2027-01-31 | 2027-01-31 | du 2027-01-24 au 2027-01-31 | du 2027-02-01 au 2027-02-07 | 2027-02-08 |
-| Suspendu le 2026-12-01 | — | — | aucune | 2026-12-01 |
-
-**Questions tranchées** (toutes le 2026-11-12) :
-- Effet de l'expiration → lecture seule.
-- Alerte et délai → alerte 7 jours avant, 7 jours de grâce après.
-- Page parent pendant l'expiration → inchangée.
-- « Suspendu » → même effet qu'expiré, sans grâce.
-- « Actif » sans date de fin → refusé, date obligatoire.
-- Relance WhatsApp et code d'accès en lecture seule → gardés.
-- Questions remontées par le plan `architect` (escalade, 2026-11-12) :
-  - Lecture seule appliquée où → en base (triggers, bloc v1.20) et dans les Server Actions ; accord donné pour
-    éditer `supabase/schema/05-migrations.sql` pour ce bloc.
-  - Statut « Expiré » posé à la main dans `/admin` → comme « Suspendu », lecture seule immédiate, sans grâce.
-  - École « Actif » ou en essai sans date de fin → état normal, signalée dans `/admin` jusqu'à la saisie de la date.
-  - Régénérer le lien magique d'un parent en lecture seule → permis.
-  - Prolonger un essai → pas de champ « fin d'essai » dans `/admin` : on passe l'école en « Actif » avec une date.
-
-**Statut de la fiche** : validée le 2026-11-12
+Aucune fiche en cours. La dernière (D02) est livrée : voir F21.
