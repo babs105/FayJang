@@ -1,24 +1,26 @@
 # Backlog — FayJàng
 
-> **Backlog de bugs** : seuls les bugs dont la correction a été reportée arrivent ici
+> **Backlog de bugs et de dette** : arrivent ici les bugs dont la correction a été reportée
 > (le code livré fait autre chose que ce que disent le feature spec, `CLAUDE.md` ou une
-> décision tranchée). Un bug dans ce fichier **n'est pas une urgence**. Il attend qu'une
+> décision tranchée) et les findings de review `impact: maintien` non corrigés (rien n'est faux
+> aujourd'hui, mais une faiblesse précise du code cassera ou deviendra exploitable). Un bug dans ce fichier **n'est pas une urgence**. Il attend qu'une
 > feature le croise.
 >
 > Règles :
-> - Après une review, seuls les bugs mineurs non corrigés s'écrivent ici. Un besoin ou une piste
->   ne s'écrit ni ici ni dans `docs/feature-spec.md` : il reste dans le rapport de review.
+> - Après une review, seuls les bugs mineurs et la dette `impact: maintien` non corrigés s'écrivent ici.
+>   Un besoin ou une piste ne s'écrit pas ici, et ni un reviewer ni un agent dev n'en signale plus : une nouvelle feature vient de l'humain.
 > - Ne rien corriger depuis ce fichier sans passer par `architect`.
 > - Ne rien supprimer sans avoir la preuve que c'est fait (commit, PR, numéro de ligne).
 > - Les décisions tranchées (métier, projet, risques acceptés) ne sont pas ici : `docs/feature-spec.md`, section 9.
 > - Un bug corrigé passe en « Bugs corrigés » avec sa preuve (commit) ; il ne se rouvre pas sans raison nouvelle.
-> - Le dev (`dev-encaissement` ou la session principale) gère ce fichier avec l'autorisation de l'humain :
->   il **ajoute** sans demander les bugs non corrigés de sa tranche ; il **coche, supprime, modifie**
+> - Le dev (un agent `dev-*` ou la session principale) gère ce fichier avec l'autorisation de l'humain :
+>   il **ajoute** sans demander les bugs et la dette non corrigés de sa tranche ; il **coche, supprime, modifie**
 >   une entrée ou la passe en « Bugs corrigés » seulement après l'accord explicite de l'humain.
 > - Classement (détail dans `.claude/WORKFLOW.md`, section « Le backlog ») :
 >   - **Bug à planifier** dès qu'un de ces points est vrai : plus d'1 h de travail, touche `schema.sql`,
 >     l'auth ou l'argent (encaissement, reçus, soldes), plus de 2 fichiers, ou décision métier à prendre ;
 >   - **Bug mineur** sinon : correctif court et localisé.
+>   - **Dette** : même critère de taille, avec la mention `impact: maintien` dans l'entrée.
 >   - Une nouvelle entrée s'ajoute à la fin de sa section, avec son origine (review, tranche, date).
 
 ---

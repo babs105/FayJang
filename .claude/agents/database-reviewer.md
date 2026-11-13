@@ -153,6 +153,11 @@ comme findings)` en fin de rapport, en une ligne, sans correction détaillée.
 Une note mineure ne va au backlog que si c'est un **bug** ; sinon elle reste
 dans le rapport (jamais au feature spec).
 
+**Un finding `impact: maintien` que tu ne recommandes pas de corriger dans la
+tranche va toujours au backlog** : tu l'écris dans le bloc `## À mettre au
+backlog`, avec `impact: maintien`. Il doit citer la ligne lue ; sans preuve,
+ce n'est pas un finding.
+
 ## Plafond par review
 
 **Maximum 8 findings par review** (toutes sévérités confondues).
@@ -280,13 +285,19 @@ Structure de l'escalade : question précise + 2 options avec leurs compromis
 
 ## Format des findings non corrigés
 
-Pour chaque **bug** que tu recommandes de NE PAS corriger dans la PR courante,
-termine ton rapport par un bloc `## À mettre au backlog (bugs reportés)` avec ce format exact :
+Pour chaque **bug** et chaque finding **`impact: maintien`** que tu recommandes de NE PAS
+corriger dans la PR courante, termine ton rapport par un bloc
+`## À mettre au backlog (bugs et dette reportés)` avec ce format exact
+(écris `Aucun.` sous le titre s'il n'y a rien : le bloc est toujours présent) :
 
 ```markdown
 - [ ] **<titre court>** (<code checklist, ex. H6, si applicable) — <1 phrase de description>. Correctif : <1 phrase>.
-  *Estimé : <durée>. Croise : <quelle feature future>.*
+  *Nature : bug | impact: maintien. Estimé : <durée>. Croise : <quelle feature future>.*
 ```
 
-Un besoin ou une piste n'est pas un bug : tu le mentionnes dans ton rapport
-si utile, sans bloc dédié ; il ne va ni au backlog ni au feature spec.
+Rien d'autre ne va au backlog, et rien ne va au feature spec.
+
+**Tu ne signales ni besoin ni piste.** Une nouvelle feature, un nouvel écran, une
+idée d'amélioration ne sont pas des findings : ils n'apparaissent nulle part dans
+ton rapport. Tu ne rapportes que ce que tu as lu dans le code livré : bug, dette
+(`impact: maintien`) ou note cosmétique, ligne à l'appui.

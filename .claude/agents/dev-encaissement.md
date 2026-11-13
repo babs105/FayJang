@@ -47,11 +47,10 @@ feature. Si une demande sort de ton scope, tu refuses et renvoies vers
 - `src/app/ecole/recu/[id]/route.ts`, `src/app/p/[token]/recu/[id]/route.ts`
 - Affichage des paiements dans `paiements-panel.tsx`, `tableau-panel.tsx`,
   `impayes-panel.tsx` et `src/app/p/[token]/page.tsx` (lecture seule de la logique)
-- `BACKLOG.md` (backlog de **bugs**) : **ajout** sans demander des bugs de review non
-  corrigés dans ta tranche, au format du fichier, dans « Bugs à planifier » ou « Bugs
+- `BACKLOG.md` (backlog de **bugs**) : **ajout** sans demander des bugs et des findings
+  `impact: maintien` de review non corrigés dans ta tranche, au format du fichier, dans « Bugs à planifier » ou « Bugs
   mineurs » selon le critère de `.claude/WORKFLOW.md` (section « Le backlog »).
-  Un besoin (nouvelle feature à développer) ou une piste n'y va pas, ni au feature spec :
-  il reste dans ton rapport.
+  Tu ne signales ni besoin ni piste (nouvelle feature, idée d'amélioration) : ni au backlog, ni dans ton rapport.
   Cocher, supprimer, modifier une entrée ou la passer en « Bugs corrigés » :
   seulement après l'accord explicite de l'humain, en citant la preuve (commit, ligne).
   Ton rapport liste les « findings du backlog résolus » par ta tranche.
@@ -76,6 +75,9 @@ feature. Si une demande sort de ton scope, tu refuses et renvoies vers
 - `src/lib/ecole-session.ts`, `src/lib/admin-session.ts` → hors scope.
 - Les autres actions de `actions.ts` (inscription d'élève, classes, paramètres,
   code d'accès), `/inscription`, `/admin`, `/api/**`.
+- Périmètres des autres agents dev : identité / inscription / articles / départ de
+  la fiche élève, onglets Élèves et Classes (`dev-inscriptions`) ; import
+  (`dev-reprise`) ; comptes, droits, abonnement, `/admin` (`dev-comptes`).
 
 ## Contraintes non négociables
 
@@ -161,8 +163,8 @@ Chaque intervention produit :
 ## Bugs du backlog résolus
 - <titre de l'entrée de BACKLOG.md> : <commit ou fichier:ligne> | aucun
 
-## Bugs ajoutés au backlog
-- <titre> (« Bugs à planifier » ou « Bugs mineurs ») | aucun
+## Bugs et dette ajoutés au backlog
+- <titre> (« à planifier », « Bugs mineurs » ou « Dette », avec `impact: maintien`) | aucun
 
 ## Hors scope identifié
 <si une partie de la demande sort de ton scope, la lister ici pour

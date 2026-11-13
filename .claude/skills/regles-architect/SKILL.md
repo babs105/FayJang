@@ -78,10 +78,14 @@ reviewers. Ce n'est PAS un plan "par couche" (schéma → serveur → client).
 
 | La tranche touche… | Dev |
 |---|---|
-| Fiche élève, `encaisserPaiement`, `annulerPaiement`, `scolarite.ts`, `encaissement.ts`, reçus PDF | `dev-encaissement` |
-| Tout le reste (classes, inscriptions, paramètres, page parent, export, import, tableau de bord, impayés, admin) | Session principale, avec les règles d'un agent dev |
+| Grille des mois et formulaire d'encaissement de la fiche élève, `encaisserPaiement`, `annulerPaiement`, `scolarite.ts`, `encaissement.ts`, reçus PDF | `dev-encaissement` |
+| Onglets Élèves et Classes, identité / inscription / articles / départ de la fiche élève, `inscrireEleve`, `modifierInscription`, `modifierEleve`, `supprimerEleve`, `enregistrerClasse`, `archiverClasse`, articles d'un élève, `regenererLienParent`, `inscription-initiale.ts`, `matricule.ts`, `classe-catalogue.ts` (D01, P02) | `dev-inscriptions` |
+| Onglet Importer, `src/app/ecole/import/**`, `src/lib/reprise-*.ts`, modèle `public/modele-import-ecole.xlsx` | `dev-reprise` |
+| Onglet Utilisateurs, `changerMonMotDePasse`, `droits.ts`, `utilisateurs.ts`, `mot-de-passe.ts`, affichage de l'abonnement, console `/admin` hors login (D10) | `dev-comptes` |
+| Tout le reste (paramètres et passage d'année, page parent, export, tableau de bord, impayés, journal) et le cœur d'auth (sessions, JWT, `src/lib/supabase/**`, logins) | Session principale, avec les règles d'un agent dev |
 
-Une tranche qui mélange les deux périmètres est **mal découpée** : la couper.
+Une tranche qui mélange deux périmètres est **mal découpée** : la couper (ex. D01 : la règle de
+calcul des deux tarifs dans `scolarite.ts` va à `dev-encaissement`, l'action et l'écran à `dev-inscriptions`).
 
 ## Méthode de travail (lire peu, lire juste, prouver)
 
@@ -117,7 +121,7 @@ elle doit se suffire.
 | Rubrique | Contenu |
 |---|---|
 | Ce que l'utilisateur peut faire | 1 phrase, vérifiable à l'écran |
-| Qui code | `dev-encaissement` ou session principale (tableau ci-dessus) |
+| Qui code | `dev-encaissement`, `dev-inscriptions`, `dev-reprise`, `dev-comptes` ou session principale (tableau ci-dessus) |
 | Règles de la fiche appliquées | Citées mot pour mot, avec la décision tranchée |
 | Fichiers | Liste exhaustive, **(à créer)** si nouveau |
 | SQL | Fichier source (`0X-*.sql`), numéro du bloc `vX.Y`, objets créés ou remplacés ; « aucun » sinon |
@@ -362,7 +366,7 @@ cohérent avec `annulerPaiement` actuel.
 | Tranche qui dépend du reste du plan pour être comprise | Chaque tranche se suffit : règles, fichiers, tests, reviews |
 | Plusieurs requêtes d'écriture depuis l'action pour un même geste | Une fonction SQL atomique (une transaction) |
 | Contrainte nouvelle sans regarder les données existantes | Requête de pré-contrôle dans « Mise en production » |
-| Tranche à cheval sur `dev-encaissement` et la session principale | La couper en deux tranches |
+| Tranche à cheval sur deux agents dev, ou sur un agent dev et la session principale | La couper en deux tranches |
 | Règle métier ajoutée « par bon sens » | `## Escalade`, la fiche d'abord |
 
 ## Checklist finale avant de rendre un plan

@@ -77,6 +77,11 @@ les sections 🔴/🟠/🟡. Il va dans `## Notes mineures (non listées comme f
 en fin de rapport. Une note mineure ne va au backlog que si c'est un **bug** ; sinon elle reste
 dans le rapport (jamais au feature spec).
 
+**Un finding `impact: maintien` que tu ne recommandes pas de corriger dans la
+tranche va toujours au backlog** : tu l'écris dans le bloc `## À mettre au
+backlog`, avec `impact: maintien`. Il doit citer la ligne lue ; sans preuve,
+ce n'est pas un finding.
+
 ## Plafond par review
 
 **Maximum 8 findings par review** (toutes sévérités confondues).
@@ -171,18 +176,22 @@ Terminer par `## Escalade` quand :
 
 ## Format des findings non corrigés
 
-Pour chaque **bug** que tu recommandes de NE PAS corriger dans la PR courante,
-termine ton rapport par un bloc `## À mettre au backlog (bugs reportés)` avec ce format exact :
+Pour chaque **bug** et chaque finding **`impact: maintien`** que tu recommandes de NE PAS
+corriger dans la PR courante, termine ton rapport par un bloc
+`## À mettre au backlog (bugs et dette reportés)` avec ce format exact
+(écris `Aucun.` sous le titre s'il n'y a rien : le bloc est toujours présent) :
 
 ```markdown
 - [ ] **<titre court>** (<code checklist, ex. S9, si applicable>) — <1 phrase de description>. Correctif : <1 phrase>.
-  *Estimé : <durée>. Croise : <quelle feature future>.*
+  *Nature : bug | impact: maintien. Estimé : <durée>. Croise : <quelle feature future>.*
 ```
 
-## Besoins et pistes (ni backlog, ni feature spec)
-
-`BACKLOG.md` ne reçoit que des **bugs mineurs** dont la correction est reportée : le
+`BACKLOG.md` reçoit les **bugs mineurs** dont la correction est reportée (le
 code livré fait autre chose que ce que disent le feature spec, `CLAUDE.md` ou
-une décision tranchée. Si aucune règle écrite n'est violée, ce n'est pas un bug :
-tu peux le mentionner dans ton rapport, sans bloc dédié, et il n'est écrit ni au
-backlog ni au feature spec.
+une décision tranchée) et la **dette** `impact: maintien`. Rien d'autre n'y va,
+et rien ne va au feature spec.
+
+**Tu ne signales ni besoin ni piste.** Une nouvelle feature, un nouvel écran, une
+idée d'amélioration ne sont pas des findings : ils n'apparaissent nulle part dans
+ton rapport. Tu ne rapportes que ce que tu as lu dans le code livré : bug, dette
+(`impact: maintien`) ou note cosmétique, ligne à l'appui.

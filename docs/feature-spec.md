@@ -233,8 +233,8 @@
 
 
 Chaque ligne cite sa source : demande de l'humain ou constat dans le code. Une review n'ajoute rien ici : un
-besoin ou une piste qu'elle signale reste dans son rapport, et n'entre dans ce fichier que si l'humain le demande
-(seuls les bugs mineurs non corrigés vont dans `BACKLOG.md`). Aucune n'a encore de plan `architect`.
+reviewer ou un agent dev ne signale ni besoin ni piste, et rien n'entre dans ce fichier sans demande de l'humain
+(seuls les bugs mineurs et la dette `impact: maintien` non corrigés vont dans `BACKLOG.md`). Aucune n'a encore de plan `architect`.
 
 | N° | Feature | Ce que l'utilisateur pourra faire | Source | Points à trancher avant le plan |
 |---|---|---|---|---|
@@ -247,9 +247,8 @@ livrée : voir F22. Leurs numéros ne sont pas réattribués.
 ## 7. Pistes proposées (à trancher, rien n'est décidé)
 
 Une **piste** est une idée de feature : rien n'est décidé, elle peut être écartée. Une piste validée par l'humain
-devient un besoin et passe en section 6. Elles sont classées par valeur estimée pour une école. Une piste repérée
-pendant une review arrive ici de la même façon qu'un besoin (bloc « À proposer au feature spec » du rapport,
-ajout par la session après l'accord de l'humain), avec sa source dans la colonne « Pourquoi ».
+devient un besoin et passe en section 6. Elles sont classées par valeur estimée pour une école. Une piste n'arrive
+ici que sur demande de l'humain (les reviewers et les agents dev n'en signalent plus), avec sa source dans la colonne « Pourquoi ».
 
 | N° | Piste | Pourquoi | Ce qui existe déjà |
 |---|---|---|---|
@@ -344,7 +343,7 @@ Une fiche est validable seulement si :
 Décisions métier, décisions de projet et risques acceptés, tranchés par l'humain. Une décision ne se rouvre pas
 sans raison nouvelle ; une fiche qui en contredit une doit d'abord la rouvrir explicitement (section 8.4). La
 session ajoute une ligne ici après l'accord de l'humain, avec la date. Les bugs corrigés, eux, sont dans
-`BACKLOG.md` (« Bugs corrigés »).
+`BACKLOG.md` (« Bugs  ou dette technique corrigés »).
 
 - **Un paiement ne se supprime ni ne se modifie** : annulation motivée seulement,
   reçu barré « ANNULÉ », annulation par reçu entier (lot). (2026-11-07)
@@ -390,7 +389,10 @@ session ajoute une ligne ici après l'accord de l'humain, avec la date. Les bugs
   désormais un compte nominatif (directeur ou caissier) ; la désactivation d'un utilisateur ou le changement de son
   mot de passe coupe sa session au clic suivant. (review security tranche 1 D09, 2026-11-12)
 - **Après une review, seuls les bugs mineurs non corrigés sont consignés** (`BACKLOG.md`) ; un besoin ou une piste
-  reste dans le rapport et ne va pas au feature spec. (2026-11-12)
+  reste dans le rapport et ne va pas au feature spec. (2026-11-12) **Complété le 2026-11-13** : un finding
+  `impact: maintien` non corrigé (dette : faiblesse précise du code livré, ligne à l'appui) est consigné aussi, en
+  section « Dette technique & Sécurité » du backlog ; aucun n'avait été consigné pendant F22. Et ni un reviewer ni un agent
+  dev ne signale plus de besoin ou de piste : un rapport ne contient que des findings sur le code livré ou la tranche.
 - **Comptes d'une école (F22)** — deux rôles fixes, directeur et caissier. Un seul directeur par école, jamais
   désactivé ni créé par l'école ; un caissier désactivé peut être réactivé ; 20 comptes au plus par école, directeur
   et désactivés compris. Changer le nom et l'e-mail d'un directeur : besoin D10. (2026-11-12 et 2026-11-13)

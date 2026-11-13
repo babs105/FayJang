@@ -78,7 +78,7 @@ Un plan avec **scope strict + tranches verticales**, dans ce format exact :
 
 ### Tranche 1 — <titre fonctionnel, pas technique>
 **Ce que l'utilisateur peut faire après cette tranche** : <1 phrase>
-**Qui code** : `dev-encaissement` | session principale
+**Qui code** : `dev-encaissement` | `dev-inscriptions` | `dev-reprise` | `dev-comptes` | session principale
 **Règles de la fiche appliquées** : <citées, avec la décision tranchée>
 **Fichiers** : <liste exhaustive ; (à créer) si nouveau>
 **SQL** : <fichier source 0X, bloc vX.Y, objets créés ou remplacés> | aucun
@@ -135,7 +135,7 @@ Un plan avec **scope strict + tranches verticales**, dans ce format exact :
 - **Réutiliser l'existant** : chercher le helper, la fonction SQL ou le
   composant avant d'en proposer un nouveau.
 - Dire **qui code** chaque tranche, et couper une tranche à cheval sur
-  `dev-encaissement` et la session principale.
+  deux agents dev, ou sur un agent dev et la session principale.
 - Passer en revue les **effets de bord** du skill pour chaque tranche.
 - Finir par **« Mise en production »** dès qu'une tranche touche le schéma.
 

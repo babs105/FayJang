@@ -34,7 +34,7 @@ Répondre et écrire en **français** : messages, commentaires de code, libellé
 - `.claude/SCHEMA-INDEX.md` : index du schéma (tables, fonctions, policies, triggers avec leurs lignes), **généré** par
   `bash scripts/schema-index.sh` : à régénérer après chaque modification de `schema.sql`, jamais édité à la main
 - `docs/feature-spec.md` : inventaire des features (livrées, à développer, pistes) et **fiche de feature** à faire valider par l'humain avant tout plan `architect` (procédure en section 8)
-- `BACKLOG.md` : backlog de **bugs mineurs**, seulement ceux dont la correction a été reportée ; après une review, rien d'autre n'est consigné : un besoin ou une piste reste dans le rapport, il ne va pas dans `docs/feature-spec.md` (géré par le dev, agent ou session principale : il ajoute librement ses bugs non corrigés, mais ne coche, supprime ou modifie qu'avec l'accord explicite de l'humain ; les décisions tranchées sont en section 9 du feature spec) ; `docs/mise-en-prod.md` : checklist de mise en production
+- `BACKLOG.md` : backlog des **bugs mineurs** et de la **dette** (`impact: maintien`) dont la correction a été reportée ; après une review, rien d'autre n'est consigné, et ni un reviewer ni un agent dev ne signale de besoin ou de piste (une nouvelle feature vient de l'humain, dans `docs/feature-spec.md`) (géré par le dev, agent ou session principale : il ajoute librement ses bugs non corrigés, mais ne coche, supprime ou modifie qu'avec l'accord explicite de l'humain ; les décisions tranchées sont en section 9 du feature spec) ; `docs/mise-en-prod.md` : checklist de mise en production
 
 Espaces : `/ecole` (Espace École, 7 onglets dans `ecole-dashboard-client.tsx`, dont Importer, + `fiche-eleve.tsx`), `/p/[token]`
 (parent, page serveur sans JS client), `/admin` (SuperAdmin), `/inscription` (ouverture d'un compte école).
@@ -119,6 +119,8 @@ Année scolaire « 2026-2027 », mois des mensualités au format `YYYY-MM-01` (`
 3. Avant un push : `NEXT_DIST_DIR=.next-build npm run build` (ne jamais écrire dans le `.next` du `npm run dev`)
 
 Les skills du projet (`.claude/skills/`) décrivent les tâches courantes : `/migration-schema`, `/verifier`.
-Les skills `regles-*` (architect, database-reviewer, security-reviewer, dev-encaissement) sont chargés par les agents de `.claude/agents/`
-(`architect`, `database-reviewer`, `security-reviewer` permanents ; `dev-encaissement` pour le flow d'encaissement).
-Les autres tranches (classes, inscriptions, paramètres, page parent, export) sont codées par la session principale, avec les règles d'un agent dev (`.claude/WORKFLOW.md`).
+Les skills `regles-*` sont chargés par les agents de `.claude/agents/` : `architect`, `database-reviewer`, `security-reviewer`
+(permanents) ; agents dev jetables `dev-encaissement` (encaissement, reçus, soldes), `dev-inscriptions` (élèves, inscriptions, classes),
+`dev-reprise` (import Excel), `dev-comptes` (comptes, droits, abonnement, `/admin`).
+Les autres tranches (paramètres, page parent, export, tableau de bord, impayés, cœur d'auth) sont codées par la session principale,
+avec les règles d'un agent dev (`.claude/WORKFLOW.md`).

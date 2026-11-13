@@ -50,14 +50,15 @@
 
 - **Les agents ne modifient jamais ce fichier.** `architect` et les reviewers
   (lecture seule) signalent dans leur rapport une fiche fausse ou incomplète.
-  `dev-encaissement` signale dans son rapport ce qui devrait y changer ; il
-  ne l'édite pas (hors de son périmètre).
+  Les agents dev (`dev-*`) signalent dans leur rapport ce qui devrait y
+  changer ; ils ne l'éditent pas (hors de leur périmètre).
 - **Une review n'alimente jamais le feature spec.** Après les findings, seuls
-  les bugs mineurs non corrigés vont au backlog. Un besoin ou une piste
-  signalé par un reviewer ou un dev n'est écrit ni au backlog ni au feature
-  spec : il reste dans le rapport (tri complet : section « Le backlog »).
-  Une nouvelle feature ou piste n'entre au feature spec que si l'humain la
-  demande lui-même.
+  les bugs mineurs et la dette (`impact: maintien`) non corrigés vont au
+  backlog (tri complet : section « Le backlog »). **Ni un reviewer ni un agent dev ne signale
+  de besoin ou de piste** : un rapport de review ne contient que des findings
+  sur le code livré (bug, dette, note cosmétique), un rapport de dev que sa
+  tranche. Une nouvelle feature ou piste n'entre
+  au feature spec que si l'humain la demande lui-même.
 - Une ligne ne passe à « Livrée » qu'avec la **preuve** (commit de merge sur
   `main`), comme pour une entrée du backlog.
 
@@ -89,10 +90,12 @@
   **une seule fois**, à la fin de la feature.
 
 ### Sur le dev
-- **Qui code** : une tranche d'encaissement (fiche élève, `encaisserPaiement`,
-  `annulerPaiement`, `scolarite.ts`, reçus) va à `dev-encaissement`. **Toute
-  autre tranche** (classes, inscriptions, paramètres, page parent, export,
-  tableau de bord, impayés) est codée par la **session principale** (Claude),
+- **Qui code** : selon le tableau « Qui code une tranche » du skill
+  `regles-architect` : encaissement et reçus → `dev-encaissement` ; élèves,
+  inscriptions, classes → `dev-inscriptions` ; reprise de l'existant →
+  `dev-reprise` ; comptes, droits, abonnement, `/admin` → `dev-comptes`.
+  **Toute autre tranche** (paramètres, page parent, export, tableau de bord,
+  impayés, cœur d'auth) est codée par la **session principale** (Claude),
   avec les mêmes règles qu'un agent dev ci-dessous.
 - **Le dev qui code écrit les tests automatiques de sa tranche** (Vitest,
   `src/**/*.test.ts`) : toute logique pure touchée (`src/lib`, calculs, libellés)
@@ -123,7 +126,7 @@
   prévus par le plan, avec leur scope nommé, après les contrôles de la
   section « Avant d'invoquer un reviewer », puis présente à l'humain le
   rapport de tranche et les rapports de review ensemble. Un agent dev
-  (`dev-encaissement`) ne lance pas de review : il les liste dans son
+  (`dev-*`) ne lance pas de review : il les liste dans son
   rapport, et la session principale les lance à sa suite.
 - **Aucun finding n'est corrigé sans décision de l'humain** : la session
   présente les rapports, l'humain arbitre (règles « Sur le schéma »).
@@ -139,32 +142,39 @@
   Éditer les sources dans `supabase/schema/*.sql`, puis lancer le build.
 - **Un finding d'audit ne se corrige pas immédiatement.** S'il n'est pas
   corrigé dans la tranche, il est trié (section « Le backlog ») : un **bug
-  mineur** dont la correction est reportée va dans `BACKLOG.md`, où il sera
-  planifié, découpé, et suivra le workflow normal. Rien ne va dans
+  mineur** ou une **dette** (`impact: maintien`) dont la correction est
+  reportée va dans `BACKLOG.md`, où il sera planifié, découpé, et suivra le
+  workflow normal. Rien ne va dans
   `docs/feature-spec.md`.
 - **Exception : les 🔴 (fuite active, reçu faux, corruption de données).**
   Hotfix immédiat, branche `fix/prod-xxx` depuis `main`, review accélérée, puis
   retour au workflow.
 - **Une seule vague de correction par audit.** Si un audit produit 2 🟠 et
   3 🟡, on applique les 2 🟠 + 1 🟡 (le plus impactant). Les autres 🟡 sont
-  triés (bug mineur → backlog, le reste reste dans le rapport). On ne
+  triés (bug mineur ou dette `impact: maintien` → backlog, le reste reste
+  dans le rapport). On ne
   relance pas d'audit après.
 - **Si un audit produit 3 findings ou plus, on gèle `schema.sql` pendant
   2 semaines.** On livre une feature utilisateur avant de rouvrir.
 - **Qui décide du 🟡 à corriger** : c'est **l'humain**, après lecture du
-  rapport. Le reviewer **recommande** (il écrit sur chaque 🟡 soit
-  `impact: business`, soit `impact: cosmétique`). Le dev **applique** la
+  rapport. Le reviewer **recommande** (il écrit sur chaque 🟡 `impact: business`,
+  `impact: maintien` ou `impact: cosmétique`). Le dev **applique** la
   décision de l'humain. Si l'humain n'est pas disponible dans l'heure :
   **aucun 🟡 n'est appliqué**, tous sont triés (backlog ou rapport). On
   ne re-audite pas.
 
   Rappel : un 🟡 `impact: business` est en fait un 🟠 déguisé. Il faut
-  le reclasser en 🟠 et l'appliquer. Un 🟡 `impact: cosmétique` est trié :
-  au backlog si c'est un bug mineur, sinon il reste dans le rapport. Il n'y a
-  pas de 🟡 « moyen ».
+  le reclasser en 🟠 et l'appliquer. Un 🟡 `impact: maintien` (dette : rien
+  n'est faux aujourd'hui, mais une faiblesse précise du code livré cassera ou
+  deviendra exploitable) qui n'est pas le 🟡 retenu va **toujours** au
+  backlog, section « Dette technique & Sécurité » : il ne se perd pas avec le
+  rapport. Un 🟡 `impact: cosmétique` est trié : au backlog si c'est un bug
+  mineur, sinon il reste dans le rapport.
 - **Mise à jour du backlog** : après chaque review, le dev (agent dev ou session principale, ou l'humain)
-  ajoute les **bugs mineurs** non corrigés à `BACKLOG.md` **avant** de fermer la PR. Un bug non
-  corrigé et non consigné est un bug oublié.
+  ajoute les **bugs mineurs** et les findings **`impact: maintien`** non corrigés à `BACKLOG.md`
+  **avant** de fermer la PR. Un finding non corrigé et non consigné est un finding oublié. Le rapport
+  de tranche dit toujours ce qui a été ajouté, ou « aucun finding à consigner » : un backlog qui ne
+  bouge pas doit être un constat écrit, pas un silence.
 - **Lecture du backlog** : `architect` lit `BACKLOG.md` avant chaque plan
   et intègre les bugs que la feature croise comme tranches.
 - **Le dev (agent dev ou session principale) gère `BACKLOG.md`, avec l'autorisation de l'humain** :
@@ -328,8 +338,9 @@ T(n+1).
 
 ## Le backlog (obligatoire)
 
-`BACKLOG.md`, à la racine du projet, est un **backlog de bugs** : il ne
-contient que les bugs mineurs dont la correction a été reportée. Aucun
+`BACKLOG.md`, à la racine du projet, est un **backlog de bugs et de dette** :
+il contient les bugs mineurs et les findings `impact: maintien` dont la
+correction a été reportée. Aucun
 finding de review ne va dans `docs/feature-spec.md`.
 
 **Tri d'un finding non corrigé dans la PR courante** (le reviewer le propose
@@ -338,10 +349,11 @@ dans son rapport, le dev ou la session l'applique) :
 | Nature | Critère | Destination | Qui écrit |
 |---|---|---|---|
 | **Bug mineur reporté** | Le code livré fait autre chose que ce que disent le feature spec, `CLAUDE.md` ou une décision tranchée : résultat faux, refus à tort, erreur, faille exploitable | `BACKLOG.md` | Le dev, sans demander |
-| **Besoin ou piste** | Rien n'est faux aujourd'hui, il manque quelque chose | Reste dans le rapport, nulle part ailleurs | — |
-| **Note cosmétique** | Ni bug, ni besoin | Reste dans le rapport, nulle part ailleurs | — |
+| **Dette reportée** (`impact: maintien`) | Rien n'est faux aujourd'hui, mais le reviewer cite une faiblesse précise du code livré (ligne lue) qui cassera ou deviendra exploitable : index manquant, message trop précis, absence de limite, test manquant sur un calcul d'argent | `BACKLOG.md`, section « Dette technique & Sécurité » | Le dev, sans demander |
+| **Note cosmétique** | Ni bug, ni dette | Reste dans le rapport, nulle part ailleurs | — |
 
-En cas de doute : si aucune règle écrite n'est violée, ce n'est pas un bug.
+En cas de doute : si aucune règle écrite n'est violée, ce n'est pas un bug ; si le reviewer l'a
+classé `impact: maintien` avec une ligne de code à l'appui, c'est une dette, elle va au backlog.
 
 
 Structure de `BACKLOG.md` :
@@ -368,6 +380,9 @@ section 9 de `docs/feature-spec.md`.
   métier avant de coder. Ce sont les cas où `architect` est obligatoire.
 - **Bug mineur** sinon : correctif court et localisé, appliqué quand une feature passe
   par le fichier.
+- **Dette (`impact: maintien`)** : même critère de taille (« à planifier » si elle remplit un des
+  points ci-dessus, sinon section « Dette technique & Sécurité »), avec la mention `impact: maintien`
+  dans l'entrée.
 - Une nouvelle entrée s'ajoute **à la fin** de sa section, avec son origine (review, tranche, date)
   et son code de checklist s'il y en a un (S9, H6…).
 
@@ -386,17 +401,23 @@ Ces trois agents **ne changent pas** au fil des features. Ils sont stables.
 | Agent | Feature |
 |---|---|
 | `dev-encaissement` | Encaissements, reçus, annulations, tranches du dernier mois |
-| *session principale* | Tout le reste de l'Espace École, la page parent et l'export (pas un agent : Claude lui-même) |
-| `dev-relances` | Relances WhatsApp / SMS des impayés (à créer) |
-| `dev-espace-parent` | Page `/p/[token]` (à créer) |
-| etc. | |
+| `dev-inscriptions` | Élèves, inscriptions, classes et catalogue, départ ; changement de classe (D01), réinscription (P02) |
+| `dev-reprise` | Reprise de l'existant : fichier Excel, aperçu, répartition, import par lots |
+| `dev-comptes` | Comptes directeur / caissiers, droits, mots de passe, abonnement affiché, console `/admin` ; D10 |
+| *session principale* | Paramètres, page parent, export, tableau de bord, impayés, cœur d'auth (pas un agent : Claude lui-même) |
+| `dev-relances` | Relances WhatsApp / SMS des impayés (à créer si P03 devient un besoin) |
 
 Un agent dev est créé pour une feature, utilisé le temps des tranches, puis
 archivé quand la feature est stable. Le prochain agent dev le remplace.
 Chaque agent dev a son skill `regles-dev-<feature>` (invariants, tests, anti-patterns).
 
-**Ne pas créer 10 agents dev d'un coup.** Un seul à la fois, tester le
-cycle complet (plan → dev → reviews → merge), puis passer au suivant.
+**Pas d'agent dev sans périmètre réel.** Un agent dev couvre une zone du code
+déjà modifiée souvent ou une feature planifiée (créés le 2026-11-13 :
+`dev-inscriptions`, `dev-reprise`, `dev-comptes`, à la demande de l'humain,
+d'après l'historique Git et les sections 6-7 du feature spec). Leurs périmètres
+sont disjoints : une tranche n'a qu'un seul dev. Le premier usage de chaque
+nouvel agent est suivi de près (cycle complet plan → dev → reviews → merge) ;
+un agent dont le rapport sort de son scope est corrigé avant la tranche suivante.
 
 ## Alignement avec `CLAUDE.md`
 
@@ -453,7 +474,7 @@ En cas de conflit, `CLAUDE.md` gagne. Si le `WORKFLOW.md` contredit
 - [ ] `security-reviewer` a rendu APPROUVÉ sur son scope nommé (si applicable)
 - [ ] Tests manuels listés dans le rapport du dev : tous passent
 - [ ] `.claude/SCHEMA-INDEX.md` régénéré si `schema.sql` a changé
-- [ ] Bugs mineurs non corrigés ajoutés à `BACKLOG.md`
+- [ ] Bugs mineurs et findings `impact: maintien` non corrigés ajoutés à `BACKLOG.md` (ou « aucun » écrit dans le rapport)
 - [ ] Bugs du backlog résolus par la tranche passés en « Bugs corrigés » (après accord de l'humain)
 - [ ] Aucune donnée réelle modifiée sans accord de l'utilisateur
 - [ ] Commit au format `type: description en français`

@@ -235,6 +235,6 @@ Le rapport de l'agent contient :
 - **Reviews à déclencher** (`database-reviewer` sur X, `security-reviewer`
   sur Y, avec un scope nommé)
 - **Tests manuels** (E1-E8 applicables à la tranche) et tests chiffrés si `scolarite.ts` change
-- **Bugs du backlog résolus** et **bugs ajoutés au backlog** (bugs mineurs seulement ; un besoin
-  ou une piste reste dans le rapport, jamais au feature spec)
+- **Bugs du backlog résolus** et **bugs ajoutés au backlog** (bugs mineurs et dette `impact: maintien`  ; ni besoin
+  ni piste, nulle part dans le rapport)
 - **Hors scope identifié** (à re-planifier par `architect`)
