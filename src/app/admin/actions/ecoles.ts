@@ -1,6 +1,9 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { hashCode } from "@/lib/ecole-session";
+import { anneeScolaireDe, todayDakar } from "@/lib/dates";
+import { slugifier, validerCreationEcole } from "@/lib/creation-ecole";
 import { erreurMotDePasse } from "@/lib/mot-de-passe";
 import { estUuid } from "@/lib/saisie";
 import type { EcoleAdmin } from "@/lib/admin-ecoles";
@@ -64,4 +67,43 @@ export async function reinitialiserMotDePasseDirecteur(ecoleId: string, nouveau:
     return { success: false, message: error.code === "FJ404" ? "Aucun compte directeur pour cette école." : "Réinitialisation impossible." };
   }
   return { success: true, message: `Mot de passe réinitialisé : le directeur se connecte avec ${String(data)} et le nouveau mot de passe.` };
+}
+
+/**
+ * Crée une école (essai gratuit) avec son directeur et un mot de passe provisoire (D11). Une seule transaction en
+ * base (creer_ecole) ; aucune session école n'est ouverte. Le mot de passe n'est renvoyé qu'à l'administrateur
+ * qui vient de le saisir, pour qu'il le transmette ; il n'est jamais journalisé.
+ */
+export async function creerEcole(saisie: {
+  nom: string;
+  ville?: string;
+  responsable: string;
+  email: string;
+  telephone: string;
+  code: string;
+}): Promise<ResultatAdmin<{ nom: string; email: string; motDePasse: string }>> {
+  const supabase = await clientAdmin();
+  if (!supabase) return { success: false, message: SESSION_EXPIREE };
+  if (!saisie || typeof saisie !== "object") return { success: false, message: "Saisie invalide." };
+  const v = validerCreationEcole(saisie);
+  if (!v.ok) return { success: false, message: v.message };
+  const { nom, ville, responsable, email, telephone, code } = v.valeurs;
+
+  const { error } = await (supabase as any).rpc("creer_ecole", {
+    p_nom: nom,
+    p_slug_base: slugifier(nom),
+    p_ville: ville,
+    p_responsable: responsable,
+    p_email: email,
+    p_telephone: telephone,
+    p_annee_scolaire: anneeScolaireDe(todayDakar()),
+    p_code_hash: hashCode(code),
+  });
+  if (error) {
+    console.error("[admin] création d'école :", error.code ?? "erreur");
+    if (error.code === "FJ422" && error.details === "email_pris") return { success: false, message: "Un compte existe déjà avec cet e-mail." };
+    return { success: false, message: "Création de l'école impossible, réessayez." };
+  }
+  revalidatePath("/admin", "layout");
+  return { success: true, message: `École « ${nom} » créée.`, data: { nom, email, motDePasse: code } };
 }

@@ -5343,3 +5343,83 @@ END;
 $$;
 REVOKE EXECUTE ON FUNCTION public.reinitialiser_mot_de_passe_directeur(UUID, TEXT) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.reinitialiser_mot_de_passe_directeur(UUID, TEXT) TO service_role;
+
+
+
+-- ==============================================================================
+-- v1.27 : création d'une école par le SuperAdmin, tranche 1 (feature D11).
+-- Bloc final : garder en dernier.
+--
+-- creer_ecole(nom, base du slug, ville, responsable, e-mail, téléphone, année, sha256) : ouvre une école
+-- (essai gratuit, défauts de la table), son code d'accès (retour arrière) et son compte directeur, en une seule
+-- transaction. Renvoie {ecole_id, utilisateur_id, slug}.
+--   - appelée seulement par le serveur Next.js avec le client admin (clé service_role) : EXECUTE accordé au seul
+--     service_role, et refus FJ403 si le JWT porte un role_app (défense en profondeur, comme v1.26) ;
+--   - SECURITY INVOKER : service_role contourne la RLS et garde ses droits sur les tables ; aucune élévation de
+--     privilège nécessaire. Les triggers ne gênent pas : trg_abonnement_ecriture (utilisateurs_ecole) ne refuse que
+--     role_app = 'ecole', trg_proteger_colonnes_ecole ne porte que sur UPDATE, les triggers de hachage stockent
+--     le bcrypt (acces_ecole, utilisateurs_ecole) ;
+--   - e-mail pris dans tout FayJàng (ecoles.email_contact sans tenir compte de la casse, utilisateurs_ecole.email) :
+--     FJ422, DETAIL 'email_pris' (l'appelant choisit son message) ;
+--   - verrous advisory sur l'e-mail et sur tout le calcul du slug : deux créations simultanées s'enchaînent ;
+--   - slug libre : base, base-2, base-3… (comme l'inscription publique).
+-- Les index uniques (idx_ecoles_email, idx_utilisateurs_ecole_email, ecoles.slug) restent le filet final.
+-- ==============================================================================
+CREATE OR REPLACE FUNCTION public.creer_ecole(
+    p_nom TEXT, p_slug_base TEXT, p_ville TEXT, p_responsable TEXT, p_email TEXT,
+    p_telephone TEXT, p_annee_scolaire TEXT, p_code_hash TEXT)
+RETURNS JSONB
+LANGUAGE plpgsql VOLATILE SET search_path = public AS $$
+DECLARE
+    v_email TEXT := lower(trim(coalesce(p_email, '')));
+    v_slug TEXT;
+    v_i INTEGER := 2;
+    v_ecole UUID;
+    v_utilisateur UUID;
+BEGIN
+    IF public.jwt_role_app() IS NOT NULL THEN
+        RAISE EXCEPTION 'Réservé à FayJàng.' USING ERRCODE = 'FJ403';
+    END IF;
+    IF coalesce(trim(p_nom), '') = '' OR coalesce(trim(p_responsable), '') = ''
+       OR p_slug_base IS NULL OR p_slug_base !~ '^[a-z0-9-]{1,40}$'
+       OR p_annee_scolaire IS NULL OR p_annee_scolaire !~ '^[0-9]{4}-[0-9]{4}$'
+       OR p_code_hash IS NULL OR p_code_hash !~ '^[0-9a-f]{64}$' THEN
+        RAISE EXCEPTION 'Données invalides.' USING ERRCODE = 'FJ422', DETAIL = 'donnees_invalides';
+    END IF;
+    IF v_email = '' OR length(v_email) > 120
+       OR v_email !~ '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]{2,}$' THEN
+        RAISE EXCEPTION 'Adresse e-mail invalide.' USING ERRCODE = 'FJ422', DETAIL = 'email_invalide';
+    END IF;
+
+    PERFORM pg_advisory_xact_lock(hashtextextended('creer_ecole:email:' || v_email, 0));
+    -- Un seul verrou pour tout le calcul du slug : deux bases différentes peuvent viser le même slug final
+    -- (« ecole » + suffixe -2 et « ecole-2 »), un verrou par base les laisserait se télescoper
+    PERFORM pg_advisory_xact_lock(hashtextextended('creer_ecole:slug', 0));
+
+    IF EXISTS (SELECT 1 FROM public.ecoles WHERE lower(trim(email_contact)) = v_email)
+       OR EXISTS (SELECT 1 FROM public.utilisateurs_ecole WHERE email = v_email) THEN
+        RAISE EXCEPTION 'Un compte existe déjà avec cet e-mail.' USING ERRCODE = 'FJ422', DETAIL = 'email_pris';
+    END IF;
+
+    v_slug := p_slug_base;
+    WHILE EXISTS (SELECT 1 FROM public.ecoles WHERE slug = v_slug) LOOP
+        v_slug := p_slug_base || '-' || v_i;
+        v_i := v_i + 1;
+    END LOOP;
+
+    INSERT INTO public.ecoles (nom, slug, ville, responsable_nom, email_contact, telephone_contact, annee_scolaire)
+    VALUES (trim(p_nom), v_slug, nullif(trim(coalesce(p_ville, '')), ''), trim(p_responsable), v_email,
+            nullif(trim(coalesce(p_telephone, '')), ''), p_annee_scolaire)
+    RETURNING id INTO v_ecole;
+
+    INSERT INTO public.acces_ecole (ecole_id, code_hash) VALUES (v_ecole, p_code_hash);
+
+    INSERT INTO public.utilisateurs_ecole (ecole_id, nom, email, code_hash, role)
+    VALUES (v_ecole, trim(p_responsable), v_email, p_code_hash, 'directeur')
+    RETURNING id INTO v_utilisateur;
+
+    RETURN jsonb_build_object('ecole_id', v_ecole, 'utilisateur_id', v_utilisateur, 'slug', v_slug);
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.creer_ecole(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.creer_ecole(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT) TO service_role;
