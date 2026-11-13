@@ -6,7 +6,7 @@ description: >
   Produit un rapport structuré avec sévérités et code corrigé.
   À invoquer dès qu'un changement touche : supabase/schema/*.sql,
   supabase/schema.sql, src/types/database.ts, src/lib/supabase/**,
-  src/lib/scolarite.ts, ou une Server Action qui appelle .rpc() / .from() sur
+  src/lib/metier/scolarite.ts, ou une Server Action qui appelle .rpc() / .from() sur
   ecoles, acces_ecole, parents, eleves, inscriptions ou paiements.
 tools: Read, Grep, Glob
 model: sonnet
@@ -101,7 +101,7 @@ Si on te demande de coder, tu refuses et renvoies vers l'agent dev de la feature
   puis `Read` 20-30 lignes autour de chaque match.
 - 1 seul `Grep` groupé : `grep -E "Paiement|Inscription|Ecole"`.
 
-**`src/lib/scolarite.ts`**
+**`src/lib/metier/scolarite.ts`**
 - Lire **uniquement si** la revue touche un calcul de solde, d'arriéré ou de
   tranche (le serveur s'en sert pour refuser un encaissement trop élevé).
 - Lire la fonction concernée (`situationInscription`, `trancheAvecMois`,

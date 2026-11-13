@@ -3,7 +3,7 @@ name: regles-dev-encaissement
 description: >
   Règles d'implémentation du flow d'encaissement de FayJàng. Charger ce skill dès
   qu'on modifie fiche-eleve.tsx, les actions encaisserPaiement / annulerPaiement,
-  src/lib/scolarite.ts (soldes, arriérés, tranches du dernier mois), les reçus PDF
+  src/lib/metier/scolarite.ts (soldes, arriérés, tranches du dernier mois), les reçus PDF
   ou la table paiements. Contient les invariants métier (recalcul serveur, reçu =
   lot, pas de suppression, tranches), le modèle de l'action, les tests manuels
   chiffrés obligatoires et les anti-patterns.
@@ -24,14 +24,14 @@ et le total. Le parent retrouve ses reçus sur `/parent/[token]`.
 - `src/components/ecole/fiche-eleve.tsx` : grille des mois, formulaire, bouton « Payer la
   tranche », case « Inclure la tranche … », historique, annulation.
 - `src/app/ecole/actions/encaissement.ts` : `encaisserPaiement(saisie)` et `annulerPaiement(id, motif)`.
-- `src/lib/scolarite.ts` : `situationInscription()`, `mensualiteNette()`,
+- `src/lib/metier/scolarite.ts` : `situationInscription()`, `mensualiteNette()`,
   `moisDesTranches()`, `maxTranches()`, `partEchue()`, `libelleTranche()`, `trancheAvecMois()`.
   **Partagé client / serveur** : la fiche affiche le même calcul que celui que le serveur applique.
-- `src/lib/libelles.ts` : `libellePaiement()` (« Mensualité de janvier 2027 »,
+- `src/lib/metier/libelles.ts` : `libellePaiement()` (« Mensualité de janvier 2027 »,
   « Tranche 1/3 de juin 2027 »), `MODES_PAIEMENT`, `LIBELLE_MODE`.
-- `src/lib/recu-donnees.ts` + `src/lib/recu-pdf.ts` : lecture du lot, PDF A5.
+- `src/lib/documents/recu-donnees.ts` + `src/lib/documents/recu-pdf.ts` : lecture du lot, PDF A5.
 - `src/app/ecole/recu/[id]/route.ts`, `src/app/parent/[token]/recu/[id]/route.ts`.
-- `src/lib/dates.ts` : `todayDakar()`, `moisScolaires()`, `echeanceDuMois()`, `formatMois()`.
+- `src/lib/metier/dates.ts` : `todayDakar()`, `moisScolaires()`, `echeanceDuMois()`, `formatMois()`.
 
 **Tables lues/écrites :**
 - `ecoles` : calendrier (`annee_scolaire`, `mois_debut`, `nb_mensualites`,
@@ -188,7 +188,7 @@ Avec l'école de test (`docs/compte-test.local.md`), jamais les données d'une v
 
 ## Tests chiffrés de `scolarite.ts`
 
-Tout changement de `scolarite.ts` a ses tests automatiques dans `src/lib/scolarite.test.ts`
+Tout changement de `scolarite.ts` a ses tests automatiques dans `src/lib/metier/scolarite.test.ts`
 (Vitest, `npm test`), qui couvrent au moins : tranche en retard, tranche payée, paiement
 d'avance, tous les mois échus, arrondi (23 000 en 5 → 4 600 ×4 puis le solde), option
 désactivée, élève en abandon, et l'exemple de référence de la v1.5 (132 000 à l'inscription,
@@ -214,16 +214,16 @@ désactivée, élève en abandon, et l'exemple de référence de la v1.5 (132 00
 
 ```bash
 # client admin introduit par erreur
-grep -rn "createAdminClient\|service_role" src/app/ecole/ src/app/parent/ src/lib/scolarite.ts
+grep -rn "createAdminClient\|service_role" src/app/ecole/ src/app/parent/ src/lib/metier/scolarite.ts
 
 # suppression ou modification de paiement
 grep -rn 'from("paiements")' src/ | grep -E "delete|update" | grep -v "annule: true"
 
 # numéro de reçu écrit par le code
-grep -rn "numero_recu" src/app/*/actions.ts src/app/*/actions/*.ts   # aucun résultat attendu
+grep -rn "numero_recu" src/app/*/actions/*.ts   # aucun résultat attendu
 
 # date métier calculée avec new Date()
-grep -rn "new Date()" src/app/ecole/actions/*.ts src/lib/scolarite.ts
+grep -rn "new Date()" src/app/ecole/actions/*.ts src/lib/metier/scolarite.ts
 ```
 
 ## Format de sortie attendu

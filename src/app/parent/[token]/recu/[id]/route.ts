@@ -1,11 +1,12 @@
 import { echangerJetonParent } from "@/lib/supabase/server";
-import { genererRecuPdf } from "@/lib/recu-pdf";
-import { lireDonneesRecu, reponsePdf } from "@/lib/recu-donnees";
+import { genererRecuPdf } from "@/lib/documents/recu-pdf";
+import { lireDonneesRecu, reponsePdf } from "@/lib/documents/recu-donnees";
+import type { ParamsParent } from "@/types/parent";
 
 export const dynamic = "force-dynamic";
 
 /** Reçu PDF pour un parent : la RLS ne lui montre que les paiements (non annulés) de ses enfants */
-export async function GET(_request: Request, { params }: { params: Promise<{ token: string; id: string }> }) {
+export async function GET(_request: Request, { params }: { params: Promise<ParamsParent & { id: string }> }) {
   const { token, id } = await params;
   const acces = await echangerJetonParent(token);
   if (!acces) return new Response("Lien invalide", { status: 404 });

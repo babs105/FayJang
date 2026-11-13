@@ -1,9 +1,9 @@
 import "server-only";
 import { serverClient, type SupabaseServeur } from "./client-serveur";
-import { getSessionEcole, hashCode, type SessionEcole } from "@/lib/ecole-session";
+import { getSessionEcole, hashCode, type SessionEcole } from "@/lib/securite/ecole-session";
 import type { RoleUtilisateur } from "@/types/database";
 import { signerJetonSupabase, type ClaimsFayJang } from "./jeton";
-import { ipVisiteur } from "@/lib/ip";
+import { ipVisiteur } from "@/lib/securite/ip";
 
 export type { SupabaseServeur };
 

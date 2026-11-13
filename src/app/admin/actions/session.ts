@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { createAdminSession, destroyAdminSession, isAdminConfigure, verifyAdminCode } from "@/lib/admin-session";
+import { createAdminSession, destroyAdminSession, isAdminConfigure, verifyAdminCode } from "@/lib/securite/admin-session";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function loginAdminAction(_prev: { error?: string } | undefined, formData: FormData): Promise<{ error?: string }> {

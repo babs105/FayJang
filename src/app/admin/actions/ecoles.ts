@@ -1,13 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { hashCode } from "@/lib/ecole-session";
-import { anneeScolaireDe, todayDakar } from "@/lib/dates";
-import { slugifier, validerCreationEcole } from "@/lib/creation-ecole";
-import { erreurMotDePasse } from "@/lib/mot-de-passe";
-import { estUuid } from "@/lib/saisie";
-import type { EcoleAdmin } from "@/lib/admin-ecoles";
-import { SESSION_EXPIREE, chargerEcoles, clientAdmin, majEcole, type ResultatAdmin } from "./_commun";
+import { hashCode } from "@/lib/securite/ecole-session";
+import { anneeScolaireDe, todayDakar } from "@/lib/metier/dates";
+import { slugifier, validerCreationEcole } from "@/lib/validation/creation-ecole";
+import { erreurMotDePasse } from "@/lib/validation/mot-de-passe";
+import { estUuid } from "@/lib/validation/saisie";
+import { SESSION_EXPIREE, chargerEcoles, clientAdmin, majEcole } from "./_commun";
+import type { EcoleAdmin, IdentifiantsDirecteur, ResultatAdmin } from "@/types/admin";
 
 /** Liste des écoles avec leurs totaux et leur état d'abonnement */
 export async function listerEcoles(): Promise<ResultatAdmin<{ ecoles: EcoleAdmin[]; totauxDisponibles: boolean }>> {
@@ -81,7 +81,7 @@ export async function creerEcole(saisie: {
   email: string;
   telephone: string;
   code: string;
-}): Promise<ResultatAdmin<{ nom: string; email: string; motDePasse: string }>> {
+}): Promise<ResultatAdmin<IdentifiantsDirecteur>> {
   const supabase = await clientAdmin();
   if (!supabase) return { success: false, message: SESSION_EXPIREE };
   if (!saisie || typeof saisie !== "object") return { success: false, message: "Saisie invalide." };

@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { isAdmin } from "@/lib/admin-session";
-import { formatDate } from "@/lib/dates";
+import { isAdmin } from "@/lib/securite/admin-session";
+import { formatDate } from "@/lib/metier/dates";
 import { Carte } from "@/components/ui";
 import { AlerteTotaux, EnteteAdmin, ErreurLecture } from "@/components/admin/entete";
 import { ResumeEcole } from "@/components/admin/etat-ecole";

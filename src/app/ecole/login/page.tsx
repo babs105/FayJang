@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import Link from "next/link";
 import { GraduationCap, Lock } from "lucide-react";
-import { loginEcoleAction } from "./actions";
+import { loginEcoleAction } from "@/app/ecole/actions/session";
 
 export default function EcoleLoginPage() {
   const [state, formAction, isPending] = useActionState(loginEcoleAction, undefined);

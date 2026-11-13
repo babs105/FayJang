@@ -3,14 +3,13 @@
 import { useState, useTransition } from "react";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { formatFCFA } from "@/lib/utils";
-import { LIBELLE_NIVEAU, NIVEAUX } from "@/lib/libelles";
+import { LIBELLE_NIVEAU, NIVEAUX } from "@/lib/metier/libelles";
 import { Badge, Bouton, Carte, Label, Message, Modal, champ } from "@/components/ui";
 import { archiverClasse, enregistrerClasse } from "@/app/ecole/actions/classes";
 import { MentionLectureSeule } from "./bandeau-abonnement";
-import { peutEcrire } from "@/lib/abonnement";
-import type { SaisieArticle } from "@/lib/classe-catalogue";
+import { peutEcrire } from "@/lib/metier/abonnement";
 import type { DonneesEcole } from "./ecole-dashboard-client";
-import type { ClasseVue } from "@/app/ecole/types";
+import type { ClasseVue, SaisieArticle } from "@/types/ecole";
 
 export function ClassesPanel({ classes, ecole, abonnement }: DonneesEcole) {
   const lectureSeule = !peutEcrire(abonnement.etat);

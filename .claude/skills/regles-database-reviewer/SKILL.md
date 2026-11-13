@@ -5,7 +5,7 @@ description: >
   dès qu'on audite une policy RLS, une fonction SECURITY DEFINER, une migration
   de schéma, un trigger, une Server Action qui appelle .from() sur ecoles /
   parents / eleves / inscriptions / paiements, un calcul de solde de
-  src/lib/scolarite.ts, ou une fonction d'échange (echanger_*).
+  src/lib/metier/scolarite.ts, ou une fonction d'échange (echanger_*).
   Contient les checklists C1-C15, H1-H8, M1-M5 avec exemples de code et
   commandes grep prêtes à l'emploi.
 ---
@@ -196,7 +196,7 @@ grep -rn "SUPABASE_SERVICE_ROLE_KEY\|service_role" src/
 # Autorisé : src/lib/supabase/admin.ts (et le diagnostic, qui affiche seulement
 # si la variable est présente).
 grep -rln "createAdminClient" src/
-# Autorisé : src/lib/supabase/admin.ts, src/app/admin/*, src/app/inscription/actions.ts,
+# Autorisé : src/lib/supabase/admin.ts, src/app/admin/*, src/app/inscription/actions/inscription.ts,
 # src/app/api/diagnostic/*. Tout autre match = critique.
 ```
 
@@ -291,7 +291,7 @@ REVOKE ALL ON public.compteurs_recus FROM PUBLIC, anon, authenticated;
   ni réutiliser un `lot_id` reçu du client.
 
 ```bash
-grep -rn "numero_recu" src/app/*/actions.ts src/app/*/actions/*.ts   # aucun résultat attendu (seules les actions écrivent)
+grep -rn "numero_recu" src/app/*/actions/*.ts   # aucun résultat attendu (seules les actions écrivent)
 grep -n "lot_id\|cle" src/app/ecole/actions/*.ts   # clé reçue du formulaire (lireCleEncaissement), randomUUID() en secours
 ```
 
@@ -304,7 +304,7 @@ inscription verrouillé, reçu déjà émis), `FJ422` (motif d'annulation manqua
 reçu multi-élèves), `FJ429` (trop de tentatives). Chaque code doit être :
 
 1. Documenté dans un commentaire SQL au-dessus de la fonction
-2. Listé dans `CODES_METIER` de `src/lib/erreurs.ts` (sinon le message est masqué)
+2. Listé dans `CODES_METIER` de `src/lib/securite/erreurs.ts` (sinon le message est masqué)
 3. Testé en dev
 
 **Un code couvre plusieurs causes, et c'est voulu** : `FJ412` est levé à une
@@ -329,8 +329,8 @@ d'un `FJ4xx` (pas de nouvel essai automatique).
 
 ```bash
 grep -n "ERRCODE = 'FJ" supabase/schema.sql
-grep -n "CODES_METIER" src/lib/erreurs.ts
-grep -n "message.*includes(\|message.*startsWith(\|erreur\.startsWith(" src/app/*/actions.ts src/app/*/actions/*.ts   # cause reconnue par son texte = finding
+grep -n "CODES_METIER" src/lib/securite/erreurs.ts
+grep -n "message.*includes(\|message.*startsWith(\|erreur\.startsWith(" src/app/*/actions/*.ts   # cause reconnue par son texte = finding
 ```
 
 ### C15 — Défense en profondeur : REVOKE ALL + ALTER DEFAULT PRIVILEGES
@@ -532,7 +532,7 @@ grep -n "Ce reçu est déjà émis" supabase/schema.sql   # FJ412 du trigger att
 grep -n "UNIQUE.*lot_id" supabase/schema.sql          # aucun résultat attendu
 
 # Cause d'erreur reconnue par son texte (C14)
-grep -rn "message.*includes(\|erreur\.startsWith(" src/app/*/actions.ts src/app/*/actions/*.ts
+grep -rn "message.*includes(\|erreur\.startsWith(" src/app/*/actions/*.ts
 ```
 
 ---

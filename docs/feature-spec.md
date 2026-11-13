@@ -74,7 +74,7 @@
 - **Règles** : blocage après 5 échecs (par IP et e-mail) ; changer, réinitialiser son mot de passe ou être
   désactivé déconnecte ses sessions ; une école désactivée ne se connecte plus.
 - **Code** : `echanger_utilisateur_ecole`, `session_utilisateur_valide`, `changer_mon_mot_de_passe`,
-  `src/lib/ecole-session.ts`.
+  `src/lib/securite/ecole-session.ts`.
 
 ### F03 — Classes, tarifs et catalogue d'articles
 - **L'école peut** créer une classe par année (niveau, frais d'inscription, mensualité, dernier mois), lui attacher un
@@ -92,7 +92,7 @@
 ### F05 — Fiche élève
 - **L'école peut** voir la situation d'un élève (grille des mois, arriéré, reste sur l'année, historique par reçu),
   modifier son identité, sa réduction mensuelle, et le supprimer s'il n'a aucun paiement.
-- **Règles** : même calcul que le serveur (`src/lib/scolarite.ts`) ; date de dernière modification affichée.
+- **Règles** : même calcul que le serveur (`src/lib/metier/scolarite.ts`) ; date de dernière modification affichée.
 
 ### F06 — Encaissement et reçu
 - **L'école peut** encaisser l'inscription, un ou plusieurs mois, un article, un service, un montant partiel ou un
@@ -228,7 +228,7 @@
   changement de mot de passe coupe la session au clic suivant. Le nom « Reprise de l'existant » est interdit pour
   un utilisateur. Aucun effet sur les soldes, les arriérés ni le reste sur l'année.
 - **Où vit la règle** : rôle relu en base à chaque requête (`getSessionEcole`), porté par le JWT
-  (`role_utilisateur`) ; refus côté serveur (`src/lib/droits.ts`) et en base (policies, `exiger_directeur`,
+  (`role_utilisateur`) ; refus côté serveur (`src/lib/securite/droits.ts`) et en base (policies, `exiger_directeur`,
   blocs v1.21 à v1.26), sauf l'export, refusé par le serveur seulement.
 - **État** : livrée sur `main` le 2026-11-13, merge `d9e6329` (6 tranches, blocs v1.21 à v1.26 appliqués en
   production). **Reste à faire** : vérifier le déploiement Vercel ; prévenir les écoles (reconnexion unique par
@@ -241,7 +241,7 @@
 - **Le SuperAdmin peut** créer une école et le compte de son directeur dans `/admin/ecoles` (nom, ville
   facultative, responsable, e-mail, téléphone, mot de passe provisoire choisi par l'admin) ; l'écran affiche une
   seule fois l'e-mail et le mot de passe à transmettre.
-- **Règles** : mêmes contrôles que l'inscription en ligne (`src/lib/creation-ecole.ts`) ; e-mail unique dans tout
+- **Règles** : mêmes contrôles que l'inscription en ligne (`src/lib/validation/creation-ecole.ts`) ; e-mail unique dans tout
   FayJàng ; l'école démarre en essai de 30 jours ; identifiant calculé depuis le nom (« -2 » s'il est pris) ; l'admin
   n'est pas connecté à l'école créée. Aucun effet sur les soldes, les arriérés ni le reste sur l'année.
 - **Où vit la règle** : fonction SQL `creer_ecole` (bloc v1.27), une seule transaction (école, accès, directeur),

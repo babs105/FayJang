@@ -2,11 +2,11 @@
 
 import { useState, useTransition } from "react";
 import { Bouton, Carte, Label, champ } from "@/components/ui";
-import { MOT_DE_PASSE_MIN } from "@/lib/mot-de-passe";
-import type { EcoleAdmin } from "@/lib/admin-ecoles";
+import { MOT_DE_PASSE_MIN } from "@/lib/validation/mot-de-passe";
 import type { PlanId, StatutAbonnement } from "@/types/database";
 import { reactiverEcole, reinitialiserMotDePasseDirecteur, suspendreEcole } from "@/app/admin/actions/ecoles";
 import { modifierAbonnement } from "@/app/admin/actions/abonnements";
+import type { EcoleAdmin } from "@/types/admin";
 
 /** Actions de la fiche d'une école : activer / désactiver, mot de passe du directeur, correction de l'abonnement */
 export function ActionsEcole({ ecole }: { ecole: EcoleAdmin }) {

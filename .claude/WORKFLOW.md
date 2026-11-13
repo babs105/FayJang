@@ -238,7 +238,7 @@ plus des reviews.
 
 `database-reviewer` est **obligatoire** si la tranche touche :
 `schema.sql`, une policy RLS, une fonction `SECURITY DEFINER`, un trigger,
-`src/lib/scolarite.ts`, ou une Server Action qui appelle `.rpc()` / `.from()`
+`src/lib/metier/scolarite.ts`, ou une Server Action qui appelle `.rpc()` / `.from()`
 sur une table sensible (`ecoles`, `parents`, `eleves`, `inscriptions`, `paiements`).
 
 `security-reviewer` est **obligatoire** si la tranche touche :

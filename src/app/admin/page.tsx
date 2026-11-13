@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { isAdmin } from "@/lib/admin-session";
+import { isAdmin } from "@/lib/securite/admin-session";
 import { formatFCFA } from "@/lib/utils";
 import { Carte, Kpi } from "@/components/ui";
 import { AlerteTotaux, EnteteAdmin, ErreurLecture } from "@/components/admin/entete";

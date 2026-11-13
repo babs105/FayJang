@@ -1,13 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getSessionEcole, hashCode } from "@/lib/ecole-session";
+import { getSessionEcole, hashCode } from "@/lib/securite/ecole-session";
 import { createClientEcole } from "@/lib/supabase/server";
-import { messageErreur } from "@/lib/erreurs";
-import { erreurMotDePasse, MOT_DE_PASSE_MAX } from "@/lib/mot-de-passe";
-import { lireSaisieCaissier } from "@/lib/utilisateurs";
-import { estUuid } from "@/lib/saisie";
-import { peutFaire } from "@/lib/droits";
+import { messageErreur } from "@/lib/securite/erreurs";
+import { erreurMotDePasse, MOT_DE_PASSE_MAX } from "@/lib/validation/mot-de-passe";
+import { lireSaisieCaissier } from "@/lib/validation/utilisateurs";
+import { estUuid } from "@/lib/validation/saisie";
+import { peutFaire } from "@/lib/securite/droits";
 import { SESSION_EXPIREE, session, type Resultat } from "./_commun";
 
 /**

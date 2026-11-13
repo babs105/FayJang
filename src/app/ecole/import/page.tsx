@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft, Lock, Upload } from "lucide-react";
-import { getSessionEcole } from "@/lib/ecole-session";
-import { peutFaire } from "@/lib/droits";
+import { getSessionEcole } from "@/lib/securite/ecole-session";
+import { peutFaire } from "@/lib/securite/droits";
 import { createClientEcole } from "@/lib/supabase/server";
 import { ReprisePanel } from "@/components/ecole/reprise-panel";
-import { lireAbonnementEcole } from "@/lib/abonnement-ecole";
-import { MESSAGE_LECTURE_SEULE, peutEcrire } from "@/lib/abonnement";
+import { lireAbonnementEcole } from "@/lib/securite/abonnement-ecole";
+import { MESSAGE_LECTURE_SEULE, peutEcrire } from "@/lib/metier/abonnement";
 
 export const dynamic = "force-dynamic";
 // Les Server Actions de cette page lisent le fichier et écrivent un lot : marge pour un gros fichier

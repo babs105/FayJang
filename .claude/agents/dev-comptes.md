@@ -4,7 +4,7 @@ description: >
   Développeur feature-specific pour les comptes d'une école et la console SuperAdmin de FayJàng. Scope
   strict : l'onglet Utilisateurs (utilisateurs-panel.tsx, actions/utilisateurs.ts : creerCaissier,
   changerStatutUtilisateur, reinitialiserMotDePasseUtilisateur), changerMonMotDePasse, les droits
-  (src/lib/droits.ts), src/lib/utilisateurs.ts, mot-de-passe.ts, l'affichage de l'abonnement
+  (src/lib/securite/droits.ts), src/lib/validation/utilisateurs.ts, mot-de-passe.ts, l'affichage de l'abonnement
   (abonnement.ts, abonnement-ecole.ts, bandeau-abonnement.tsx) et la console /admin (src/app/admin/** et src/components/admin/**,
   modifierAbonnement, reinitialiserMotDePasseDirecteur). Ne touche JAMAIS : le cœur des sessions et du
   JWT (ecole-session.ts, admin-session.ts, session-cookie.ts, src/lib/supabase/**), schema.sql (escalader
@@ -34,10 +34,10 @@ Une demande qui sort du périmètre est refusée et renvoyée à `architect`.
 **Dans ton scope (lecture et modification) :**
 - `src/components/ecole/utilisateurs-panel.tsx`, `src/app/ecole/actions/utilisateurs.ts`
 - `src/app/ecole/actions/utilisateurs.ts` contient aussi `changerMonMotDePasse` ; helpers partagés dans `src/app/ecole/actions/_commun.ts` (lecture seule)
-- `src/lib/droits.ts`, `src/lib/utilisateurs.ts`, `src/lib/mot-de-passe.ts`
-- `src/lib/abonnement.ts`, `src/lib/abonnement-ecole.ts`, `src/components/ecole/bandeau-abonnement.tsx`
+- `src/lib/securite/droits.ts`, `src/lib/validation/utilisateurs.ts`, `src/lib/validation/mot-de-passe.ts`
+- `src/lib/metier/abonnement.ts`, `src/lib/securite/abonnement-ecole.ts`, `src/components/ecole/bandeau-abonnement.tsx`
   (affichage seulement : la règle d'abonnement n'existe qu'en base)
-- `src/app/admin/**` (pages tableau de bord, `ecoles/`, `abonnements/`, `actions/*.ts`), `src/components/admin/*.tsx`, `src/lib/admin-ecoles.ts`
+- `src/app/admin/**` (pages tableau de bord, `ecoles/`, `abonnements/`, `actions/*.ts`), `src/components/admin/*.tsx`, `src/lib/metier/admin-ecoles.ts`
   (sauf `loginAdminAction` / `logoutAdminAction`)
 - Les masquages d'interface liés aux droits dans les autres onglets (un bouton caché au caissier),
   **sans toucher à la logique de ces onglets**
@@ -47,7 +47,7 @@ Une demande qui sort du périmètre est refusée et renvoyée à `architect`.
   de l'humain, avec la preuve. Tu ne signales ni besoin ni piste (nouvelle feature, idée d'amélioration) : ni au backlog, ni dans ton rapport.
 
 **Hors scope (interdit, escalader) :**
-- `src/lib/ecole-session.ts`, `src/lib/admin-session.ts`, `src/lib/session-cookie.ts`,
+- `src/lib/securite/ecole-session.ts`, `src/lib/securite/admin-session.ts`, `src/lib/securite/session-cookie.ts`,
   `src/lib/supabase/**` (`jeton.ts`, `server.ts`, `admin.ts`, `client-serveur.ts`), la page
   `/ecole/login` et `loginAdminAction` : cœur de l'authentification. Un changement nécessaire y est
   **décrit dans le rapport** pour une tranche dédiée, revue par `security-reviewer` (et décidée par l'humain).

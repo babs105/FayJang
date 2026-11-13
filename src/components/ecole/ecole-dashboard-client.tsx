@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, BarChart3, GraduationCap, LogOut, Receipt, School, Settings, Upload, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { logoutEcoleAction } from "@/app/ecole/login/actions";
+import { logoutEcoleAction } from "@/app/ecole/actions/session";
 import { TableauPanel } from "./tableau-panel";
 import { ElevesPanel } from "./eleves-panel";
 import { PaiementsPanel } from "./paiements-panel";
@@ -13,9 +13,10 @@ import { ClassesPanel } from "./classes-panel";
 import { ParametresPanel } from "./parametres-panel";
 import { FicheEleve } from "./fiche-eleve";
 import { BandeauAbonnement } from "./bandeau-abonnement";
-import { peutFaire } from "@/lib/droits";
-import { peutEcrire, type SituationAbonnement } from "@/lib/abonnement";
-import type { ClasseVue, EcoleVue, EleveVue, PaiementVue, UtilisateurListeVue, UtilisateurVue } from "@/app/ecole/types";
+import { peutFaire } from "@/lib/securite/droits";
+import { peutEcrire } from "@/lib/metier/abonnement";
+import type { ClasseVue, EcoleVue, EleveVue, PaiementVue, UtilisateurListeVue, UtilisateurVue } from "@/types/ecole";
+import type { SituationAbonnement } from "@/types/commun";
 
 export type Onglet = "tableau" | "eleves" | "paiements" | "impayes" | "classes" | "parametres";
 

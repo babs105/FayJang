@@ -3,18 +3,18 @@
 import { useState, useTransition } from "react";
 import { Check, ChevronDown, Copy } from "lucide-react";
 import { Bouton, Carte, Label, Message, champ } from "@/components/ui";
-import { MOT_DE_PASSE_MIN } from "@/lib/mot-de-passe";
+import { MOT_DE_PASSE_MIN } from "@/lib/validation/mot-de-passe";
 import { creerEcole } from "@/app/admin/actions/ecoles";
+import type { IdentifiantsDirecteur } from "@/types/admin";
 
 const VIDE = { nom: "", ville: "", responsable: "", email: "", telephone: "", code: "" };
-type Identifiants = { nom: string; email: string; motDePasse: string };
 
 /** Formulaire repliable « Créer une école » ; les identifiants à transmettre ne s'affichent qu'une fois */
 export function CreerEcole() {
   const [ouvert, setOuvert] = useState(false);
   const [f, setF] = useState(VIDE);
   const [erreur, setErreur] = useState<string | null>(null);
-  const [identifiants, setIdentifiants] = useState<Identifiants | null>(null);
+  const [identifiants, setIdentifiants] = useState<IdentifiantsDirecteur | null>(null);
   const [copie, setCopie] = useState(false);
   const [isPending, startTransition] = useTransition();
   const maj = (k: keyof typeof VIDE) => (e: React.ChangeEvent<HTMLInputElement>) => setF((s) => ({ ...s, [k]: e.target.value }));
@@ -32,7 +32,7 @@ export function CreerEcole() {
     });
   };
 
-  const copier = async (i: Identifiants) => {
+  const copier = async (i: IdentifiantsDirecteur) => {
     try {
       await navigator.clipboard.writeText(`E-mail : ${i.email}\nMot de passe : ${i.motDePasse}`);
       setCopie(true);
@@ -45,7 +45,7 @@ export function CreerEcole() {
     <div className="space-y-3">
       {identifiants && (
         <Carte className="space-y-2 border-jang-200">
-          <p className="text-xs font-extrabold">Identifiants à transmettre : {identifiants.nom}</p>
+          <p className="text-xs font-extrabold">IdentifiantsDirecteur à transmettre : {identifiants.nom}</p>
           <p className="text-[11px] text-neutral-500">Notez-les maintenant : le mot de passe ne sera plus affiché.</p>
           <div className="text-xs bg-neutral-50 border border-neutral-200 rounded-xl p-3 space-y-1 font-mono break-all">
             <p>E-mail : {identifiants.email}</p>

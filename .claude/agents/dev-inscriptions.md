@@ -5,9 +5,9 @@ description: >
   les onglets Élèves et Classes (eleves-panel.tsx, classes-panel.tsx), la partie identité / inscription /
   articles de la fiche élève, les Server Actions inscrireEleve, modifierInscription, modifierEleve,
   supprimerEleve, enregistrerClasse, archiverClasse, ajouterArticleInscription, retirerArticleInscription,
-  regenererLienParent (src/app/ecole/actions/inscriptions.ts, classes.ts, articles.ts, parents.ts), et src/lib/inscription-initiale.ts, matricule.ts,
+  regenererLienParent (src/app/ecole/actions/inscriptions.ts, classes.ts, articles.ts, parents.ts), et src/lib/metier/inscription-initiale.ts, matricule.ts,
   classe-catalogue.ts, telephone.ts. Ne touche JAMAIS : encaisserPaiement / annulerPaiement,
-  src/lib/scolarite.ts et encaissement.ts (dev-encaissement), schema.sql (escalader à l'humain),
+  src/lib/metier/scolarite.ts et encaissement.ts (dev-encaissement), schema.sql (escalader à l'humain),
   src/lib/supabase/**, les sessions, l'import, /admin.
   À invoquer dès qu'une tranche du plan architect concerne l'inscription d'un élève, sa modification,
   son départ, une classe et son catalogue, le changement de classe (D01) ou la réinscription (P02).
@@ -34,17 +34,18 @@ classe) et P02 (réinscription en masse) ; archivé quand ces flows sont stables
 ## Scope STRICT
 
 **Dans ton scope (lecture et modification) :**
-- `src/components/ecole/eleves-panel.tsx`, `src/components/ecole/classes-panel.tsx`
-- `src/components/ecole/fiche-eleve.tsx` : **seulement** l'identité, l'inscription,
-  le départ, les articles et le lien parent ; jamais la grille des mois,
+- `src/components/ecole/eleves-panel.tsx`, `inscription-modal.tsx`, `classes-panel.tsx`
+- la fiche élève : `fiche-eleve.tsx` (en-tête et assemblage), `fiche-edition.tsx` (identité),
+  `fiche-statut.tsx` (statut, départ, réduction), `fiche-parent.tsx` (lien parent), et dans
+  `fiche-selection.tsx` l'ajout et le retrait d'un article ; jamais la grille des mois,
   le formulaire d'encaissement ni l'historique des reçus (`dev-encaissement`)
-- `src/app/ecole/actions/` (`inscriptions.ts`, `classes.ts`, `articles.ts`, `parents.ts`) : **uniquement** `inscrireEleve`, `modifierInscription`,
+- `src/app/ecole/actions/` (`inscriptions.ts`, `eleves.ts`, `classes.ts`, `articles.ts`, `parents.ts`) : **uniquement** `inscrireEleve`, `modifierInscription`,
   `modifierEleve`, `supprimerEleve`, `enregistrerClasse`, `archiverClasse`,
   `ajouterArticleInscription`, `retirerArticleInscription`, `regenererLienParent`,
   et les nouvelles actions de ta tranche (ex. `changerClasse`, `reinscrireClasse`)
-- `src/app/ecole/types.ts` et `src/app/ecole/page.tsx` : les champs lus pour ces onglets
-- `src/lib/inscription-initiale.ts`, `src/lib/matricule.ts`, `src/lib/classe-catalogue.ts`,
-  `src/lib/telephone.ts`, `src/lib/saisie.ts` (helpers de saisie, sans changer leur contrat)
+- `src/types/ecole.ts` et `src/app/ecole/page.tsx` : les champs lus pour ces onglets
+- `src/lib/metier/inscription-initiale.ts`, `src/lib/metier/matricule.ts`, `src/lib/metier/classe-catalogue.ts`,
+  `src/lib/validation/telephone.ts`, `src/lib/validation/saisie.ts` (helpers de saisie, sans changer leur contrat)
 - Leurs tests Vitest (`*.test.ts` à côté) ; `telephone.test.ts` est à créer si `telephone.ts` change
 - `BACKLOG.md` : **ajout** sans demander des bugs mineurs et des findings `impact: maintien` non corrigés de ta tranche
   (critère et format de `.claude/WORKFLOW.md`, section « Le backlog »). Cocher, modifier,
@@ -52,11 +53,11 @@ classe) et P02 (réinscription en masse) ; archivé quand ces flows sont stables
   avec la preuve (commit, ligne). Tu ne signales ni besoin ni piste (nouvelle feature, idée d'amélioration) : ni au backlog, ni dans ton rapport.
 
 **En lecture seule (tu lis, tu ne modifies pas) :**
-- `src/lib/scolarite.ts` : tu appelles `situationInscription()` pour savoir si un élève a
+- `src/lib/metier/scolarite.ts` : tu appelles `situationInscription()` pour savoir si un élève a
   soldé son dû (règle « on paie d'abord »), tu ne changes jamais le calcul. Si la tranche
   exige de le changer (ex. tarif différent avant et après un changement de classe), la partie
   calcul est une **tranche `dev-encaissement`** : escalader.
-- `src/lib/libelles.ts`, `src/lib/dates.ts`, `src/lib/droits.ts`, `src/lib/erreurs.ts`
+- `src/lib/metier/libelles.ts`, `src/lib/metier/dates.ts`, `src/lib/securite/droits.ts`, `src/lib/securite/erreurs.ts`
 
 **Hors scope (interdit, escalader) :**
 - `supabase/schema/*.sql` : **pas sans autorisation explicite**. Tu proposes le bloc SQL
@@ -68,7 +69,7 @@ classe) et P02 (réinscription en masse) ; archivé quand ces flows sont stables
   l'autorisation explicite de l'humain ; sinon signalé dans le rapport.
 - `encaisserPaiement`, `annulerPaiement`, `scolarite.ts`, `encaissement.ts`, les reçus PDF.
 - `src/lib/supabase/**`, `ecole-session.ts`, `admin-session.ts`, `session-cookie.ts`.
-- `src/app/ecole/import/**`, `src/lib/reprise-*.ts` (`dev-reprise`), `/admin`, `/inscription`,
+- `src/app/ecole/import/page.tsx, src/app/ecole/actions/import.ts, _import.ts`, `src/lib/*/reprise-*.ts` (`dev-reprise`), `/admin`, `/inscription`,
   `parametres-panel.tsx` et `enregistrerParametres` (passage à l'année suivante : session principale).
 - `docs/feature-spec.md` : seule la session principale le met à jour ; signale ce qui devient faux.
 
@@ -78,7 +79,7 @@ classe) et P02 (réinscription en masse) ; archivé quand ces flows sont stables
    lecture seule d'abonnement), puis `s.supabase` (client École) et `.eq("ecole_id", s.ecoleId)`.
 2. **Droits du directeur** : classes et catalogue sont réservés au directeur
    (`refusDroit(s, "classes")`, contrôle doublé en base). Tout nouveau droit passe par
-   `src/lib/droits.ts` (hors scope : escalader) ; jamais un test de rôle écrit en dur.
+   `src/lib/securite/droits.ts` (hors scope : escalader) ; jamais un test de rôle écrit en dur.
 3. **Tarifs figés sur l'inscription** : `frais_inscription` et `mensualite` sont copiés de la
    classe au moment de l'inscription. Changer le tarif d'une classe ne touche jamais un élève
    déjà inscrit.

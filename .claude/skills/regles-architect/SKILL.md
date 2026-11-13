@@ -65,13 +65,13 @@ reviewers. Ce n'est PAS un plan "par couche" (schéma → serveur → client).
 | `src/lib/supabase/server.ts` | `database-reviewer` (appels `echanger_*`) + `security-reviewer` |
 | `src/lib/supabase/admin.ts` | `security-reviewer` |
 | `src/lib/supabase/jeton.ts` | `security-reviewer` |
-| `src/lib/ecole-session.ts`, `admin-session.ts` | `security-reviewer` |
+| `src/lib/securite/ecole-session.ts`, `admin-session.ts` | `security-reviewer` |
 | Pages et actions de login / inscription (`/ecole/login`, `/admin/login`, `/inscription`) | `security-reviewer` |
 | `src/app/**/route.ts` (reçus PDF, export Excel, diagnostic) | `security-reviewer` |
-| `src/lib/scolarite.ts` (soldes, arriérés, tranches) | `database-reviewer` sur la fonction modifiée + tests Vitest chiffrés (`scolarite.test.ts`) |
-| `src/lib/encaissement.ts` (clé d'idempotence, empreinte, lignes pour la RPC) | `database-reviewer` sur l'appel RPC + tests Vitest |
-| `src/lib/reprise-*.ts`, `src/app/ecole/import/` (reprise de l'existant) | `security-reviewer` sur l'action d'import (fichier envoyé par l'école) + `database-reviewer` sur `importer_reprise` |
-| `src/lib/recu-pdf.ts`, `recu-donnees.ts` | Vérification visuelle d'un reçu par l'humain (le PDF n'a pas de test automatique) |
+| `src/lib/metier/scolarite.ts` (soldes, arriérés, tranches) | `database-reviewer` sur la fonction modifiée + tests Vitest chiffrés (`scolarite.test.ts`) |
+| `src/lib/metier/encaissement.ts` (clé d'idempotence, empreinte, lignes pour la RPC) | `database-reviewer` sur l'appel RPC + tests Vitest |
+| `src/lib/*/reprise-*.ts`, `src/app/ecole/import/` (reprise de l'existant) | `security-reviewer` sur l'action d'import (fichier envoyé par l'école) + `database-reviewer` sur `importer_reprise` |
+| `src/lib/documents/recu-pdf.ts`, `recu-donnees.ts` | Vérification visuelle d'un reçu par l'humain (le PDF n'a pas de test automatique) |
 | `next.config.ts` (en-têtes de sécurité, CSP) | `security-reviewer` ; toute ressource externe nouvelle doit entrer dans la CSP dans la même tranche |
 
 ### Qui code une tranche
@@ -80,7 +80,7 @@ reviewers. Ce n'est PAS un plan "par couche" (schéma → serveur → client).
 |---|---|
 | Grille des mois et formulaire d'encaissement de la fiche élève, `encaisserPaiement`, `annulerPaiement`, `scolarite.ts`, `encaissement.ts`, reçus PDF | `dev-encaissement` |
 | Onglets Élèves et Classes, identité / inscription / articles / départ de la fiche élève, `inscrireEleve`, `modifierInscription`, `modifierEleve`, `supprimerEleve`, `enregistrerClasse`, `archiverClasse`, articles d'un élève, `regenererLienParent`, `inscription-initiale.ts`, `matricule.ts`, `classe-catalogue.ts` (D01, P02) | `dev-inscriptions` |
-| Onglet Importer, `src/app/ecole/import/**`, `src/lib/reprise-*.ts`, modèle `public/modele-import-ecole.xlsx` | `dev-reprise` |
+| Onglet Importer, `src/app/ecole/import/page.tsx, src/app/ecole/actions/import.ts, _import.ts`, `src/lib/*/reprise-*.ts`, modèle `public/modele-import-ecole.xlsx` | `dev-reprise` |
 | Onglet Utilisateurs, `changerMonMotDePasse`, `droits.ts`, `utilisateurs.ts`, `mot-de-passe.ts`, affichage de l'abonnement, console `/admin` hors login (D10) | `dev-comptes` |
 | Tout le reste (paramètres et passage d'année, page parent, export, tableau de bord, impayés, journal) et le cœur d'auth (sessions, JWT, `src/lib/supabase/**`, logins) | Session principale, avec les règles d'un agent dev |
 
@@ -140,7 +140,7 @@ elle doit se suffire.
 - **Nouvelle fonction SQL** → `search_path`, `REVOKE FROM PUBLIC`, contrôle
   du rôle, verrou si elle écrit de l'argent.
 - **Nouveau code d'erreur ou nouvelle cause** → message en français dans le
-  `RAISE`, code dans `CODES_METIER` (`src/lib/erreurs.ts`), `docs/codes-erreur.md`.
+  `RAISE`, code dans `CODES_METIER` (`src/lib/securite/erreurs.ts`), `docs/codes-erreur.md`.
 - **Changement de calcul** (`scolarite.ts`) → la fiche élève, la page parent,
   l'onglet Impayés, l'export, la relance WhatsApp et la reprise de l'existant
   (`reprise-repartition.ts`, test de parité) utilisent le même calcul : dire
@@ -305,7 +305,7 @@ reçoit un seul reçu numéroté avec le détail par enfant.
 **Règles de la fiche appliquées** : « un reçu famille ne concerne qu'un seul parent » (tranché le …)
 **Fichiers** : `supabase/schema/05-migrations.sql`, `supabase/schema.sql` et
 `.claude/SCHEMA-INDEX.md` (générés), `src/types/database.ts`, `src/app/ecole/actions/*.ts`,
-`src/components/ecole/fiche-eleve.tsx`, `src/lib/encaissement.ts`, `src/lib/encaissement.test.ts`
+`src/components/ecole/fiche-eleve.tsx`, `src/lib/metier/encaissement.ts`, `src/lib/metier/encaissement.test.ts`
 **SQL** : `05-migrations.sql`, bloc **v1.19** : remplace `numeroter_recu` (un lot = un parent),
 crée `encaisser_paiement_famille` (verrou des deux inscriptions, empreinte, clé d'idempotence)
 **Effets de bord à traiter** : `annulerPaiement` annule déjà par lot (rien à changer) ;
@@ -323,7 +323,7 @@ page parent : chaque enfant garde ses lignes (à vérifier par le dev) ; aucune 
 **Backlog** : aucune entrée croisée
 
 ### Tranche 2 — Le reçu PDF détaille chaque enfant
-**Fichiers** : `src/lib/recu-donnees.ts`, `src/lib/recu-pdf.ts`
+**Fichiers** : `src/lib/documents/recu-donnees.ts`, `src/lib/documents/recu-pdf.ts`
 **Scope des reviews** :
 - `security-reviewer` : sur la route `/parent/[token]/recu/[id]` (un parent ne voit que ses enfants)
 **Porte de sortie** : PDF avec une section par enfant et le total

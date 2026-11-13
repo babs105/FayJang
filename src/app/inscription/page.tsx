@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import Link from "next/link";
 import { GraduationCap } from "lucide-react";
-import { inscrireEcoleAction } from "./actions";
+import { inscrireEcoleAction } from "@/app/inscription/actions/inscription";
 
 const champ = "w-full text-xs px-3 py-2.5 rounded-xl border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-jang-500";
 

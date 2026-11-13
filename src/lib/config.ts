@@ -1,6 +1,6 @@
 import { randomBytes } from "crypto";
 
-export { TIMEZONE, todayDakar } from "@/lib/dates";
+export { TIMEZONE, todayDakar } from "@/lib/metier/dates";
 
 export function getAppBaseUrl(): string {
   return (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/$/, "");

@@ -3,7 +3,7 @@ name: regles-dev-comptes
 description: >
   Règles d'implémentation des comptes, droits, mots de passe, abonnement et console SuperAdmin de FayJàng.
   Charger ce skill dès qu'on modifie utilisateurs-panel.tsx, actions/utilisateurs.ts, changerMonMotDePasse,
-  src/lib/droits.ts, utilisateurs.ts, mot-de-passe.ts, abonnement.ts, abonnement-ecole.ts,
+  src/lib/securite/droits.ts, utilisateurs.ts, mot-de-passe.ts, abonnement.ts, abonnement-ecole.ts,
   bandeau-abonnement.tsx ou src/app/admin/** (hors login). Contient les invariants (double contrôle des
   droits, règles de F22, mots de passe, session coupée, abonnement en base seulement, nom figé sur les
   reçus), le modèle d'action, les tests manuels à deux comptes et les anti-patterns.
@@ -23,10 +23,10 @@ l'e-mail d'un directeur.
 **Fichiers :**
 - `src/components/ecole/utilisateurs-panel.tsx`, `actions/utilisateurs.ts` (`sessionDirecteur()`)
 - `src/app/ecole/actions/utilisateurs.ts` : aussi `changerMonMotDePasse` ; helper `refusDroit()` dans `src/app/ecole/actions/_commun.ts`
-- `src/lib/droits.ts` : `Droit`, `DROITS_CAISSIER`, `peutFaire()`
-- `src/lib/utilisateurs.ts` : `lireSaisieCaissier()` ; `src/lib/mot-de-passe.ts` : `normaliserEmail()`, `erreurMotDePasse()`
-- `src/lib/abonnement.ts`, `abonnement-ecole.ts` (`lireAbonnementEcole`, `refusLectureSeule`), `bandeau-abonnement.tsx`
-- `src/app/admin/actions/*.ts` (chaque action commence par `clientAdmin()` de `_commun.ts`), les pages de `src/app/admin/`, `src/components/admin/*.tsx`, `src/lib/admin-ecoles.ts`
+- `src/lib/securite/droits.ts` : `Droit`, `DROITS_CAISSIER`, `peutFaire()`
+- `src/lib/validation/utilisateurs.ts` : `lireSaisieCaissier()` ; `src/lib/validation/mot-de-passe.ts` : `normaliserEmail()`, `erreurMotDePasse()`
+- `src/lib/metier/abonnement.ts`, `abonnement-ecole.ts` (`lireAbonnementEcole`, `refusLectureSeule`), `bandeau-abonnement.tsx`
+- `src/app/admin/actions/*.ts` (chaque action commence par `clientAdmin()` de `_commun.ts`), les pages de `src/app/admin/`, `src/components/admin/*.tsx`, `src/lib/metier/admin-ecoles.ts`
 
 **Fonctions SQL (version active dans `.claude/SCHEMA-INDEX.md`) :** `creer_utilisateur_ecole`,
 `changer_statut_utilisateur`, `reinitialiser_mot_de_passe_utilisateur`, `reinitialiser_mot_de_passe_directeur`,

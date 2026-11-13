@@ -1,8 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { moisScolaires } from "@/lib/dates";
-import { messageErreur } from "@/lib/erreurs";
+import { moisScolaires } from "@/lib/metier/dates";
+import { messageErreur } from "@/lib/securite/erreurs";
 import { debutService, lireEcole, moisCourant, sessionEcriture, type Resultat } from "./_commun";
 
 /** Ajoute à un élève un article du catalogue de sa classe (service optionnel pris en cours d'année, tenue en plus) */

@@ -49,6 +49,8 @@ _Aucun bug à planifier en attente._
 
 ## Bugs corrigés (avec la preuve, ne plus rouvrir)
 
+- [x] **Test instable : archive aux tailles qui mentent** | Corrigé le 2026-11-13 : délai de 20 s pour le bloc « verifierContenu (archives piégées) » de `src/lib/documents/reprise-lecture.test.ts` (2 à 3 s seul, plus de 5 s sous charge) | Preuve : 6 passages de toute la suite, 403/403 à chaque fois |
+
 - [x] **Inscription d'élève atomique** — fonction SQL `inscrire_eleve` (bloc v1.7 de
   `supabase/schema/05-migrations.sql`) : parent, élève, inscription, articles et reçu d'inscription
   créés en une seule transaction ; un échec n'en laisse aucun et ne consomme pas de numéro de reçu.
@@ -108,14 +110,14 @@ _Aucun bug à planifier en attente._
   lieu de tronquer (doublons écartés aussi en base par `importer_reprise`) ; boucles de création des classes et des
   élèves protégées (`try/catch`, `revalidatePath` dans un `finally`, `maxDuration = 60`). Commits `fb07b06`, `4d1dad0`.
   (2026-11-11)
-- [x] **Espace École et export lus en entier** — lecture par curseur sur l'id (`src/lib/lecture-paginee.ts`), `.in()`
+- [x] **Espace École et export lus en entier** — lecture par curseur sur l'id (`src/lib/metier/lecture-paginee.ts`), `.in()`
   par paquets de 150 inscriptions, plafond de 50 000 lignes : plus de liste ni de solde tronqué à 1000 lignes, et une
   écriture pendant la lecture ne duplique ni ne saute de ligne. L'import utilise le même helper. Commit `4d1dad0`. (2026-11-11)
-- [x] **Reçus de reprise hors des totaux de caisse** — `totauxCaisse` (`src/lib/caisse.ts`) : la reprise ne compte ni
+- [x] **Reçus de reprise hors des totaux de caisse** — `totauxCaisse` (`src/lib/metier/caisse.ts`) : la reprise ne compte ni
   dans le jour, ni dans le mois, ni par mode, ni dans les derniers paiements ; elle compte dans l'année (« dont …
   repris »). Onglet Paiements : seulement dans « Toute l'année », avec un badge ; export : statut « Reprise de
   l'existant ». Commit `4d1dad0`. (2026-11-11)
-- [x] **Formules Excel neutralisées dans l'export** — `celluleTexte` (`src/lib/export-sur.ts`) préfixe d'une apostrophe
+- [x] **Formules Excel neutralisées dans l'export** — `celluleTexte` (`src/lib/documents/export-sur.ts`) préfixe d'une apostrophe
   tout texte libre commençant par =, +, -, @, tabulation ou retour chariot (téléphones +221 laissés tels quels).
   Commit `4d1dad0`. (2026-11-11)
 - [x] **En-têtes de sécurité** (S9) — `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`,
@@ -126,21 +128,21 @@ _Aucun bug à planifier en attente._
   erreur de console. Commit `ce9f0b6`. (2026-11-11)
 - [x] **ESLint configuré** — `npm run lint` lance `eslint .` (`eslint.config.mjs`, règles Next + TypeScript) : 0 erreur ;
   les `any` volontaires restent en avertissement. Commit `ce9f0b6`. (2026-11-11)
-- [x] **Dates saisies : une date inexistante est refusée** — `isDateValide` (`src/lib/dates.ts`) contrôle par
+- [x] **Dates saisies : une date inexistante est refusée** — `isDateValide` (`src/lib/metier/dates.ts`) contrôle par
   aller-retour ISO : le 31 février ou le 29 février d'une année non bissextile sont refusés (date de naissance, fin
-  d'abonnement). Tests dans `src/lib/dates.test.ts`. Commit `ce9f0b6`. (2026-11-11)
+  d'abonnement). Tests dans `src/lib/metier/dates.test.ts`. Commit `ce9f0b6`. (2026-11-11)
 - [x] **`inscription_id` validé en UUID dans `encaisserPaiement`** (S7) — `estUuid()` avant toute requête, message
   « Inscription introuvable. » (`src/app/ecole/actions.ts`). Commit `ce9f0b6`. (2026-11-11)
-- [x] **`formatMois` : formateur créé une seule fois** — `FORMAT_MOIS` au niveau du module (`src/lib/dates.ts`), test
-  dans `src/lib/dates.test.ts`. Commit `ce9f0b6`. (2026-11-11)
-- [x] **Contrainte violée de `modifierInscription` reconnue par son nom** — `contrainteViolee()` (`src/lib/erreurs.ts`) lit
+- [x] **`formatMois` : formateur créé une seule fois** — `FORMAT_MOIS` au niveau du module (`src/lib/metier/dates.ts`), test
+  dans `src/lib/metier/dates.test.ts`. Commit `ce9f0b6`. (2026-11-11)
+- [x] **Contrainte violée de `modifierInscription` reconnue par son nom** — `contrainteViolee()` (`src/lib/securite/erreurs.ts`) lit
   le nom de la contrainte de l'erreur 23514 : date de départ, réduction, sinon message générique. Le nom automatique
   de la contrainte de réduction (`inscriptions_check`) n'a pas été vérifié en base. Commit `d38b5f1`. (2026-11-11)
 - [x] **Classe, élève et date de naissance contrôlés à l'inscription** (S7) — `estUuid()` sur `classe_id` et `eleve_id`,
   date de naissance future refusée à l'inscription et à la modification (`src/app/ecole/actions.ts`). Commit `d38b5f1`. (2026-11-11)
 - [x] **Confirmation de changement d'année exacte** — le texte dit « si cette année n'a pas encore de classes »
   (`parametres-panel.tsx`). Commit `d38b5f1`. (2026-11-11)
-- [x] **« Rien à encaisser » signalé par un indicateur** (S7) — constante `RIEN_A_ENCAISSER` (`src/lib/scolarite.ts`) et
+- [x] **« Rien à encaisser » signalé par un indicateur** (S7) — constante `RIEN_A_ENCAISSER` (`src/lib/metier/scolarite.ts`) et
   drapeau `rienAEncaisser` renvoyé par `lignesPaiementInscription`, avec test. Commit `d38b5f1`. (2026-11-11)
 - [x] **Périodes contiguës d'un service fusionnées** — `repartirReprise` ne garde qu'une ligne quand deux périodes se
   suivent sans mois d'arrêt ; montants inchangés (test de parité). Commit `d38b5f1`. (2026-11-11)
@@ -149,11 +151,11 @@ _Aucun bug à planifier en attente._
   de la base (`import/actions.ts`, `reprise-panel.tsx`). Commit `d38b5f1`. (2026-11-11)
 - [x] **Reçu PDF : textes coupés et détail plafonné** (S13) — école, élève, classe et libellés coupés avec « ... » par
   `widthOfTextAtSize` ; au-delà de 300 lignes, le reste est regroupé en « Autres lignes (n) », total exact
-  (`src/lib/recu-pdf.ts`, tests dans `recu-pdf.test.ts`). Contrôlé sur un reçu de test, pas en preview. Commit `d38b5f1`. (2026-11-11)
+  (`src/lib/documents/recu-pdf.ts`, tests dans `recu-pdf.test.ts`). Contrôlé sur un reçu de test, pas en preview. Commit `d38b5f1`. (2026-11-11)
 - [x] **Totaux SuperAdmin lus en entier** — `toutLire` dans `src/app/admin/page.tsx`, bandeau si les totaux sont
   indisponibles. Commit `d38b5f1`. (2026-11-11)
 - [x] **Détection de formule à l'import alignée sur l'export** — `ressembleAUneFormule` réutilise `DEBUT_FORMULE`
-  (`src/lib/export-sur.ts`) : =, +, -, @, tabulation, retour chariot. Commit `d38b5f1`. (2026-11-11)
+  (`src/lib/documents/export-sur.ts`) : =, +, -, @, tabulation, retour chariot. Commit `d38b5f1`. (2026-11-11)
 - [x] **Écran dédié quand l'école dépasse le nombre de lignes** — message « contactez le support » distinct de la panne
   passagère (`src/app/ecole/page.tsx`). Commit `d38b5f1`. (2026-11-11)
 - [x] **Paiement protégé de la suppression** — trigger `trg_interdire_suppression_paiement` (BEFORE DELETE), y compris
@@ -169,5 +171,5 @@ _Aucun bug à planifier en attente._
 - [x] **Articles obligatoires vérifiés par `importer_reprise`** — un élève à qui il manque un article obligatoire de sa
   classe est refusé ; exception gardée : service sans versement après la fin de l'année. Bloc v1.19, commit `626d80b`, testé sur une base Postgres locale ; appliqué sur Supabase en production le 2026-11-12. (2026-11-12)
 - [x] **Durcissements de `importer_reprise`** — `CASE` devant `jsonb_array_length` (aussi dans `inscrire_eleve`) ;
-  `TAILLE_LOT` documenté à 25 au plus (`src/lib/reprise-lots.ts`) ; homonymes et `revalidatePath` réglés par
+  `TAILLE_LOT` documenté à 25 au plus (`src/lib/metier/reprise-lots.ts`) ; homonymes et `revalidatePath` réglés par
   `d38b5f1`. Bloc v1.19, commit `626d80b`, testé sur une base Postgres locale ; appliqué sur Supabase en production le 2026-11-12. (2026-11-12)

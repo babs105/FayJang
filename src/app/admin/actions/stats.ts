@@ -1,10 +1,10 @@
 "use server";
 
-import ExcelJS from "exceljs";
-import { todayDakar } from "@/lib/dates";
-import { ENTETES_EXPORT_ADMIN, ecolesEnRetard as filtrerEnRetard, lignesExportAdmin, statsGlobales as calculerStats, type EcoleAdmin, type StatsGlobales } from "@/lib/admin-ecoles";
+import { classeurAdmin } from "@/lib/documents/export-excel";
+import { todayDakar } from "@/lib/metier/dates";
+import { ecolesEnRetard as filtrerEnRetard, statsGlobales as calculerStats } from "@/lib/metier/admin-ecoles";
 import { listerEcoles } from "./ecoles";
-import type { ResultatAdmin } from "./_commun";
+import type { EcoleAdmin, ResultatAdmin, StatsGlobales } from "@/types/admin";
 
 /** Chiffres du tableau de bord (toutes les écoles) */
 export async function statsGlobales(): Promise<ResultatAdmin<{ stats: StatsGlobales; totauxDisponibles: boolean; enRetard: EcoleAdmin[] }>> {
@@ -27,11 +27,6 @@ export async function exportAdmin(): Promise<ResultatAdmin<{ nom: string; base64
   if (!liste.success || !liste.data) return { success: false, message: liste.message };
   if (!liste.data.totauxDisponibles) return { success: false, message: "Totaux indisponibles : export annulé pour ne pas donner de chiffres faux. Réessayez." };
 
-  const classeur = new ExcelJS.Workbook();
-  const feuille = classeur.addWorksheet("Écoles");
-  feuille.addRow([...ENTETES_EXPORT_ADMIN]).font = { bold: true };
-  for (const ligne of lignesExportAdmin(liste.data.ecoles)) feuille.addRow(ligne);
-  feuille.columns.forEach((c) => (c.width = 18));
-  const tampon = await classeur.xlsx.writeBuffer();
+  const tampon = await classeurAdmin(liste.data.ecoles);
   return { success: true, data: { nom: `fayjang-ecoles-${todayDakar()}.xlsx`, base64: Buffer.from(tampon).toString("base64") } };
 }

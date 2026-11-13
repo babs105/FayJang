@@ -2,9 +2,9 @@
 
 import { useState, useTransition } from "react";
 import { Bouton, champ } from "@/components/ui";
-import type { EcoleAdmin } from "@/lib/admin-ecoles";
 import type { PlanId } from "@/types/database";
 import { changerOffre, prolongerAbonnement, suspendreAbonnement } from "@/app/admin/actions/abonnements";
+import type { EcoleAdmin } from "@/types/admin";
 
 /** Actions rapides d'une ligne de la page Abonnements : prolonger, suspendre, changer d'offre */
 export function ActionsAbonnement({ ecole }: { ecole: EcoleAdmin }) {
