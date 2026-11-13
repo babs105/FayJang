@@ -55,7 +55,8 @@
 | F20 | Reprise de l'existant (import Excel) | Onglet Importer | Livrée (main, merge `ccf271e`) |
 | F21 | Abonnement appliqué automatiquement (ex-D02) | Espace École, `/admin` | Livrée (main, merge `6c0121d`) |
 | F22 | Plusieurs utilisateurs par école (ex-D09, ex-P01) | Espace École, `/admin` | Livrée (main, merge `d9e6329`) |
-| D01 à D10 | Features à développer, c'est-à-dire les besoins (D02 livrée, voir F21 ; D03 livrée, voir F07 ; D09 livrée, voir F22) | — | Voir section 6, fiche à remplir selon la section 8 |
+| F23 | Création d'une école par le SuperAdmin (ex-D11) | `/admin/ecoles`, `/inscription` | Livrée (main, merge `20600e5`) |
+| D01 à D12 | Features à développer, c'est-à-dire les besoins (D02 livrée, voir F21 ; D03 livrée, voir F07 ; D09 livrée, voir F22 ; D11 livrée, voir F23) | — | Voir section 6, fiche à remplir selon la section 8 |
 | P02 à P06 | Pistes à trancher (P01 devenue D09) | — | Voir section 7 |
 
 ## 4. Features livrées
@@ -210,8 +211,6 @@
 - **État** : livrée sur `main` le 2026-11-12, merge `6c0121d` (4 tranches). Bloc v1.20 appliqué en production.
   **Reste à faire** : vérifier le déploiement Vercel.
 
-## 5. Dernière feature livrée
-
 ### F22 — Plusieurs utilisateurs par école (ex-D09)
 - **Chaque membre de l'administration** se connecte avec son e-mail et son mot de passe (plus de connexion par
   l'identifiant court de l'école) ; un e-mail = un seul compte dans tout FayJàng. Chacun change son mot de passe
@@ -236,6 +235,22 @@
   e-mail) ; retirer plus tard `acces_ecole`, `echanger_acces_ecole`, `session_ecole_valide` et
   `changer_code_ecole`, gardés pour un retour arrière.
 
+## 5. Dernière feature livrée
+
+### F23 — Création d'une école par le SuperAdmin (ex-D11)
+- **Le SuperAdmin peut** créer une école et le compte de son directeur dans `/admin/ecoles` (nom, ville
+  facultative, responsable, e-mail, téléphone, mot de passe provisoire choisi par l'admin) ; l'écran affiche une
+  seule fois l'e-mail et le mot de passe à transmettre.
+- **Règles** : mêmes contrôles que l'inscription en ligne (`src/lib/creation-ecole.ts`) ; e-mail unique dans tout
+  FayJàng ; l'école démarre en essai de 30 jours ; identifiant calculé depuis le nom (« -2 » s'il est pris) ; l'admin
+  n'est pas connecté à l'école créée. Aucun effet sur les soldes, les arriérés ni le reste sur l'année.
+- **Où vit la règle** : fonction SQL `creer_ecole` (bloc v1.27), une seule transaction (école, accès, directeur),
+  exécutable par le client admin seulement ; appelée par `/admin` et par `/inscription`, qui ne laisse donc plus
+  jamais d'école à moitié créée.
+- **État** : livrée sur `main` le 2026-11-13, merge `20600e5` (2 tranches, bloc v1.27 appliqué). **Reste à faire** :
+  vérifier le déploiement Vercel. Deux écoles de test désactivées restent en base (« École Test D11 », « École Test
+  D11 Inscription ») : pas de suppression d'école dans l'application.
+
 ## 6. Features à développer (identifiées dans le projet)
 
 
@@ -247,11 +262,10 @@ reviewer ou un agent dev ne signale ni besoin ni piste, et rien n'entre dans ce 
 |---|---|---|---|---|
 | D01 | **Changement de classe en cours d'année** | Passer un élève dans une autre classe sans le réinscrire | Règle posée le 2026-11-10 (« on paie d'abord ») | Déjà tranché : seulement si l'élève a soldé son dû à date ; mois passés à l'ancien tarif, nouveau tarif dès le mois du changement. À trancher : sort des articles de l'ancienne classe |
 | D10 | **Changer le nom et l'e-mail d'un directeur** | Quand le directeur change (départ, remplacement) ou corrige son e-mail, le compte directeur prend le nom et l'e-mail du nouveau titulaire : ses encaissements suivants sont signés à son nom et il se connecte avec son propre e-mail | Piste proposée et validée par l'humain le 2026-11-13, après la livraison de F22 (aujourd'hui : un seul directeur par école, jamais désactivé ; seule la réinitialisation du mot de passe existe, dans `/admin`) | Existe déjà : `reinitialiser_mot_de_passe_directeur` (v1.26), « Encaissé par » figé sur chaque paiement (les anciens reçus gardent l'ancien nom). À trancher : qui fait le changement (`/admin` seulement, ou le directeur lui-même pour son e-mail) ; nouveau mot de passe provisoire imposé au même moment ou non ; session coupée ; e-mail déjà pris dans FayJàng ; trace de l'ancien titulaire |
-| D11 | **Création d'une école par le SuperAdmin** | Dans `/admin/ecoles`, créer une école et le compte de son directeur (mot de passe provisoire), sans passer par `/inscription` | Demande de l'humain le 2026-11-13 (arborescence de la console : `creerEcole`) | Tranché le 2026-11-13 : l'école démarre en essai, comme en ligne ; la création (école, accès, directeur) devient une fonction SQL `creer_ecole` en une transaction, appelée par `/inscription` et `/admin`. Fiche validée le 2026-11-13 (section 10). Tranches 1 et 2 codées, revues et testées sur la branche `feat/creation-ecole-admin` (schéma v1.27 appliqué) : en attente du merge vers `main` |
 | D12 | **Comptes admin nominatifs** | Chaque membre de FayJàng se connecte à `/admin` avec son e-mail et son mot de passe ; page `/admin/utilisateurs` pour créer, désactiver un admin et changer son mot de passe | Demande de l'humain le 2026-11-13 (`creerAdmin`, `desactiverAdmin`, `changerMotDePasseAdmin`) | Tranché le 2026-11-13 : nouvelle table en base ; le code `SUPERADMIN_CODE` ne sert plus qu'à créer le premier compte. À trancher : rôle support distinct ou non ; qui réinitialise le mot de passe d'un admin ; désactivation du dernier admin actif |
 
 D02 (abonnement appliqué automatiquement) est livrée : voir F21 ; D09 (plusieurs utilisateurs par école) est
-livrée : voir F22. Leurs numéros ne sont pas réattribués.
+livrée : voir F22 ; D11 (création d'une école par le SuperAdmin) est livrée : voir F23. Leurs numéros ne sont pas réattribués.
 
 ## 7. Pistes proposées (à trancher, rien n'est décidé)
 
@@ -420,29 +434,4 @@ session ajoute une ligne ici après l'accord de l'humain, avec la date. Les bugs
 Fiches validées par l'humain selon la section 8, en attente de plan ou en cours de développement. Une fiche
 livrée quitte cette section pour la section 4 (section 8.5).
 
-### D11 — Création d'une école par le SuperAdmin
-**Acteur** : SuperAdmin
-**Ce que l'utilisateur peut faire** : dans `/admin/ecoles`, créer une école et le compte de son directeur, puis
-transmettre à l'école son e-mail de connexion et son mot de passe provisoire.
-**Règles métier** :
-- Mêmes contrôles que `/inscription` : nom de l'école (3 caractères au moins), responsable obligatoire, e-mail valide
-  et libre dans tout FayJàng (ni une autre école, ni un utilisateur), téléphone au format sénégalais, mot de passe
-  provisoire conforme à la règle des mots de passe (choisi par l'admin).
-- L'école démarre **en essai de 30 jours**, comme en ligne ; l'admin la prolonge ensuite depuis Abonnements.
-- Identifiant de l'école calculé comme aujourd'hui (« cours-sainte-marie », puis « -2 » s'il est pris).
-- Une seule transaction : si une étape échoue, rien n'est créé. `/inscription` passe aussi par `creer_ecole`, sans
-  changement visible pour l'école.
-- L'admin n'est pas connecté à l'école créée ; pas de limite par IP pour l'admin.
-**Argent** : aucun (pas de reçu, pas d'arriéré ; l'abonnement FayJàng n'est pas encaissé dans l'application).
-**Données** : nouvelle fonction SQL `creer_ecole` (exécutable par le client admin seulement) ; tables existantes
-`ecoles`, `acces_ecole`, `utilisateurs_ecole` (insertions seulement, aucune colonne nouvelle).
-**Hors feature** : pas d'envoi automatique des identifiants (ni e-mail ni WhatsApp) ; pas de choix de l'offre à la
-création ; pas de création de caissiers.
-**Critère de done** : l'admin crée « École Test D11 » ; le directeur se connecte à `/ecole` avec l'e-mail et le mot
-de passe provisoire ; l'école apparaît « En essai » dans la console. Une deuxième création avec le même e-mail est
-refusée et ne crée rien.
-**Exemple chiffré** : école créée le 13/11/2026 → essai jusqu'au 13/12/2026 ; bandeau « fin proche » à partir du
-06/12/2026 ; délai de grâce jusqu'au 20/12/2026 ; lecture seule le 21/12/2026.
-**Questions tranchées** : état de départ → essai, comme en ligne (2026-11-13) ; code partagé → fonction SQL
-`creer_ecole` (2026-11-13).
-**Statut de la fiche** : validée le 2026-11-13
+Aucune fiche en cours. La dernière (D11) est livrée : voir F23.
