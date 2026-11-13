@@ -47,7 +47,9 @@ Répondre et écrire en **français** : messages, commentaires de code, libellé
   - `securite/` : auth et sessions (`ecole-session.ts`, `admin-session.ts`, `session-cookie.ts`), droits, erreurs, mots de passe, `ip.ts`
   - à la racine : `config.ts` (URL de l'app, jetons aléatoires) et `utils.ts` (`cn()`, `formatFCFA()`)
 - `src/types/database.ts` : types des tables Supabase (des `type`, pas des `interface` : supabase-js exige une signature d'index) ;
-  `src/types/ecole.ts` : données préparées par `/ecole/page.tsx` pour l'Espace École
+  un fichier de types par espace, comme `database.ts` : `ecole.ts` (vues de `/ecole/page.tsx`, encaissement, caisse, catalogue),
+  `reprise.ts` (import Excel de l'Espace École), `parent.ts`, `admin.ts`, et `commun.ts` pour les types partagés par
+  plusieurs espaces (situation d'une inscription, abonnement, reçus). Des types seulement : la logique reste dans `src/lib/`
 - `supabase/schema.sql` : schéma complet et **idempotent** (relancé en entier dans l'éditeur SQL Supabase)
 - `.claude/SCHEMA-INDEX.md` : index du schéma (tables, fonctions, policies, triggers avec leurs lignes), **généré** par
   `bash scripts/schema-index.sh` : à régénérer après chaque modification de `schema.sql`, jamais édité à la main

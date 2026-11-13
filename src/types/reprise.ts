@@ -1,7 +1,8 @@
 // Types de la reprise de l'existant (import Excel) : aperçu rendu à l'école, entrée et sortie de la répartition,
 // lots envoyés à importer_reprise. Des types seulement : la logique est dans src/lib/validation/ et src/lib/metier/.
-import type { Classe, NatureArticle, Niveau, StatutInscription } from "@/types/database";
-import type { CalendrierEcole, LigneCatalogue } from "@/types/metier";
+import type { NatureArticle, Niveau, StatutInscription } from "@/types/database";
+import type { CalendrierEcole } from "@/types/commun";
+import type { LigneCatalogue } from "@/types/ecole";
 
 // --- reprise-entree
 

@@ -4,7 +4,8 @@ import { isDateValide, todayDakar } from "@/lib/metier/dates";
 import { controlerAbonnementAdmin } from "@/lib/metier/abonnement";
 import { estUuid } from "@/lib/validation/saisie";
 import type { PlanId, StatutAbonnement } from "@/types/database";
-import { SESSION_EXPIREE, clientAdmin, majEcole, type ResultatAdmin } from "./_commun";
+import { SESSION_EXPIREE, clientAdmin, majEcole } from "./_commun";
+import type { ResultatAdmin } from "@/types/admin";
 
 const PLANS: PlanId[] = ["essai", "standard", "premium"];
 const STATUTS: StatutAbonnement[] = ["essai", "actif", "expire", "suspendu"];

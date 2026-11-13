@@ -1,7 +1,6 @@
 import { formatMoisCourt } from "@/lib/metier/dates";
 import { libellePaiement } from "@/lib/metier/libelles";
-import type { Paiement } from "@/types/database";
-import type { LigneRecu, Recu } from "@/types/metier";
+import type { LigneRecu, Recu } from "@/types/commun";
 
 /**
  * Regroupe les lignes de paiement par reçu, en gardant l'ordre d'arrivée (le premier reçu rencontré reste devant).

@@ -4,8 +4,8 @@ import { classeurAdmin } from "@/lib/documents/export-excel";
 import { todayDakar } from "@/lib/metier/dates";
 import { ecolesEnRetard as filtrerEnRetard, statsGlobales as calculerStats } from "@/lib/metier/admin-ecoles";
 import { listerEcoles } from "./ecoles";
-import type { ResultatAdmin } from "./_commun";
-import type { EcoleAdmin, StatsGlobales } from "@/types/metier";
+import type { ResultatAdmin } from "@/types/admin";
+import type { EcoleAdmin, StatsGlobales } from "@/types/admin";
 
 /** Chiffres du tableau de bord (toutes les écoles) */
 export async function statsGlobales(): Promise<ResultatAdmin<{ stats: StatsGlobales; totauxDisponibles: boolean; enRetard: EcoleAdmin[] }>> {

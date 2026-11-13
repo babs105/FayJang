@@ -2,7 +2,7 @@ import { AlertTriangle, Lock } from "lucide-react";
 import { formatDate } from "@/lib/metier/dates";
 import { cn } from "@/lib/utils";
 import type { EcoleVue } from "@/types/ecole";
-import type { SituationAbonnement } from "@/types/metier";
+import type { SituationAbonnement } from "@/types/commun";
 
 /**
  * Bandeau d'abonnement de l'Espace École : alerte (7 jours avant la fin), délai de grâce (7 jours après),

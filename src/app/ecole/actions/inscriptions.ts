@@ -11,7 +11,7 @@ import { normaliserTelephone } from "@/lib/validation/telephone";
 import { estUuid, montant, texte } from "@/lib/validation/saisie";
 import type { StatutInscription } from "@/types/database";
 import { debutService, lireEcole, lireMode, sessionEcriture, type Resultat, DATE_NAISSANCE_FUTURE } from "./_commun";
-import type { LignePaiementInscription } from "@/types/metier";
+import type { LignePaiementInscription } from "@/types/ecole";
 
 export interface SaisieInscription {
   eleve_id?: string; // réinscription d'un élève existant

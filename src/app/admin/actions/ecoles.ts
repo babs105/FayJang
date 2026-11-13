@@ -6,8 +6,9 @@ import { anneeScolaireDe, todayDakar } from "@/lib/metier/dates";
 import { slugifier, validerCreationEcole } from "@/lib/validation/creation-ecole";
 import { erreurMotDePasse } from "@/lib/securite/mot-de-passe";
 import { estUuid } from "@/lib/validation/saisie";
-import { SESSION_EXPIREE, chargerEcoles, clientAdmin, majEcole, type ResultatAdmin } from "./_commun";
-import type { EcoleAdmin } from "@/types/metier";
+import { SESSION_EXPIREE, chargerEcoles, clientAdmin, majEcole } from "./_commun";
+import type { IdentifiantsDirecteur, ResultatAdmin } from "@/types/admin";
+import type { EcoleAdmin } from "@/types/admin";
 
 /** Liste des écoles avec leurs totaux et leur état d'abonnement */
 export async function listerEcoles(): Promise<ResultatAdmin<{ ecoles: EcoleAdmin[]; totauxDisponibles: boolean }>> {
@@ -81,7 +82,7 @@ export async function creerEcole(saisie: {
   email: string;
   telephone: string;
   code: string;
-}): Promise<ResultatAdmin<{ nom: string; email: string; motDePasse: string }>> {
+}): Promise<ResultatAdmin<IdentifiantsDirecteur>> {
   const supabase = await clientAdmin();
   if (!supabase) return { success: false, message: SESSION_EXPIREE };
   if (!saisie || typeof saisie !== "object") return { success: false, message: "Saisie invalide." };

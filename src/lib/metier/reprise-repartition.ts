@@ -8,7 +8,7 @@ import { libellePaiement } from "@/lib/metier/libelles";
 import { libelleTranche, mensualiteDernierMois, mensualiteNette, moisCibleTranches, moisDesTranches, partEchue, situationInscription } from "@/lib/metier/scolarite";
 import { formatFCFA } from "@/lib/utils";
 import { controler } from "@/lib/metier/reprise-entree";
-import type { ArticleCalcul, InfoTranches } from "@/types/metier";
+import type { ArticleCalcul, InfoTranches } from "@/types/commun";
 import type { ArticlePrevu, EntreeRepartition, PaiementPrevu, ResultatRepartition } from "@/types/reprise";
 
 

@@ -1,6 +1,7 @@
 // Mois payé par tranches (option de l'école) : mois ciblé, mois qui portent une tranche, réglages, libellés et part exigible.
 import { formatMois, moisScolaires } from "@/lib/metier/dates";
-import type { CalendrierEcole, InfoTranches, LigneMois, Situation, TrancheIncluse } from "@/types/metier";
+import type { CalendrierEcole, InfoTranches, LigneMois, Situation } from "@/types/commun";
+import type { TrancheIncluse } from "@/types/ecole";
 
 const NOM_RANG: Record<number, string> = { 1: "dernier mois", 2: "avant-dernier mois", 3: "antépénultième mois" };
 export function nomRang(rang: number | null | undefined): string {

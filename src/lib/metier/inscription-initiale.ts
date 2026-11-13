@@ -1,6 +1,7 @@
 import { RIEN_A_ENCAISSER, choixALinscription, lignesAEncaisser, situationInscription } from "@/lib/metier/scolarite";
-import type { Classe, Ecole, NatureArticle } from "@/types/database";
-import type { ArticleCalcul, ArticleCatalogue, ArticleCatalogueTarif, ArticleRetenu, CalendrierEcole, ChoixArticle, LignePaiementInscription } from "@/types/metier";
+import type { Classe, Ecole } from "@/types/database";
+import type { ArticleCalcul, CalendrierEcole } from "@/types/commun";
+import type { ArticleCatalogue, ArticleCatalogueTarif, ArticleRetenu, ChoixArticle, LignePaiementInscription } from "@/types/ecole";
 
 /**
  * Articles retenus à l'inscription : les obligatoires toujours, les optionnels s'ils sont cochés.

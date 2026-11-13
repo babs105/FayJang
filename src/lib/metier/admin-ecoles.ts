@@ -1,8 +1,7 @@
 // Calculs de la console SuperAdmin sur la liste des écoles : statistiques, écoles en retard, lignes de l'export.
 // Pur : ni Next.js ni Supabase, la liste est lue par src/app/admin/actions/_commun.ts.
 import { celluleTexte } from "@/lib/documents/export-sur";
-import type { Ecole } from "@/types/database";
-import type { EcoleAdmin, SituationAbonnement, StatsGlobales } from "@/types/metier";
+import type { EcoleAdmin, StatsGlobales } from "@/types/admin";
 
 /** Fin de l'essai ou de l'abonnement dépassée (délai de grâce ou lecture seule), d'après l'état calculé par la base */
 export function estEnRetard(e: Pick<EcoleAdmin, "abonnement">): boolean {

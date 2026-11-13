@@ -9,7 +9,8 @@ import { estRecuDeReprise } from "@/lib/metier/reprise-recu";
 import { regrouperParRecu, resumeRecu } from "@/lib/metier/regrouper-recus";
 import { situationInscription } from "@/lib/metier/scolarite";
 import { cn, formatFCFA } from "@/lib/utils";
-import type { StatutMois } from "@/types/metier";
+import type { StatutMois } from "@/types/commun";
+import type { ParamsParent, ServiceParent } from "@/types/parent";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +26,7 @@ const STYLE: Record<StatutMois, string> = {
 };
 
 /** Espace parent (lien magique) : page serveur légère, sans JavaScript client (réseau 3G) */
-export default async function ParentPage({ params }: { params: Promise<{ token: string }> }) {
+export default async function ParentPage({ params }: { params: Promise<ParamsParent> }) {
   const { token } = await params;
   const acces = await echangerJetonParent(token);
   if (!acces) notFound();
@@ -88,7 +89,7 @@ export default async function ParentPage({ params }: { params: Promise<{ token: 
           const s = ins ? situationInscription(ins, ps, ecole, aujourdhui, (articles ?? []).filter((a) => a.inscription_id === ins.id)) : null;
           // Frais uniques, puis services mensuels regroupés (une ligne par service, pas par mois)
           const uniques = s ? s.articles.filter((a) => a.nature === "unique") : [];
-          const services = new Map<string, { libelle: string; du: number; paye: number; resteEchu: number }>();
+          const services = new Map<string, ServiceParent>();
           for (const a of s?.articles ?? []) {
             if (a.nature !== "mensuel") continue;
             const cumul = services.get(a.article_id) ?? { libelle: a.libelle.split(" — ")[0], du: 0, paye: 0, resteEchu: 0 };

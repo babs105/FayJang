@@ -1,4 +1,4 @@
-import type { Horodatage } from "@/types/metier";
+import type { Horodatage } from "@/types/ecole";
 
 /**
  * Date de la dernière modification réelle parmi des lignes (élève, inscription, parent, articles) :

@@ -1,5 +1,7 @@
-import type { ArticleClasse, Classe, Ecole, ModePaiement, StatutInscription, TypePaiement, RoleUtilisateur } from "@/types/database";
-import type { Situation } from "@/types/metier";
+// Types de l'Espace École : données préparées par /ecole/page.tsx (vues), encaissement, caisse, catalogue des classes,
+// inscription initiale.
+import type { ArticleClasse, Classe, Ecole, ModePaiement, NatureArticle, RoleUtilisateur, StatutInscription, TypePaiement } from "@/types/database";
+import type { Situation } from "@/types/commun";
 
 /** Données préparées par page.tsx (serveur) pour l'Espace École (client) */
 
@@ -102,3 +104,127 @@ export interface UtilisateurVue {
   email: string;
   role: RoleUtilisateur;
 }
+
+// --- Encaissement, caisse, catalogue, inscription (types utilisés par src/lib/metier/)
+
+/** Ce que l'administration coche à l'encaissement */
+export interface ChoixEncaissement {
+  inscription?: boolean;
+  /** Mensualités (YYYY-MM-01) */
+  mois?: string[];
+  /** Clés de LigneArticle.cle */
+  articles?: string[];
+  /** Montant partiel : accepté pour une seule ligne choisie */
+  montant?: number | null;
+  /** Ajouter la tranche portée par les mois choisis (par défaut oui) */
+  inclure_tranche?: boolean;
+}
+
+export interface LigneEncaissement {
+  type: TypePaiement;
+  mois: string | null;
+  article_id: string | null;
+  montant: number;
+  libelle: string | null;
+}
+
+export interface TrancheIncluse {
+  mois: string; // mois payé par tranches (YYYY-MM-01)
+  montant: number;
+  libelle: string;
+}
+
+export interface TotauxCaisse {
+  /** Encaissé aujourd'hui (hors reprise) */
+  jour: number;
+  /** Encaissé ce mois-ci (hors reprise) */
+  mois: number;
+  /** Ce mois-ci par mode de paiement (hors reprise) */
+  parModeMois: Map<string, number>;
+  /** Tout ce qui a été versé sur l'année, reprise comprise */
+  annee: number;
+  /** Part de l'année reprise à l'import */
+  reprise: number;
+}
+
+export interface SaisieArticle {
+  /** Ligne existante du catalogue (mise à jour sur place) ; absent = nouvelle ligne */
+  id?: string;
+  libelle: string;
+  nature: string;
+  prix_unitaire: string | number;
+  quantite_defaut?: string | number;
+  obligatoire: boolean;
+}
+
+/** Ligne du catalogue prête pour la fonction enregistrer_classe (un `type` : supabase-js exige une signature d'index pour le JSON) */
+export type LigneCatalogue = {
+  id?: string;
+  libelle: string;
+  nature: NatureArticle;
+  prix_unitaire: number;
+  quantite_defaut: number;
+  obligatoire: boolean;
+  /** Position dans la saisie (les lignes vides comptent) */
+  ordre: number;
+};
+
+/** Ligne au format attendu par encaisser_paiement (p_lignes) */
+export type LigneRpc = {
+  type: LigneEncaissement["type"];
+  mois: string | null;
+  article_id: string | null;
+  montant: number;
+  libelle: string | null;
+};
+
+/** Résultat de encaisser_paiement */
+export interface ResultatEncaissement {
+  numero_recu: string | null;
+  montant_encaisse: number;
+  ids: string[];
+  /** Vrai si la clé avait déjà servi pour exactement cet encaissement : rien n'a été ajouté */
+  rejoue: boolean;
+}
+
+/** Issue d'une tentative d'encaissement vue du navigateur */
+export type IssueEncaissement =
+  | "succes" // reçu créé, ou rejeu d'un reçu déjà créé (success: true dans les deux cas)
+  | "echec_metier" // l'action a répondu success: false (refus, conflit, erreur base)
+  | "echec_reseau"; // la Server Action a levé une exception : on ignore si la base a enregistré
+
+/** Dernière tentative d'envoi : contenu envoyé (voir signatureEncaissement) et issue */
+export interface TentativeEncaissement {
+  signature: string;
+  issue: IssueEncaissement;
+}
+
+/** Ligne du catalogue d'une classe, telle que lue dans articles_classe */
+export type ArticleCatalogue = {
+  id: string;
+  libelle: string;
+  nature: NatureArticle;
+  quantite_defaut: number;
+  obligatoire: boolean;
+};
+
+/** Article coché dans le formulaire d'inscription (quantité saisie pour un frais unique) */
+export type ChoixArticle = { article_classe_id?: string; quantite?: string | number };
+
+/** Article retenu pour l'élève, envoyé à la fonction SQL inscrire_eleve (qui recopie prix et libellé) */
+export type ArticleRetenu = { article_classe_id: string; quantite: number };
+
+/** Article du catalogue avec son prix, nécessaire pour calculer ce qui est dû à l'inscription */
+export type ArticleCatalogueTarif = ArticleCatalogue & { prix_unitaire: number };
+
+/** Ligne de reçu envoyée à la fonction SQL inscrire_eleve (p_lignes_paiement) ; l'article est désigné par son article_classe_id */
+export type LignePaiementInscription = {
+  type: "inscription" | "mensualite" | "autre";
+  mois: string | null;
+  article_classe_id: string | null;
+  montant: number;
+  libelle: string | null;
+};
+
+/** Horodatage d'une ligne : created_at et updated_at tels que renvoyés par Supabase (ISO 8601) */
+export type Horodatage = { created_at: string; updated_at: string };

@@ -3,7 +3,7 @@ import { moisScolaires } from "@/lib/metier/dates";
 import { CAS_REPRISE, type CasReprise, type ReglagesCas } from "@/lib/metier/reprise-cas.fixture";
 import { repartirReprise } from "@/lib/metier/reprise-repartition";
 import { situationInscription } from "@/lib/metier/scolarite";
-import type { ArticleCalcul } from "@/types/metier";
+import type { ArticleCalcul } from "@/types/commun";
 import type { ArticleCatalogueRep, EntreeRepartition, ResultatRepartition } from "@/types/reprise";
 
 type Ok = Extract<ResultatRepartition, { ok: true }>;

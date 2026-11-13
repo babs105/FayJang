@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { choixALinscription, libelleTranche, lignesAEncaisser, paiementLibreAutorise, partEchue, situationInscription, trancheAvecMois, verifierReglages } from "@/lib/metier/scolarite";
-import type { ArticleCalcul, CalendrierEcole, LigneEncaissement } from "@/types/metier";
+import type { ArticleCalcul, CalendrierEcole } from "@/types/commun";
+import type { LigneEncaissement } from "@/types/ecole";
 
 // ---------- Exemple de référence (v1.5) ----------
 

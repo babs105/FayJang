@@ -7,9 +7,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { LectureTropLongue, TAILLE_PAGE, toutLire } from "@/lib/supabase/lecture-paginee";
 import { todayDakar } from "@/lib/metier/dates";
 import { lireSituationAbonnement } from "@/lib/metier/abonnement";
-import type { EcoleAdmin, SituationAbonnement } from "@/types/metier";
+import type { EcoleAdmin, ResultatAdmin } from "@/types/admin";
+import type { SituationAbonnement } from "@/types/commun";
 
-export type ResultatAdmin<T = undefined> = { success: boolean; message?: string; data?: T };
 
 export const SESSION_EXPIREE = "Session expirée.";
 

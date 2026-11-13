@@ -2,8 +2,8 @@
 // Tranches du mois ciblé : tranches.ts ; lignes d'un encaissement : a-encaisser.ts (réexportés ici).
 import { echeanceDuMois, formatMois, moisScolaires } from "@/lib/metier/dates";
 import { indexCible, moisDesTranches, partEchue } from "@/lib/metier/tranches";
-import type { ArticleInscription, Ecole, Inscription, Paiement } from "@/types/database";
-import type { ArticleCalcul, CalendrierEcole, InfoTranches, InscriptionTarifs, LigneArticle, LigneMois, PaiementCalcul, Situation, StatutMois } from "@/types/metier";
+import type { Inscription } from "@/types/database";
+import type { ArticleCalcul, CalendrierEcole, InfoTranches, InscriptionTarifs, LigneArticle, LigneMois, PaiementCalcul, Situation, StatutMois } from "@/types/commun";
 
 export * from "@/lib/metier/tranches";
 export * from "@/lib/metier/a-encaisser";

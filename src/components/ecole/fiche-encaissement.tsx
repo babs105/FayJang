@@ -8,7 +8,7 @@ import { paiementLibreAutorise } from "@/lib/metier/scolarite";
 import { Bouton, Label, champ } from "@/components/ui";
 import type { EleveVue } from "@/types/ecole";
 import type { Encaissement } from "./use-encaissement";
-import type { Situation } from "@/types/metier";
+import type { Situation } from "@/types/commun";
 
 export function FormulaireEncaissement({
   s,

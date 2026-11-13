@@ -1,5 +1,5 @@
 import type { Paiement } from "@/types/database";
-import type { LigneEncaissement, LigneRpc, ResultatEncaissement, TentativeEncaissement } from "@/types/metier";
+import type { LigneEncaissement, LigneRpc, ResultatEncaissement, TentativeEncaissement } from "@/types/ecole";
 
 /**
  * Aide à l'encaissement atomique (fonction SQL encaisser_paiement) : logique pure, testée sans base.

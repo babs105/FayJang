@@ -3,7 +3,7 @@
 // ce n'est pas de l'argent encaissé ce jour-là. Il compte dans le total de l'année (l'argent a bien été versé),
 // jamais dans les totaux du jour, du mois ou par mode.
 import { estRecuDeReprise } from "@/lib/metier/reprise-recu";
-import type { TotauxCaisse } from "@/types/metier";
+import type { TotauxCaisse } from "@/types/ecole";
 
 type PaiementCaisse = { montant: number; paye_le: string; annule: boolean; mode: string; encaisse_par: string | null };
 

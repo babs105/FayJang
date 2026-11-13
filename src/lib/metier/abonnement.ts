@@ -5,7 +5,7 @@
  * que la base répond : l'écran ne peut donc pas dire autre chose que ce qui est réellement bloqué.
  */
 import { isDateValide } from "@/lib/metier/dates";
-import type { EtatAbonnement, SituationAbonnement } from "@/types/metier";
+import type { EtatAbonnement, SituationAbonnement } from "@/types/commun";
 
 const ETATS: readonly string[] = ["normal", "alerte", "grace", "lecture_seule"];
 

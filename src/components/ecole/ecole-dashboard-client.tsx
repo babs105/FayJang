@@ -16,7 +16,7 @@ import { BandeauAbonnement } from "./bandeau-abonnement";
 import { peutFaire } from "@/lib/securite/droits";
 import { peutEcrire } from "@/lib/metier/abonnement";
 import type { ClasseVue, EcoleVue, EleveVue, PaiementVue, UtilisateurListeVue, UtilisateurVue } from "@/types/ecole";
-import type { SituationAbonnement } from "@/types/metier";
+import type { SituationAbonnement } from "@/types/commun";
 
 export type Onglet = "tableau" | "eleves" | "paiements" | "impayes" | "classes" | "parametres";
 

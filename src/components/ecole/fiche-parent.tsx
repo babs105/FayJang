@@ -7,7 +7,7 @@ import { lienWhatsApp, messageLienParent, messageRelance } from "@/lib/metier/wh
 import { Bouton } from "@/components/ui";
 import { regenererLienParent } from "@/app/ecole/actions/parents";
 import type { EcoleVue, EleveVue } from "@/types/ecole";
-import type { Situation } from "@/types/metier";
+import type { Situation } from "@/types/commun";
 
 type Executer = (action: () => Promise<{ success: boolean; message?: string }>, apres?: () => void) => void;
 

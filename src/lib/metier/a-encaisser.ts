@@ -1,7 +1,8 @@
 // Lignes d'un encaissement calculées depuis la situation de l'élève (le serveur ne croit pas les montants du client).
 import { libelleTranche, trancheAvecMois } from "@/lib/metier/tranches";
-import type { StatutInscription, TypePaiement } from "@/types/database";
-import type { ChoixEncaissement, LigneEncaissement, Situation, TrancheIncluse } from "@/types/metier";
+import type { StatutInscription } from "@/types/database";
+import type { Situation } from "@/types/commun";
+import type { ChoixEncaissement, LigneEncaissement, TrancheIncluse } from "@/types/ecole";
 
 /** Message de lignesAEncaisser quand tout ce qui est choisi est déjà payé (comparé par les appelants, jamais recopié) */
 export const RIEN_A_ENCAISSER = "Rien à encaisser : ce qui est choisi est déjà payé.";

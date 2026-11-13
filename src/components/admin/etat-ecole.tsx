@@ -2,7 +2,7 @@ import Link from "next/link";
 import { formatDate } from "@/lib/metier/dates";
 import { formatFCFA } from "@/lib/utils";
 import { Badge } from "@/components/ui";
-import type { EcoleAdmin } from "@/types/metier";
+import type { EcoleAdmin } from "@/types/admin";
 
 /** Badge de l'état d'abonnement : ce que vit l'école aujourd'hui, pas seulement le statut enregistré */
 export function BadgeEtat({ ecole }: { ecole: EcoleAdmin }) {

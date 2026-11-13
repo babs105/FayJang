@@ -2,8 +2,6 @@
 // Seules les classes « nouvelles » de l'aperçu sont créées ; une classe déjà présente n'est jamais modifiée (DO3).
 import { lireArticles } from "@/lib/metier/classe-catalogue";
 import { normaliser } from "@/lib/validation/reprise-colonnes";
-import type { Niveau } from "@/types/database";
-import type { LigneCatalogue } from "@/types/metier";
 import type { ApercuReprise, ClasseACreer } from "@/types/reprise";
 
 /**

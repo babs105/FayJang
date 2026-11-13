@@ -1,6 +1,6 @@
 import type { createClientEcole } from "@/lib/supabase/server";
 import { lireSituationAbonnement, MESSAGE_LECTURE_SEULE, peutEcrire } from "@/lib/metier/abonnement";
-import type { SituationAbonnement } from "@/types/metier";
+import type { SituationAbonnement } from "@/types/commun";
 
 type ClientEcole = ReturnType<typeof createClientEcole>;
 

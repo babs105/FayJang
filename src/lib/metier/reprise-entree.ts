@@ -2,8 +2,6 @@
 // (paiements et articles prévus, résumé), et le contrôle défensif de l'entrée.
 import { verifierReglages } from "@/lib/metier/scolarite";
 import { formatFCFA } from "@/lib/utils";
-import type { NatureArticle, StatutInscription } from "@/types/database";
-import type { CalendrierEcole } from "@/types/metier";
 import type { EntreeRepartition } from "@/types/reprise";
 
 const entier = (n: number | null | undefined) => n === null || n === undefined || (Number.isInteger(n) && n >= 0);

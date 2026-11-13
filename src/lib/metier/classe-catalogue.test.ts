@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { lireArticles } from "@/lib/metier/classe-catalogue";
 import { estUuid, montant, texte } from "@/lib/validation/saisie";
-import type { SaisieArticle } from "@/types/metier";
+import type { SaisieArticle } from "@/types/ecole";
 
 const ID_TENUE = "0c9a0456-36b1-4225-b14e-c8bfb78256da";
 const ID_CAHIER = "8f1e2d3c-4b5a-4968-8776-655443322110";

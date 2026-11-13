@@ -2,7 +2,7 @@
 // La base revérifie les formes et les plafonds dans enregistrer_classe (supabase/schema/05-migrations.sql, bloc v1.9).
 import { estUuid, montant, texte } from "@/lib/validation/saisie";
 import type { NatureArticle } from "@/types/database";
-import type { LigneCatalogue, SaisieArticle } from "@/types/metier";
+import type { LigneCatalogue, SaisieArticle } from "@/types/ecole";
 
 export const MAX_ARTICLES_CLASSE = 30;
 

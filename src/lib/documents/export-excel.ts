@@ -7,7 +7,8 @@ import { estRecuDeReprise } from "@/lib/metier/reprise-recu";
 import { situationInscription } from "@/lib/metier/scolarite";
 import { ENTETES_EXPORT_ADMIN, lignesExportAdmin } from "@/lib/metier/admin-ecoles";
 import type { Classe, Eleve, Inscription, Paiement, Parent } from "@/types/database";
-import type { ArticleCalcul, CalendrierEcole, EcoleAdmin } from "@/types/metier";
+import type { EcoleAdmin } from "@/types/admin";
+import type { ArticleCalcul, CalendrierEcole } from "@/types/commun";
 
 export const TYPE_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 

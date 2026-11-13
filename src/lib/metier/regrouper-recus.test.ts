@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { regrouperParRecu, resumeRecu } from "@/lib/metier/regrouper-recus";
-import type { LigneRecu } from "@/types/metier";
+import type { LigneRecu } from "@/types/commun";
 
 let n = 0;
 function ligne(p: Partial<LigneRecu> = {}): LigneRecu {

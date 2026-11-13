@@ -10,7 +10,7 @@ import { lignesAEncaisser, paiementLibreAutorise, situationInscription } from "@
 import { estUuid, montant, texte } from "@/lib/validation/saisie";
 import { peutFaire } from "@/lib/securite/droits";
 import { lireEcole, lireMode, sessionEcriture, type Client, type Resultat } from "./_commun";
-import type { LigneEncaissement } from "@/types/metier";
+import type { LigneEncaissement } from "@/types/ecole";
 
 /** Inscription, paiements et articles d'un élève, puis sa situation recalculée côté serveur */
 async function chargerSituation(supabase: Client, ecoleId: string, inscriptionId: string) {
