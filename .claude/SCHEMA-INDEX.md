@@ -3,7 +3,7 @@
 > **Fichier généré automatiquement.** Ne pas éditer à la main.
 > Régénérer : `bash scripts/schema-index.sh`
 
-**Total : 5294 lignes.**
+**Total : 5345 lignes.**
 
 ## Tables
 
@@ -63,6 +63,7 @@
 - `proteger_colonnes_ecole` — L377
 - `proteger_inscription` — L465
 - `proteger_paiement` — L4832 **(active)** · remplace L436, L826, L925, L4297
+- `reinitialiser_mot_de_passe_directeur` — L5310
 - `reinitialiser_mot_de_passe_utilisateur` — L4748
 - `session_ecole_valide` — L318
 - `session_utilisateur_valide` — L3944
@@ -170,6 +171,7 @@
 - L4627 : v1.23 : plusieurs utilisateurs par école, tranche 3 (feature D09) : le directeur gère ses caissiers.
 - L4775 : v1.24 : seul le directeur annule un reçu, et on sait qui (D09, tranche 4).
 - L4872 : v1.25 : plusieurs utilisateurs par école, tranche 5 (feature D09) : le caissier ne touche ni aux paramètres de
+- L5297 : v1.26 : plusieurs utilisateurs par école, tranche 6 (feature D09) : le SuperAdmin réinitialise le mot de passe
 
 ## Notes pour l'agent
 
