@@ -17,7 +17,7 @@
 >   il **ajoute** sans demander les bugs et la dette non corrigés de sa tranche ; il **coche, supprime, modifie**
 >   une entrée ou la passe en « Bugs corrigés » seulement après l'accord explicite de l'humain.
 > - Classement (détail dans `.claude/WORKFLOW.md`, section « Le backlog ») :
->   - **Bug à planifier** dès qu'un de ces points est vrai : plus d'1 h de travail, touche `schema.sql`,
+>   - **Bug mineurs à planifier** dès qu'un de ces points est vrai : plus d'1 h de travail, touche `schema.sql`,
 >     l'auth ou l'argent (encaissement, reçus, soldes), plus de 2 fichiers, ou décision métier à prendre ;
 >   - **Bug mineur** sinon : correctif court et localisé.
 >   - **Dette** : même critère de taille, avec la mention `impact: maintien` dans l'entrée.
@@ -32,8 +32,6 @@ _Aucun bug à planifier en attente._
 ---
 
 ## Bugs mineurs ou Dette technique & Sécurité (à corriger quand une feature croise le sujet)
-- [ ] **Mobile money dans les reçus de reprise** | Reprendre un versement fait par
-  Wave ou Orange Money | Tranche 5 « reprise de l'existant »  (2026-11-11) | Référence de transaction obligatoire ou non pour un versement ancien, ou mode « Non précisé » |(Référence facultative uniquement pour l'import)
 
 - [ ] **Commentaires de cellule écrits par openpyxl illisibles par exceljs** — un classeur produit par un outil qui
   écrit ses commentaires comme openpyxl fait échouer `lireClasseur` (« Fichier Excel illisible »). Le modèle n'a plus de
