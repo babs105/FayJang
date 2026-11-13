@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { isAdmin } from "@/lib/admin-session";
+import { isAdmin } from "@/serveur/admin-session";
 import { RUBRIQUES_ABONNEMENT, rubriqueAbonnement } from "@/lib/admin-ecoles";
 import { Carte } from "@/components/ui";
 import { AlerteTotaux, EnteteAdmin, ErreurLecture } from "@/components/admin/entete";

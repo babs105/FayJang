@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft, Lock, Upload } from "lucide-react";
-import { getSessionEcole } from "@/lib/ecole-session";
+import { getSessionEcole } from "@/serveur/ecole-session";
 import { peutFaire } from "@/lib/droits";
-import { createClientEcole } from "@/lib/supabase/server";
+import { createClientEcole } from "@/serveur/supabase/server";
 import { ReprisePanel } from "@/components/ecole/reprise-panel";
-import { lireAbonnementEcole } from "@/lib/abonnement-ecole";
+import { lireAbonnementEcole } from "@/serveur/abonnement-ecole";
 import { MESSAGE_LECTURE_SEULE, peutEcrire } from "@/lib/abonnement";
 
 export const dynamic = "force-dynamic";

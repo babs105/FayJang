@@ -1,8 +1,8 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { echangerUtilisateurEcole, TropDeTentativesError, type UtilisateurConnecte } from "@/lib/supabase/server";
-import { createEcoleSession, destroyEcoleSession } from "@/lib/ecole-session";
+import { echangerUtilisateurEcole, TropDeTentativesError, type UtilisateurConnecte } from "@/serveur/supabase/server";
+import { createEcoleSession, destroyEcoleSession } from "@/serveur/ecole-session";
 import { MOT_DE_PASSE_MAX, normaliserEmail } from "@/lib/mot-de-passe";
 
 const IDENTIFIANTS_INCORRECTS = "E-mail ou mot de passe incorrect.";

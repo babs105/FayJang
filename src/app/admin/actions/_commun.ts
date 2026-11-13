@@ -2,8 +2,8 @@
 // PAS de "use server" ici : ces fonctions ne doivent jamais devenir des points d'entrée appelables du navigateur.
 import "server-only";
 import { revalidatePath } from "next/cache";
-import { isAdmin } from "@/lib/admin-session";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { isAdmin } from "@/serveur/admin-session";
+import { createAdminClient } from "@/serveur/supabase/admin";
 import { LectureTropLongue, TAILLE_PAGE, toutLire } from "@/lib/lecture-paginee";
 import { todayDakar } from "@/lib/dates";
 import { lireSituationAbonnement, type SituationAbonnement } from "@/lib/abonnement";

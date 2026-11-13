@@ -1,9 +1,6 @@
 import { writeFileSync } from "node:fs";
 import { PDFDocument } from "pdf-lib";
-import { describe, expect, it, vi } from "vitest";
-
-vi.mock("server-only", () => ({}));
-
+import { describe, expect, it } from "vitest";
 import { couper, genererRecuPdf, MAX_LIGNES_RECU, type DonneesRecu } from "./recu-pdf";
 
 const RECU: DonneesRecu = {

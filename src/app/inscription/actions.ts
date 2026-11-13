@@ -1,11 +1,11 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { createEcoleSession, hashCode } from "@/lib/ecole-session";
+import { createAdminClient } from "@/serveur/supabase/admin";
+import { createEcoleSession, hashCode } from "@/serveur/ecole-session";
 import { anneeScolaireDe } from "@/lib/dates";
 import { todayDakar } from "@/lib/config";
-import { ipVisiteur } from "@/lib/ip";
+import { ipVisiteur } from "@/serveur/ip";
 import { slugifier, validerCreationEcole } from "@/lib/creation-ecole";
 
 const ECHEC = "Création du compte impossible pour le moment, réessayez.";

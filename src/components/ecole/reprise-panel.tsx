@@ -8,7 +8,7 @@ import { LIBELLE_NIVEAU, LIBELLE_STATUT_INSCRIPTION } from "@/lib/libelles";
 import { Badge, Bouton, Carte, Kpi, Message } from "@/components/ui";
 import type { ApercuReprise, EleveApercu } from "@/lib/reprise-validation";
 import { cleDe, decouper, TAILLE_LOT, type CleEleve, type RefusLigne } from "@/lib/reprise-lots";
-import { analyserFichierReprise, importerClassesReprise, importerLotReprise, type ResultatClasses } from "@/app/ecole/import/actions";
+import { analyserFichierReprise, importerClassesReprise, importerLotReprise, type ResultatClasses } from "@/app/ecole/actions/import";
 
 type Filtre = "tous" | "erreur" | "a_creer" | "deja_present";
 

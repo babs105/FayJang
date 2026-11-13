@@ -14,11 +14,12 @@ import { choixALinscription, lignesAEncaisser, paiementLibreAutorise, type Ligne
 import type { StatutInscription } from "@/types/database";
 import { ajouterArticleInscription, retirerArticleInscription } from "@/app/ecole/actions/articles";
 import { annulerPaiement, encaisserPaiement } from "@/app/ecole/actions/encaissement";
-import { modifierEleve, modifierInscription, supprimerEleve } from "@/app/ecole/actions/inscriptions";
+import { modifierEleve, supprimerEleve } from "@/app/ecole/actions/eleves";
+import { modifierInscription } from "@/app/ecole/actions/inscriptions";
 import { regenererLienParent } from "@/app/ecole/actions/parents";
 import { InscriptionModal } from "./eleves-panel";
 import { MentionLectureSeule } from "./bandeau-abonnement";
-import type { ClasseVue, EcoleVue, EleveVue, PaiementVue } from "@/app/ecole/types";
+import type { ClasseVue, EcoleVue, EleveVue, PaiementVue } from "@/types/ecole";
 
 const STYLE_MOIS: Record<StatutMois, string> = {
   paye: "bg-jang-50 border-jang-200 text-jang-700",

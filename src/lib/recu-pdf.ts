@@ -1,4 +1,3 @@
-import "server-only";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { formatDate } from "@/lib/dates";
 import { LIBELLE_MODE, libellePaiement } from "@/lib/libelles";

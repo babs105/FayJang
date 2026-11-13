@@ -10,7 +10,7 @@ import { MentionLectureSeule } from "./bandeau-abonnement";
 import { peutEcrire } from "@/lib/abonnement";
 import type { SaisieArticle } from "@/lib/classe-catalogue";
 import type { DonneesEcole } from "./ecole-dashboard-client";
-import type { ClasseVue } from "@/app/ecole/types";
+import type { ClasseVue } from "@/types/ecole";
 
 export function ClassesPanel({ classes, ecole, abonnement }: DonneesEcole) {
   const lectureSeule = !peutEcrire(abonnement.etat);

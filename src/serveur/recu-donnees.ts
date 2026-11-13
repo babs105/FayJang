@@ -1,5 +1,5 @@
 import "server-only";
-import type { SupabaseServeur } from "@/lib/supabase/server";
+import type { SupabaseServeur } from "@/serveur/supabase/server";
 import { estRecuDeReprise } from "@/lib/reprise-recu";
 import type { DonneesRecu } from "@/lib/recu-pdf";
 

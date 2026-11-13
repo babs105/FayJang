@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { CheckCircle2, ChevronRight, FileText, GraduationCap, Phone } from "lucide-react";
-import { echangerJetonParent } from "@/lib/supabase/server";
+import { echangerJetonParent } from "@/serveur/supabase/server";
 import { todayDakar } from "@/lib/config";
 import { formatDate, formatMois, formatMoisCourt } from "@/lib/dates";
 import { LIBELLE_MODE, libellePaiement } from "@/lib/libelles";

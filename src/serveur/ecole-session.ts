@@ -2,7 +2,7 @@ import "server-only";
 import { createHash, createHmac, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
 import { cache } from "react";
-import { lireSessionUtilisateur } from "@/lib/supabase/client-serveur";
+import { lireSessionUtilisateur } from "@/serveur/supabase/client-serveur";
 import { lireCookieSession, payloadSession } from "@/lib/session-cookie";
 import type { RoleUtilisateur } from "@/types/database";
 

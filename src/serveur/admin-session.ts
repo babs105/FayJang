@@ -1,6 +1,6 @@
 import "server-only";
 import { cookies } from "next/headers";
-import { hashCode, safeEqual, sign } from "@/lib/ecole-session";
+import { hashCode, safeEqual, sign } from "@/serveur/ecole-session";
 
 const COOKIE_NAME = "fayjang_admin";
 const SESSION_DURATION_SECONDS = 60 * 60 * 12; // 12 heures

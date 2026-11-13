@@ -1,22 +1,26 @@
 // Colle partagée par les Server Actions de l'Espace École : session, droits, lecture de l'école.
 // PAS de "use server" ici : ces fonctions ne doivent jamais devenir des points d'entrée appelables du navigateur.
 import "server-only";
-import { getSessionEcole } from "@/lib/ecole-session";
-import { createClientEcole } from "@/lib/supabase/server";
+import { getSessionEcole } from "@/serveur/ecole-session";
+import { createClientEcole } from "@/serveur/supabase/server";
 import { todayDakar } from "@/lib/config";
 import { MODES_PAIEMENT } from "@/lib/libelles";
 import { texte } from "@/lib/saisie";
 import { peutFaire, type Droit } from "@/lib/droits";
-import { refusLectureSeule } from "@/lib/abonnement-ecole";
+import { refusLectureSeule } from "@/serveur/abonnement-ecole";
 import type { ModePaiement, RoleUtilisateur } from "@/types/database";
 
 export interface Resultat<T = undefined> {
   success: boolean;
   message?: string;
   data?: T;
+  /** Échec après l'envoi à la base : l'écriture a pu avoir lieu ou non (le rejeu reste sûr) */
+  incertain?: boolean;
 }
 
 export const SESSION_EXPIREE = "Session expirée : reconnectez-vous à l'Espace École.";
+
+export const DATE_NAISSANCE_FUTURE = "La date de naissance ne peut pas être dans le futur.";
 
 export type Client = ReturnType<typeof createClientEcole>;
 

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { isAdmin } from "@/lib/admin-session";
+import { isAdmin } from "@/serveur/admin-session";
 import { formatDate } from "@/lib/dates";
 import { Carte } from "@/components/ui";
 import { AlerteTotaux, EnteteAdmin, ErreurLecture } from "@/components/admin/entete";

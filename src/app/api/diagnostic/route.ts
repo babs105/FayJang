@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { createClientEcole } from "@/lib/supabase/server";
-import { safeEqual } from "@/lib/ecole-session";
+import { createAdminClient } from "@/serveur/supabase/admin";
+import { createClientEcole } from "@/serveur/supabase/server";
+import { safeEqual } from "@/serveur/ecole-session";
 
 export const dynamic = "force-dynamic";
 

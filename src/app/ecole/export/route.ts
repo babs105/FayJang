@@ -1,7 +1,7 @@
 import ExcelJS from "exceljs";
-import { getSessionEcole } from "@/lib/ecole-session";
+import { getSessionEcole } from "@/serveur/ecole-session";
 import { peutFaire } from "@/lib/droits";
-import { createClientEcole } from "@/lib/supabase/server";
+import { createClientEcole } from "@/serveur/supabase/server";
 import { todayDakar } from "@/lib/config";
 import { LIBELLE_MODE, LIBELLE_STATUT_INSCRIPTION, libellePaiement } from "@/lib/libelles";
 import { situationInscription } from "@/lib/scolarite";

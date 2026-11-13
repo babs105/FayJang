@@ -1,7 +1,7 @@
-import { getSessionEcole } from "@/lib/ecole-session";
-import { createClientEcole } from "@/lib/supabase/server";
+import { getSessionEcole } from "@/serveur/ecole-session";
+import { createClientEcole } from "@/serveur/supabase/server";
 import { genererRecuPdf } from "@/lib/recu-pdf";
-import { lireDonneesRecu, reponsePdf } from "@/lib/recu-donnees";
+import { lireDonneesRecu, reponsePdf } from "@/serveur/recu-donnees";
 
 export const dynamic = "force-dynamic";
 

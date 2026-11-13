@@ -10,7 +10,7 @@ import { inscrireEleve } from "@/app/ecole/actions/inscriptions";
 import { MentionLectureSeule } from "./bandeau-abonnement";
 import { peutEcrire } from "@/lib/abonnement";
 import type { DonneesEcole } from "./ecole-dashboard-client";
-import type { ClasseVue, EcoleVue, EleveVue } from "@/app/ecole/types";
+import type { ClasseVue, EcoleVue, EleveVue } from "@/types/ecole";
 
 export function ElevesPanel({ eleves, classes, ecole, abonnement, ouvrirEleve }: DonneesEcole & { ouvrirEleve: (id: string) => void }) {
   const lectureSeule = !peutEcrire(abonnement.etat);

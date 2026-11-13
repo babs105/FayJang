@@ -1,8 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getSessionEcole, hashCode } from "@/lib/ecole-session";
-import { createClientEcole } from "@/lib/supabase/server";
+import { getSessionEcole, hashCode } from "@/serveur/ecole-session";
+import { createClientEcole } from "@/serveur/supabase/server";
 import { messageErreur } from "@/lib/erreurs";
 import { erreurMotDePasse, MOT_DE_PASSE_MAX } from "@/lib/mot-de-passe";
 import { lireSaisieCaissier } from "@/lib/utilisateurs";

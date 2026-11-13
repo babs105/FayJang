@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { hashCode } from "@/lib/ecole-session";
+import { hashCode } from "@/serveur/ecole-session";
 import { anneeScolaireDe, todayDakar } from "@/lib/dates";
 import { slugifier, validerCreationEcole } from "@/lib/creation-ecole";
 import { erreurMotDePasse } from "@/lib/mot-de-passe";
