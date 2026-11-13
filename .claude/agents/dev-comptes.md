@@ -34,7 +34,7 @@ Une demande qui sort du périmètre est refusée et renvoyée à `architect`.
 **Dans ton scope (lecture et modification) :**
 - `src/components/ecole/utilisateurs-panel.tsx`, `src/app/ecole/actions/utilisateurs.ts`
 - `src/app/ecole/actions/utilisateurs.ts` contient aussi `changerMonMotDePasse` ; helpers partagés dans `src/app/ecole/actions/_commun.ts` (lecture seule)
-- `src/lib/securite/droits.ts`, `src/lib/validation/utilisateurs.ts`, `src/lib/securite/mot-de-passe.ts`
+- `src/lib/securite/droits.ts`, `src/lib/validation/utilisateurs.ts`, `src/lib/validation/mot-de-passe.ts`
 - `src/lib/metier/abonnement.ts`, `src/lib/securite/abonnement-ecole.ts`, `src/components/ecole/bandeau-abonnement.tsx`
   (affichage seulement : la règle d'abonnement n'existe qu'en base)
 - `src/app/admin/**` (pages tableau de bord, `ecoles/`, `abonnements/`, `actions/*.ts`), `src/components/admin/*.tsx`, `src/lib/metier/admin-ecoles.ts`

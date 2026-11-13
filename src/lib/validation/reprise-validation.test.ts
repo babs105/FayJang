@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Cellule, ClasseurBrut } from "@/lib/documents/reprise-lecture";
+import type { Cellule, ClasseurBrut } from "@/types/reprise";
 import { analyserReprise, dateCellule, lireOption, lirePeriode, moisCellule, separerDebut, montantCellule, ressembleAUneFormule, telephoneCellule } from "@/lib/validation/reprise-validation";
 import type { ContexteReprise } from "@/types/reprise";
 

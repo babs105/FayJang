@@ -132,7 +132,7 @@ sans accord. Référence : classe CM1, inscription 25 000, mensualité 20 000, 9
 ```bash
 grep -rn "createAdminClient\|service_role" src/app/ecole/
 grep -n 'from("inscriptions")' src/app/ecole/actions/*.ts | grep -E "insert|update"
-grep -n 'role === ' src/app/ecole/*.ts src/app/ecole/*.tsx
+grep -n 'role === ' src/app/ecole/actions/*.ts src/components/ecole/*.tsx
 grep -n "new Date()" src/app/ecole/actions/*.ts src/lib/metier/inscription-initiale.ts
 ```
 

@@ -107,7 +107,7 @@ Avec l'école de test seulement (`docs/compte-test.local.md`), jamais une vraie 
 grep -rn "createAdminClient\|service_role" src/app/ecole/actions/import.ts src/app/ecole/actions/_import.ts src/lib/*/reprise-*.ts
 grep -n "\.insert(\|\.upsert(" src/app/ecole/actions/import.ts      # aucun résultat attendu
 grep -n "console\." src/app/ecole/actions/import.ts src/lib/*/reprise-*.ts
-npx vitest run src/lib/reprise-                                     # tests de la reprise seuls
+npx vitest run reprise-                                         # tests de la reprise seuls
 ```
 
 ## Reviews habituelles

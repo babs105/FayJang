@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { erreurMotDePasse, normaliserEmail } from "@/lib/securite/mot-de-passe";
+import { erreurMotDePasse, normaliserEmail } from "@/lib/validation/mot-de-passe";
 
 describe("erreurMotDePasse", () => {
   it("refuse 7 caractères, accepte 8", () => {

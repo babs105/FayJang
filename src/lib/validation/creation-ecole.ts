@@ -1,6 +1,6 @@
 // Création d'une école : règles de saisie partagées (pur, sans Next ni Supabase).
 import { normaliserTelephone } from "@/lib/validation/telephone";
-import { erreurMotDePasse, normaliserEmail } from "@/lib/securite/mot-de-passe";
+import { erreurMotDePasse, normaliserEmail } from "@/lib/validation/mot-de-passe";
 
 /** Identifiant de connexion lisible : « Cours Sainte-Marie de Hann » → « cours-sainte-marie-de-hann » */
 export function slugifier(nom: string): string {

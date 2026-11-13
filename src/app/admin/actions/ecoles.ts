@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { hashCode } from "@/lib/securite/ecole-session";
 import { anneeScolaireDe, todayDakar } from "@/lib/metier/dates";
 import { slugifier, validerCreationEcole } from "@/lib/validation/creation-ecole";
-import { erreurMotDePasse } from "@/lib/securite/mot-de-passe";
+import { erreurMotDePasse } from "@/lib/validation/mot-de-passe";
 import { estUuid } from "@/lib/validation/saisie";
 import { SESSION_EXPIREE, chargerEcoles, clientAdmin, majEcole } from "./_commun";
 import type { IdentifiantsDirecteur, ResultatAdmin } from "@/types/admin";

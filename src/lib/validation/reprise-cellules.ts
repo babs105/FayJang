@@ -2,7 +2,7 @@
 // Pur : chaque fonction rend la valeur lue, null si la case est vide, ou "invalide".
 import { DEBUT_FORMULE } from "@/lib/documents/export-sur";
 import { normaliserTelephone } from "@/lib/validation/telephone";
-import type { Cellule } from "@/lib/documents/reprise-lecture";
+import type { Cellule } from "@/types/reprise";
 import { normaliser } from "@/lib/validation/reprise-colonnes";
 import type { NatureArticle, Niveau, StatutInscription } from "@/types/database";
 

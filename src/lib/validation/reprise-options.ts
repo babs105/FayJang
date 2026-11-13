@@ -1,7 +1,7 @@
 // Reprise de l'existant : articles optionnels d'un élève (« Transport ; Cantine (03/2027) ; Tenue x3 »), avec la
 // période de chaque service mensuel. Les problèmes vont dans les erreurs et avertissements de la ligne.
 import { formatPeriode } from "@/lib/metier/dates";
-import type { Cellule } from "@/lib/documents/reprise-lecture";
+import type { Cellule } from "@/types/reprise";
 import { normaliser } from "@/lib/validation/reprise-colonnes";
 import { MAX_ERREURS_LIGNE, MAX_OPTIONS_ELEVE, lireOption, lirePeriode, moisCellule, separerDebut } from "@/lib/validation/reprise-cellules";
 import type { ArticleCatalogue, CatalogueClasse, ContexteReprise, OptionEleve } from "@/types/reprise";

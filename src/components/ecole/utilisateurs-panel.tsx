@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Badge, Bouton, Carte, Message, champ } from "@/components/ui";
-import { MOT_DE_PASSE_MIN } from "@/lib/securite/mot-de-passe";
+import { MOT_DE_PASSE_MIN } from "@/lib/validation/mot-de-passe";
 import { lireSaisieCaissier } from "@/lib/validation/utilisateurs";
 import { changerStatutUtilisateur, creerCaissier, reinitialiserMotDePasseUtilisateur } from "@/app/ecole/actions/utilisateurs";
 import type { UtilisateurListeVue } from "@/types/ecole";

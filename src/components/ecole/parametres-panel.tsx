@@ -7,7 +7,7 @@ import { maxTranches, moisCibleTranches, moisDesTranches, nomRang, partEchue, ve
 import { Badge, Bouton, Carte, Label, Message, champ } from "@/components/ui";
 import { enregistrerParametres } from "@/app/ecole/actions/parametres";
 import { changerMonMotDePasse } from "@/app/ecole/actions/utilisateurs";
-import { MOT_DE_PASSE_MIN } from "@/lib/securite/mot-de-passe";
+import { MOT_DE_PASSE_MIN } from "@/lib/validation/mot-de-passe";
 import { MentionLectureSeule } from "./bandeau-abonnement";
 import { UtilisateursPanel } from "./utilisateurs-panel";
 import { peutFaire } from "@/lib/securite/droits";

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getSessionEcole, hashCode } from "@/lib/securite/ecole-session";
 import { createClientEcole } from "@/lib/supabase/server";
 import { messageErreur } from "@/lib/securite/erreurs";
-import { erreurMotDePasse, MOT_DE_PASSE_MAX } from "@/lib/securite/mot-de-passe";
+import { erreurMotDePasse, MOT_DE_PASSE_MAX } from "@/lib/validation/mot-de-passe";
 import { lireSaisieCaissier } from "@/lib/validation/utilisateurs";
 import { estUuid } from "@/lib/validation/saisie";
 import { peutFaire } from "@/lib/securite/droits";

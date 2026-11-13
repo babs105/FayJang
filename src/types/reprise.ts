@@ -261,3 +261,29 @@ export interface CatalogueClasse {
   tarifs: { frais: number; mensualite: number; dernierMois: number | null } | null;
   ecart: string | null;
 }
+
+// --- fichier lu (reprise-lecture)
+
+/** Valeur d'une cellule, réduite à un type simple */
+export type Cellule = string | number | boolean | Date | null;
+
+export interface FeuilleBrute {
+  nom: string;
+  /** Lignes du haut de la feuille ; `lignes[0]` = ligne 1 d'Excel */
+  lignes: Cellule[][];
+  /** La feuille dépassait LIMITES.lignes : la fin n'a pas été lue */
+  tronquee?: boolean;
+}
+
+export interface ClasseurBrut {
+  feuilles: FeuilleBrute[];
+}
+
+// --- création des classes (action importerClassesReprise)
+
+/** Compte rendu de la création des classes du fichier */
+export interface ResultatClasses {
+  creees: string[];
+  dejaPresentes: string[];
+  echecs: { nom: string; message: string }[];
+}

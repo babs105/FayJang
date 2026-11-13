@@ -1,5 +1,5 @@
 /** Saisie d'un caissier par le directeur (D09). Logique pure, partagée client / serveur. */
-import { erreurMotDePasse, normaliserEmail } from "@/lib/securite/mot-de-passe";
+import { erreurMotDePasse, normaliserEmail } from "@/lib/validation/mot-de-passe";
 import { nomUtilisateurReserve } from "@/lib/metier/reprise-recu";
 
 export const NOM_UTILISATEUR_MAX = 100;

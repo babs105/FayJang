@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Bouton, Carte, Label, champ } from "@/components/ui";
-import { MOT_DE_PASSE_MIN } from "@/lib/securite/mot-de-passe";
+import { MOT_DE_PASSE_MIN } from "@/lib/validation/mot-de-passe";
 import type { PlanId, StatutAbonnement } from "@/types/database";
 import { reactiverEcole, reinitialiserMotDePasseDirecteur, suspendreEcole } from "@/app/admin/actions/ecoles";
 import { modifierAbonnement } from "@/app/admin/actions/abonnements";

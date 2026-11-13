@@ -8,6 +8,7 @@ import { ErreurFichier } from "@/lib/documents/reprise-lecture";
 import { classesACreer } from "@/lib/metier/reprise-classes";
 import { construireLot, lireCles, lireRetour, resumerRetour } from "@/lib/metier/reprise-lots";
 import type { Json } from "@/types/database";
+import type { ResultatClasses } from "@/types/reprise";
 import type { Resultat } from "./_commun";
 import { analyser, analyserComplet, sessionReprise } from "./_import";
 import type { ApercuReprise, RefusLigne, ResultatLotReprise } from "@/types/reprise";
@@ -26,12 +27,6 @@ export async function analyserFichierReprise(formData: FormData): Promise<Result
     if (err instanceof ErreurFichier) return { success: false, message: err.message };
     return { success: false, message: messageErreur("import/analyser", err, "Lecture du fichier impossible pour le moment, réessayez.") };
   }
-}
-
-export interface ResultatClasses {
-  creees: string[];
-  dejaPresentes: string[];
-  echecs: { nom: string; message: string }[];
 }
 
 /**

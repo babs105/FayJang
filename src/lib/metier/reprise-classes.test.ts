@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Cellule, ClasseurBrut } from "@/lib/documents/reprise-lecture";
+import type { Cellule, ClasseurBrut } from "@/types/reprise";
 import { analyserReprise } from "@/lib/validation/reprise-validation";
 import { classesACreer } from "@/lib/metier/reprise-classes";
 import type { ContexteReprise } from "@/types/reprise";

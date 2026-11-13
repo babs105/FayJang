@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { echangerUtilisateurEcole, TropDeTentativesError, type UtilisateurConnecte } from "@/lib/supabase/server";
 import { createEcoleSession, destroyEcoleSession } from "@/lib/securite/ecole-session";
-import { MOT_DE_PASSE_MAX, normaliserEmail } from "@/lib/securite/mot-de-passe";
+import { MOT_DE_PASSE_MAX, normaliserEmail } from "@/lib/validation/mot-de-passe";
 
 const IDENTIFIANTS_INCORRECTS = "E-mail ou mot de passe incorrect.";
 

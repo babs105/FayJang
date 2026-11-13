@@ -37,19 +37,23 @@ Répondre et écrire en **français** : messages, commentaires de code, libellé
   `eleves.ts`, `encaissement.ts`, `articles.ts`, `parents.ts`, `parametres.ts`, `utilisateurs.ts`, `import.ts`) ; `_commun.ts` porte la
   colle (`session()`, `sessionEcriture()`, `refusDroit()`, `lireEcole()`) et `_import.ts` celle de l'import, **sans** `"use server"`,
   pour ne jamais être appelables du navigateur
+- `src/app/inscription/actions/inscription.ts` : ouverture d'un compte école en ligne (fonction SQL `creer_ecole`)
 - `src/app/**/route.ts` : téléchargements et API (`/ecole/recu/[id]`, `/ecole/export`, `/parent/[token]/recu/[id]`, `/api/diagnostic`)
 - `src/lib/` : logique partagée, en cinq dossiers
-  - `supabase/` : clients `server.ts` (RLS, JWT école/parent), `client.ts` (navigateur, ne lit rien), `admin.ts` (service_role,
-    admin seulement), `jeton.ts` (JWT ES256)
-  - `validation/` : saisie des formulaires, téléphone, création d'école, paramètres, fichier de reprise (`reprise-validation.ts` et ses parties)
+  - `supabase/` : clients `server.ts` (RLS, JWT école/parent), `client-serveur.ts`, `client.ts` (navigateur, ne lit rien),
+    `admin.ts` (service_role, admin seulement), `jeton.ts` (JWT ES256)
+  - `validation/` : saisie des formulaires, téléphone, e-mail et mot de passe (`mot-de-passe.ts`), création d'école, caissier,
+    paramètres, fichier de reprise (`reprise-validation.ts` et ses parties)
   - `metier/` : logique **pure** et testée (`lecture-paginee.ts` (lecture complète malgré la limite de 1000 lignes), `scolarite.ts` (soldes), `tranches.ts`, `a-encaisser.ts`, `dates.ts`, `whatsapp.ts`, reprise, ...)
   - `documents/` : PDF et Excel côté serveur (`recu-pdf.ts`, `recu-donnees.ts`, `export-excel.ts`, `export-sur.ts`, `reprise-lecture.ts`)
-  - `securite/` : auth et sessions (`ecole-session.ts`, `admin-session.ts`, `session-cookie.ts`), droits, erreurs, mots de passe, `ip.ts`
+  - `securite/` : auth et sessions (`ecole-session.ts`, `admin-session.ts`, `session-cookie.ts`), droits, erreurs, garde
+    d'abonnement (`abonnement-ecole.ts`), `ip.ts`
   - à la racine : `config.ts` (URL de l'app, jetons aléatoires) et `utils.ts` (`cn()`, `formatFCFA()`)
 - `src/types/database.ts` : types des tables Supabase (des `type`, pas des `interface` : supabase-js exige une signature d'index) ;
   un fichier de types par espace, comme `database.ts` : `ecole.ts` (vues de `/ecole/page.tsx`, encaissement, caisse, catalogue),
-  `reprise.ts` (import Excel de l'Espace École), `parent.ts`, `admin.ts`, et `commun.ts` pour les types partagés par
-  plusieurs espaces (situation d'une inscription, abonnement, reçus). Des types seulement : la logique reste dans `src/lib/`
+  `reprise.ts` (import Excel de l'Espace École : fichier lu, aperçu, répartition, lots), `parent.ts`, `admin.ts`, et `commun.ts`
+  pour les types partagés par plusieurs espaces (situation d'une inscription, abonnement, reçus). Des types seulement : la
+  logique reste dans `src/lib/`
 - `supabase/schema.sql` : schéma complet et **idempotent** (relancé en entier dans l'éditeur SQL Supabase)
 - `.claude/SCHEMA-INDEX.md` : index du schéma (tables, fonctions, policies, triggers avec leurs lignes), **généré** par
   `bash scripts/schema-index.sh` : à régénérer après chaque modification de `schema.sql`, jamais édité à la main
@@ -74,6 +78,9 @@ Le processus de livraison (plan → tranche → dev → reviews → merge) est d
 5. **Une fonction utile à 2 dossiers monte dans `lib/`** ; utile à un seul, elle reste dans son `_commun`.
 6. **Un dossier de route ne garde que sa page** (`page.tsx`, ou `route.ts` pour un téléchargement) : les Server Actions
    de l'espace vont toutes dans son `actions/`.
+7. **Un type utilisé par 2 dossiers va dans `src/types/`**, dans le fichier de son espace (ou `commun.ts` s'il sert à
+   plusieurs espaces) ; utilisé par un seul fichier (saisie d'une action, props d'un composant, session, JWT), il reste
+   à côté de son code.
 
 ### Accès à Supabase : RLS + JWT hybride (`src/lib/supabase/`)
 Aucune requête ne passe par la clé admin, sauf exceptions ci-dessous. Pattern « token → JWT court » :

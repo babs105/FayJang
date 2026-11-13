@@ -24,7 +24,7 @@ l'e-mail d'un directeur.
 - `src/components/ecole/utilisateurs-panel.tsx`, `actions/utilisateurs.ts` (`sessionDirecteur()`)
 - `src/app/ecole/actions/utilisateurs.ts` : aussi `changerMonMotDePasse` ; helper `refusDroit()` dans `src/app/ecole/actions/_commun.ts`
 - `src/lib/securite/droits.ts` : `Droit`, `DROITS_CAISSIER`, `peutFaire()`
-- `src/lib/validation/utilisateurs.ts` : `lireSaisieCaissier()` ; `src/lib/securite/mot-de-passe.ts` : `normaliserEmail()`, `erreurMotDePasse()`
+- `src/lib/validation/utilisateurs.ts` : `lireSaisieCaissier()` ; `src/lib/validation/mot-de-passe.ts` : `normaliserEmail()`, `erreurMotDePasse()`
 - `src/lib/metier/abonnement.ts`, `abonnement-ecole.ts` (`lireAbonnementEcole`, `refusLectureSeule`), `bandeau-abonnement.tsx`
 - `src/app/admin/actions/*.ts` (chaque action commence par `clientAdmin()` de `_commun.ts`), les pages de `src/app/admin/`, `src/components/admin/*.tsx`, `src/lib/metier/admin-ecoles.ts`
 

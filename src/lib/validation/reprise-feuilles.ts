@@ -1,6 +1,6 @@
 // Reprise de l'existant : feuilles du classeur (classes, articles, élèves), ligne d'en-tête, lignes de données,
 // et clés d'identité d'un élève (doublons, élèves d'exemple du modèle).
-import type { Cellule, ClasseurBrut, FeuilleBrute } from "@/lib/documents/reprise-lecture";
+import type { Cellule, ClasseurBrut, FeuilleBrute } from "@/types/reprise";
 import { COLONNES_REQUISES, normaliser, reconnaitreEntetes, typeFeuille, type TypeFeuille } from "@/lib/validation/reprise-colonnes";
 import { MAX_ELEVES, texteCellule } from "@/lib/validation/reprise-cellules";
 

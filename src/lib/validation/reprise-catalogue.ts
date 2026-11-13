@@ -1,5 +1,5 @@
 // Reprise de l'existant : feuilles « Classes » et « Articles », et catalogue de chaque classe utilisable par les élèves.
-import type { FeuilleBrute } from "@/lib/documents/reprise-lecture";
+import type { FeuilleBrute } from "@/types/reprise";
 import { normaliser } from "@/lib/validation/reprise-colonnes";
 import {
   MAX_ARTICLES_CLASSE,

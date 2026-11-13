@@ -55,7 +55,7 @@ escalader vers `database-reviewer`.
 | `src/lib/securite/ecole-session.ts`, `admin-session.ts` | Cookies de session, HMAC, hachage des codes |
 | `src/lib/supabase/admin.ts` | Seul fichier qui lit la clé admin |
 | `src/lib/supabase/server.ts`, `client-serveur.ts` | Client anon + JWT, fonctions d'échange, contrôle de session |
-| `src/app/**/actions.ts`, `src/app/ecole/actions/*.ts` | Points d'entrée appelables depuis le navigateur |
+| `src/app/*/actions/*.ts` (`ecole`, `admin`, `inscription`) | Points d'entrée appelables depuis le navigateur |
 | `src/app/ecole/recu/[id]/route.ts`, `src/app/ecole/export/route.ts`, `src/app/parent/[token]/recu/[id]/route.ts`, `src/app/api/diagnostic/route.ts` | Routes HTTP, chacune doit se protéger seule |
 
 ---
@@ -71,7 +71,7 @@ import depuis un composant client casse le build, ce qui est voulu.
 ```bash
 grep -rln '"use client"' src/ | xargs grep -ln "lib/supabase/jeton\|lib/supabase/admin\|lib/supabase/server\|-session\"\|recu-pdf\|recu-donnees"
 # Aucun résultat attendu
-grep -L '"server-only"' src/lib/supabase/jeton.ts src/lib/supabase/admin.ts src/lib/supabase/server.ts src/lib/supabase/client-serveur.ts src/lib/*-session.ts src/lib/recu-*.ts
+grep -L '"server-only"' src/lib/supabase/jeton.ts src/lib/supabase/admin.ts src/lib/supabase/server.ts src/lib/supabase/client-serveur.ts src/lib/securite/*-session.ts src/lib/documents/recu-donnees.ts
 # Aucun résultat attendu
 ```
 
@@ -284,7 +284,7 @@ grep -rln "createAdminClient" src/
 grep -rn "NEXT_PUBLIC_[A-Z_]*\(SECRET\|SERVICE\|PRIVATE\)" src/
 
 # 4. Cookies posés sans httpOnly
-grep -rn "\.set(" src/lib/*-session.ts | grep -v httpOnly
+grep -rn "\.set(" src/lib/securite/*-session.ts | grep -v httpOnly
 
 # 5. Redirections construites depuis une entrée
 grep -rn "redirect(.*\(searchParams\|formData\|next\)" src/

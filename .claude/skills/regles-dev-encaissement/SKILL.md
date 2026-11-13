@@ -220,7 +220,7 @@ grep -rn "createAdminClient\|service_role" src/app/ecole/ src/app/parent/ src/li
 grep -rn 'from("paiements")' src/ | grep -E "delete|update" | grep -v "annule: true"
 
 # numéro de reçu écrit par le code
-grep -rn "numero_recu" src/app/*/actions.ts src/app/*/actions/*.ts   # aucun résultat attendu
+grep -rn "numero_recu" src/app/*/actions/*.ts   # aucun résultat attendu
 
 # date métier calculée avec new Date()
 grep -rn "new Date()" src/app/ecole/actions/*.ts src/lib/metier/scolarite.ts

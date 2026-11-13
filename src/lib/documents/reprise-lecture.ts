@@ -1,21 +1,7 @@
 // Reprise de l'existant : lecture du classeur Excel déposé par l'école (valeurs seulement, jamais de formule exécutée).
 import ExcelJS from "exceljs";
 import JSZip from "jszip";
-
-/** Valeur d'une cellule, réduite à un type simple */
-export type Cellule = string | number | boolean | Date | null;
-
-export interface FeuilleBrute {
-  nom: string;
-  /** Lignes du haut de la feuille ; `lignes[0]` = ligne 1 d'Excel */
-  lignes: Cellule[][];
-  /** La feuille dépassait LIMITES.lignes : la fin n'a pas été lue */
-  tronquee?: boolean;
-}
-
-export interface ClasseurBrut {
-  feuilles: FeuilleBrute[];
-}
+import type { Cellule, ClasseurBrut, FeuilleBrute } from "@/types/reprise";
 
 export const LIMITES = {
   /** Taille du fichier déposé */
