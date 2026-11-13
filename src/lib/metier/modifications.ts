@@ -1,5 +1,4 @@
-/** Horodatage d'une ligne : created_at et updated_at tels que renvoyés par Supabase (ISO 8601) */
-export type Horodatage = { created_at: string; updated_at: string };
+import type { Horodatage } from "@/types/metier";
 
 /**
  * Date de la dernière modification réelle parmi des lignes (élève, inscription, parent, articles) :

@@ -4,10 +4,10 @@
 import { Copy, MessageCircle, RefreshCw } from "lucide-react";
 import { formatFCFA } from "@/lib/utils";
 import { lienWhatsApp, messageLienParent, messageRelance } from "@/lib/metier/whatsapp";
-import type { Situation } from "@/lib/metier/scolarite";
 import { Bouton } from "@/components/ui";
 import { regenererLienParent } from "@/app/ecole/actions/parents";
 import type { EcoleVue, EleveVue } from "@/types/ecole";
+import type { Situation } from "@/types/metier";
 
 type Executer = (action: () => Promise<{ success: boolean; message?: string }>, apres?: () => void) => void;
 

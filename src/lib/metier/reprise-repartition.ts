@@ -5,21 +5,12 @@
 // Entrée, sortie et contrôle de l'entrée : reprise-entree.ts.
 import { echeanceDuMois, moisScolaires } from "@/lib/metier/dates";
 import { libellePaiement } from "@/lib/metier/libelles";
-import {
-  libelleTranche,
-  mensualiteDernierMois,
-  mensualiteNette,
-  moisCibleTranches,
-  moisDesTranches,
-  partEchue,
-  situationInscription,
-  type ArticleCalcul,
-  type InfoTranches,
-} from "@/lib/metier/scolarite";
+import { libelleTranche, mensualiteDernierMois, mensualiteNette, moisCibleTranches, moisDesTranches, partEchue, situationInscription } from "@/lib/metier/scolarite";
 import { formatFCFA } from "@/lib/utils";
-import { controler, type ArticlePrevu, type EntreeRepartition, type PaiementPrevu, type ResultatRepartition } from "@/lib/metier/reprise-entree";
+import { controler } from "@/lib/metier/reprise-entree";
+import type { ArticleCalcul, InfoTranches } from "@/types/metier";
+import type { ArticlePrevu, EntreeRepartition, PaiementPrevu, ResultatRepartition } from "@/types/reprise";
 
-export type * from "@/lib/metier/reprise-entree";
 
 interface Bac {
   /** Clé du cumul : « ins », ou le mois (YYYY-MM-01) */

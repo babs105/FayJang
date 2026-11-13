@@ -8,9 +8,9 @@ import { Badge, Bouton, Carte, Label, Message, Modal, champ } from "@/components
 import { archiverClasse, enregistrerClasse } from "@/app/ecole/actions/classes";
 import { MentionLectureSeule } from "./bandeau-abonnement";
 import { peutEcrire } from "@/lib/metier/abonnement";
-import type { SaisieArticle } from "@/lib/metier/classe-catalogue";
 import type { DonneesEcole } from "./ecole-dashboard-client";
 import type { ClasseVue } from "@/types/ecole";
+import type { SaisieArticle } from "@/types/metier";
 
 export function ClassesPanel({ classes, ecole, abonnement }: DonneesEcole) {
   const lectureSeule = !peutEcrire(abonnement.etat);

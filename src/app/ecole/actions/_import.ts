@@ -12,9 +12,9 @@ import { LectureTropLongue, TAILLE_PAGE, toutLire as toutLirePartage } from "@/l
 import { verifierReglages } from "@/lib/metier/scolarite";
 import { normaliserTelephone } from "@/lib/validation/telephone";
 import { LIMITES, lireClasseur } from "@/lib/documents/reprise-lecture";
-import { analyserReprise, type ApercuReprise, type ContexteReprise } from "@/lib/validation/reprise-validation";
-import type { ArticleBase, ClasseBase } from "@/lib/metier/reprise-lots";
+import { analyserReprise } from "@/lib/validation/reprise-validation";
 import { SESSION_EXPIREE, type Resultat } from "./_commun";
+import type { ApercuReprise, ArticleBase, ClasseBase, ContexteReprise } from "@/types/reprise";
 
 
 /**

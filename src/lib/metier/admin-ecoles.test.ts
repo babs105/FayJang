@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { ecolesEnRetard, lignesExportAdmin, rubriqueAbonnement, statsGlobales, type EcoleAdmin } from "@/lib/metier/admin-ecoles";
+import { ecolesEnRetard, lignesExportAdmin, rubriqueAbonnement, statsGlobales } from "@/lib/metier/admin-ecoles";
+import type { EcoleAdmin } from "@/types/metier";
 
 function ecole(champs: Partial<EcoleAdmin>): EcoleAdmin {
   return {

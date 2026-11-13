@@ -6,11 +6,11 @@ import { createClientEcole } from "@/lib/supabase/server";
 import { messageErreur } from "@/lib/securite/erreurs";
 import { ErreurFichier } from "@/lib/documents/reprise-lecture";
 import { classesACreer } from "@/lib/metier/reprise-classes";
-import type { ApercuReprise } from "@/lib/validation/reprise-validation";
-import { construireLot, lireCles, lireRetour, resumerRetour, type RefusLigne, type ResultatLotReprise } from "@/lib/metier/reprise-lots";
+import { construireLot, lireCles, lireRetour, resumerRetour } from "@/lib/metier/reprise-lots";
 import type { Json } from "@/types/database";
 import type { Resultat } from "./_commun";
 import { analyser, analyserComplet, sessionReprise } from "./_import";
+import type { ApercuReprise, RefusLigne, ResultatLotReprise } from "@/types/reprise";
 
 /**
  * Reprise de l'existant, étapes 1 et 2 : lit le fichier de l'école et renvoie l'aperçu ligne par ligne, chaque élève chiffré.

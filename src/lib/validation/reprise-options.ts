@@ -4,7 +4,7 @@ import { formatPeriode } from "@/lib/metier/dates";
 import type { Cellule } from "@/lib/documents/reprise-lecture";
 import { normaliser } from "@/lib/validation/reprise-colonnes";
 import { MAX_ERREURS_LIGNE, MAX_OPTIONS_ELEVE, lireOption, lirePeriode, moisCellule, separerDebut } from "@/lib/validation/reprise-cellules";
-import type { ArticleCatalogue, CatalogueClasse, ContexteReprise, OptionEleve } from "@/lib/validation/reprise-apercu";
+import type { ArticleCatalogue, CatalogueClasse, ContexteReprise, OptionEleve } from "@/types/reprise";
 
 export interface LigneOptions {
   catalogue: CatalogueClasse;

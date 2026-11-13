@@ -1,8 +1,8 @@
+import type { ArticleBase, ClasseBase, CleEleve, EleveApercu, EleveSql, RefusLigne, ResultatEleveReprise, ResultatLotReprise } from "@/types/reprise";
 // Reprise de l'existant, tranche 5 : préparation des lots d'import. Module pur, sans accès à la base.
 // Le navigateur n'envoie que des CLÉS de lignes (feuille + numéro de ligne) ; tout le reste (identité, montants,
 // articles, classe) vient de l'analyse du fichier refaite par le serveur, avec les tarifs lus en base. La base
 // (fonction importer_reprise) plafonne ensuite chaque montant d'après les tarifs de la classe.
-import type { EleveApercu } from "@/lib/validation/reprise-validation";
 
 /** Nombre maximal d'élèves par appel à la base (borne aussi la durée d'une transaction). Ne pas dépasser 25 :
  *  importer_reprise refuse au-delà et garde le verrou du compteur de reçus de l'école pendant tout le lot. */
@@ -13,12 +13,6 @@ export function decouper<T>(liste: T[], taille = TAILLE_LOT): T[][] {
   const lots: T[][] = [];
   for (let i = 0; i < liste.length; i += taille) lots.push(liste.slice(i, i + taille));
   return lots;
-}
-
-/** Ligne d'élève du fichier, désignée sans aucun montant */
-export interface CleEleve {
-  feuille: string;
-  ligne: number;
 }
 
 export const cleDe = (e: Pick<EleveApercu, "feuille" | "ligne">): CleEleve => ({ feuille: e.feuille, ligne: e.ligne });
@@ -45,43 +39,6 @@ export function lireCles(brut: unknown): CleEleve[] | string {
     cles.push({ feuille, ligne });
   }
   return cles;
-}
-
-/** Classe lue en base */
-export interface ClasseBase {
-  id: string;
-  nom: string;
-}
-/** Article du catalogue lu en base */
-export interface ArticleBase {
-  id: string;
-  classe_id: string;
-  libelle: string;
-}
-
-/** Élève tel que la fonction SQL importer_reprise le reçoit (JSONB) */
-export interface EleveSql {
-  ligne: number;
-  prenom: string;
-  nom: string;
-  parent_nom: string;
-  telephone: string;
-  sexe: "M" | "F" | null;
-  date_naissance: string | null;
-  matricule_ancien: string | null;
-  classe_id: string;
-  reduction: number;
-  statut: string;
-  date_depart: string | null;
-  /** Les tarifs, libellés et natures sont relus par la base dans le catalogue : seul l'identifiant et le choix passent */
-  articles: { article_classe_id: string; quantite: number; mois_debut: string | null; mois_fin: string | null }[];
-  /** article_index : position (à partir de 0) dans `articles` ci-dessus, jamais un identifiant */
-  paiements: { type: string; mois: string | null; article_index: number | null; montant: number; libelle: string | null }[];
-}
-
-export interface RefusLigne {
-  ligne: number;
-  message: string;
 }
 
 /**
@@ -151,26 +108,6 @@ export function construireLot(
     });
   }
   return { lot, refuses };
-}
-
-/** Une ligne du retour de importer_reprise */
-export interface ResultatEleveReprise {
-  ligne: number;
-  statut: "cree" | "ignore";
-  eleve_id: string | null;
-  numero_recu: string | null;
-  montant: number;
-}
-
-/** Compte rendu d'un lot, renvoyé au navigateur (sans nom ni téléphone) */
-export interface ResultatLotReprise {
-  crees: number;
-  ignores: number;
-  /** Total encaissé en reprise sur ce lot, en FCFA */
-  montant: number;
-  /** Nombre de reçus « Reprise de l'existant » émis */
-  recus: number;
-  refuses: RefusLigne[];
 }
 
 /** Lit le retour JSONB de la base ; null si la forme est inattendue */

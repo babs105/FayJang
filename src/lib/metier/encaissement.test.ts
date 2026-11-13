@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { cleAEnvoyer, empreintePaiements, lignesPourRpc, lireCleEncaissement, lireResultatEncaissement, messageAnnulation, signatureEncaissement } from "@/lib/metier/encaissement";
-import { lignesAEncaisser, situationInscription, type CalendrierEcole } from "@/lib/metier/scolarite";
+import { lignesAEncaisser, situationInscription } from "@/lib/metier/scolarite";
+import type { CalendrierEcole } from "@/types/metier";
 
 describe("empreintePaiements", () => {
   it("aucun paiement : 0 ligne, 0 FCFA", () => {

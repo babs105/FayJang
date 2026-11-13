@@ -4,7 +4,7 @@
 import { Loader2 } from "lucide-react";
 import { formatFCFA } from "@/lib/utils";
 import { Bouton, Kpi, Message } from "@/components/ui";
-import type { CleEleve, RefusLigne } from "@/lib/metier/reprise-lots";
+import type { CleEleve, RefusLigne } from "@/types/reprise";
 
 export const MODES_REPRISE = [
   ["especes", "Espèces"],

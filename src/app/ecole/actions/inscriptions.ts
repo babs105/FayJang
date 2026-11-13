@@ -6,11 +6,12 @@ import { todayDakar } from "@/lib/config";
 import { isDateValide, moisScolaires } from "@/lib/metier/dates";
 import { contrainteViolee, messageErreur } from "@/lib/securite/erreurs";
 import { fcfa } from "@/lib/metier/format";
-import { lignesPaiementInscription, selectionnerArticles, type LignePaiementInscription } from "@/lib/metier/inscription-initiale";
+import { lignesPaiementInscription, selectionnerArticles } from "@/lib/metier/inscription-initiale";
 import { normaliserTelephone } from "@/lib/validation/telephone";
 import { estUuid, montant, texte } from "@/lib/validation/saisie";
 import type { StatutInscription } from "@/types/database";
 import { debutService, lireEcole, lireMode, sessionEcriture, type Resultat, DATE_NAISSANCE_FUTURE } from "./_commun";
+import type { LignePaiementInscription } from "@/types/metier";
 
 export interface SaisieInscription {
   eleve_id?: string; // réinscription d'un élève existant

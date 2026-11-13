@@ -1,19 +1,10 @@
 // Reprise de l'existant, création des classes : de l'aperçu aux appels de enregistrer_classe (bloc v1.9).
 // Seules les classes « nouvelles » de l'aperçu sont créées ; une classe déjà présente n'est jamais modifiée (DO3).
-import { lireArticles, type LigneCatalogue } from "@/lib/metier/classe-catalogue";
+import { lireArticles } from "@/lib/metier/classe-catalogue";
 import { normaliser } from "@/lib/validation/reprise-colonnes";
-import type { ApercuReprise } from "@/lib/validation/reprise-validation";
 import type { Niveau } from "@/types/database";
-
-export interface ClasseACreer {
-  nom: string;
-  niveau: Niveau;
-  frais: number;
-  mensualite: number;
-  /** null = même montant que la mensualité */
-  dernierMois: number | null;
-  articles: LigneCatalogue[];
-}
+import type { LigneCatalogue } from "@/types/metier";
+import type { ApercuReprise, ClasseACreer } from "@/types/reprise";
 
 /**
  * Classes à créer, chacune avec son catalogue (articles « nouveaux » du fichier, dans l'ordre du fichier).

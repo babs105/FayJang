@@ -14,8 +14,9 @@ import { ParametresPanel } from "./parametres-panel";
 import { FicheEleve } from "./fiche-eleve";
 import { BandeauAbonnement } from "./bandeau-abonnement";
 import { peutFaire } from "@/lib/securite/droits";
-import { peutEcrire, type SituationAbonnement } from "@/lib/metier/abonnement";
+import { peutEcrire } from "@/lib/metier/abonnement";
 import type { ClasseVue, EcoleVue, EleveVue, PaiementVue, UtilisateurListeVue, UtilisateurVue } from "@/types/ecole";
+import type { SituationAbonnement } from "@/types/metier";
 
 export type Onglet = "tableau" | "eleves" | "paiements" | "impayes" | "classes" | "parametres";
 

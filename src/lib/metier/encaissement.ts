@@ -1,5 +1,5 @@
-import type { LigneEncaissement } from "@/lib/metier/scolarite";
 import type { Paiement } from "@/types/database";
+import type { LigneEncaissement, LigneRpc, ResultatEncaissement, TentativeEncaissement } from "@/types/metier";
 
 /**
  * Aide à l'encaissement atomique (fonction SQL encaisser_paiement) : logique pure, testée sans base.
@@ -16,15 +16,6 @@ export function empreintePaiements(paiements: Pick<Paiement, "montant" | "annule
     total: paiements.filter((p) => !p.annule).reduce((s, p) => s + p.montant, 0),
   };
 }
-
-/** Ligne au format attendu par encaisser_paiement (p_lignes) */
-export type LigneRpc = {
-  type: LigneEncaissement["type"];
-  mois: string | null;
-  article_id: string | null;
-  montant: number;
-  libelle: string | null;
-};
 
 /** Lignes calculées par le serveur, mises au format du JSON de la fonction SQL (aucun champ en trop) */
 export function lignesPourRpc(lignes: LigneEncaissement[]): LigneRpc[] {
@@ -46,15 +37,6 @@ export function lireCleEncaissement(cle: unknown): string | null {
   return FORMAT_UUID.test(valeur) ? valeur.toLowerCase() : null;
 }
 
-/** Résultat de encaisser_paiement */
-export interface ResultatEncaissement {
-  numero_recu: string | null;
-  montant_encaisse: number;
-  ids: string[];
-  /** Vrai si la clé avait déjà servi pour exactement cet encaissement : rien n'a été ajouté */
-  rejoue: boolean;
-}
-
 /** Relit le JSON renvoyé par la base sans lui faire confiance sur sa forme ; null si inattendu */
 export function lireResultatEncaissement(data: unknown): ResultatEncaissement | null {
   if (!data || typeof data !== "object") return null;
@@ -66,18 +48,6 @@ export function lireResultatEncaissement(data: unknown): ResultatEncaissement | 
     ids: d.ids.filter((x): x is string => typeof x === "string"),
     rejoue: d.rejoue === true,
   };
-}
-
-/** Issue d'une tentative d'encaissement vue du navigateur */
-export type IssueEncaissement =
-  | "succes" // reçu créé, ou rejeu d'un reçu déjà créé (success: true dans les deux cas)
-  | "echec_metier" // l'action a répondu success: false (refus, conflit, erreur base)
-  | "echec_reseau"; // la Server Action a levé une exception : on ignore si la base a enregistré
-
-/** Dernière tentative d'envoi : contenu envoyé (voir signatureEncaissement) et issue */
-export interface TentativeEncaissement {
-  signature: string;
-  issue: IssueEncaissement;
 }
 
 /** Empreinte du contenu saisi (ce que l'administration a choisi) : deux envois identiques ont la même signature */

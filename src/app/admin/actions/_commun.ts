@@ -6,8 +6,8 @@ import { isAdmin } from "@/lib/securite/admin-session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { LectureTropLongue, TAILLE_PAGE, toutLire } from "@/lib/supabase/lecture-paginee";
 import { todayDakar } from "@/lib/metier/dates";
-import { lireSituationAbonnement, type SituationAbonnement } from "@/lib/metier/abonnement";
-import type { EcoleAdmin } from "@/lib/metier/admin-ecoles";
+import { lireSituationAbonnement } from "@/lib/metier/abonnement";
+import type { EcoleAdmin, SituationAbonnement } from "@/types/metier";
 
 export type ResultatAdmin<T = undefined> = { success: boolean; message?: string; data?: T };
 

@@ -5,24 +5,13 @@
  * que la base répond : l'écran ne peut donc pas dire autre chose que ce qui est réellement bloqué.
  */
 import { isDateValide } from "@/lib/metier/dates";
-
-export type EtatAbonnement = "normal" | "alerte" | "grace" | "lecture_seule";
+import type { EtatAbonnement, SituationAbonnement } from "@/types/metier";
 
 const ETATS: readonly string[] = ["normal", "alerte", "grace", "lecture_seule"];
 
 /** Message du refus d'écriture, identique à celui que lève la base (FJ403) */
 export const MESSAGE_LECTURE_SEULE =
   "Abonnement expiré ou suspendu : l'Espace École est en lecture seule. Contactez FayJàng.";
-
-export interface SituationAbonnement {
-  etat: EtatAbonnement;
-  /** Dernier jour de l'essai ou de l'abonnement (YYYY-MM-DD), null si aucune date ne s'applique */
-  fin: string | null;
-  /** Dernier jour du délai de grâce, null sans date de fin */
-  finGrace: string | null;
-  /** Jours avant la fin (0 le jour même, négatif après), null sans date de fin */
-  joursRestants: number | null;
-}
 
 const estDate = (v: unknown): v is string => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
 

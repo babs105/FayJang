@@ -20,10 +20,9 @@ import {
 import { EXEMPLES, TELEPHONES_EXEMPLES, cleSouple, cleStricte, lignesDeDonnees, trierFeuilles } from "@/lib/validation/reprise-feuilles";
 import { analyserArticles, analyserClasses } from "@/lib/validation/reprise-catalogue";
 import { lireOptionsEleve } from "@/lib/validation/reprise-options";
-import type { ApercuReprise, ArticleCatalogue, ContexteReprise, EleveApercu, RepartitionEleve } from "@/lib/validation/reprise-apercu";
+import type { ApercuReprise, ArticleCatalogue, ContexteReprise, EleveApercu, RepartitionEleve } from "@/types/reprise";
 
 export * from "@/lib/validation/reprise-cellules";
-export type * from "@/lib/validation/reprise-apercu";
 
 export function analyserReprise(classeur: ClasseurBrut, ctx: ContexteReprise): ApercuReprise {
   const erreursGlobales: string[] = [];

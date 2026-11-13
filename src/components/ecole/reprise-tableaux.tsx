@@ -7,8 +7,8 @@ import { cn, formatFCFA } from "@/lib/utils";
 import { formatDate, formatPeriode } from "@/lib/metier/dates";
 import { LIBELLE_NIVEAU, LIBELLE_STATUT_INSCRIPTION } from "@/lib/metier/libelles";
 import { Badge, Bouton, Carte, Message } from "@/components/ui";
-import type { ApercuReprise, EleveApercu } from "@/lib/validation/reprise-validation";
 import type { ResultatClasses } from "@/app/ecole/actions/import";
+import type { ApercuReprise, EleveApercu } from "@/types/reprise";
 
 export type Filtre = "tous" | "erreur" | "a_creer" | "deja_present";
 

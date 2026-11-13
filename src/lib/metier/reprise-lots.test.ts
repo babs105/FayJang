@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { construireLot, decouper, lireCles, lireRetour, resumerRetour, TAILLE_LOT, type ArticleBase, type ClasseBase } from "@/lib/metier/reprise-lots";
-import { repartirReprise, type ArticleCatalogueRep, type EntreeRepartition } from "@/lib/metier/reprise-repartition";
-import type { EleveApercu } from "@/lib/validation/reprise-validation";
+import { construireLot, decouper, lireCles, lireRetour, resumerRetour, TAILLE_LOT } from "@/lib/metier/reprise-lots";
+import { repartirReprise } from "@/lib/metier/reprise-repartition";
+import type { ArticleBase, ArticleCatalogueRep, ClasseBase, EleveApercu, EntreeRepartition } from "@/types/reprise";
 
 const ECOLE = {
   mois_debut: 10, nb_mensualites: 9, jour_echeance: 5, tranches_dernier_mois: false, mois_debut_tranches: null,

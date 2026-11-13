@@ -3,10 +3,11 @@
 // État de l'encaissement de la fiche élève : ce qui est coché, le montant, le mode, et l'envoi idempotent au serveur.
 // L'aperçu reprend le calcul du serveur (lignesAEncaisser) ; le serveur recalcule toujours avant d'encaisser.
 import { useRef, useState, type TransitionStartFunction } from "react";
-import { cleAEnvoyer, signatureEncaissement, type TentativeEncaissement } from "@/lib/metier/encaissement";
-import { choixALinscription, lignesAEncaisser, paiementLibreAutorise, type Situation } from "@/lib/metier/scolarite";
+import { cleAEnvoyer, signatureEncaissement } from "@/lib/metier/encaissement";
+import { choixALinscription, lignesAEncaisser, paiementLibreAutorise } from "@/lib/metier/scolarite";
 import { encaisserPaiement } from "@/app/ecole/actions/encaissement";
 import type { EleveVue } from "@/types/ecole";
+import type { Situation, TentativeEncaissement } from "@/types/metier";
 
 export type Retour = { ok: boolean; texte: string } | null;
 

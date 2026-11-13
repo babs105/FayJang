@@ -4,10 +4,11 @@
 import { formatFCFA } from "@/lib/utils";
 import { formatDate, formatMois } from "@/lib/metier/dates";
 import { LIBELLE_MODE, MODES_PAIEMENT } from "@/lib/metier/libelles";
-import { paiementLibreAutorise, type Situation } from "@/lib/metier/scolarite";
+import { paiementLibreAutorise } from "@/lib/metier/scolarite";
 import { Bouton, Label, champ } from "@/components/ui";
 import type { EleveVue } from "@/types/ecole";
 import type { Encaissement } from "./use-encaissement";
+import type { Situation } from "@/types/metier";
 
 export function FormulaireEncaissement({
   s,

@@ -6,8 +6,8 @@ import { anneeScolaireDe, todayDakar } from "@/lib/metier/dates";
 import { slugifier, validerCreationEcole } from "@/lib/validation/creation-ecole";
 import { erreurMotDePasse } from "@/lib/securite/mot-de-passe";
 import { estUuid } from "@/lib/validation/saisie";
-import type { EcoleAdmin } from "@/lib/metier/admin-ecoles";
 import { SESSION_EXPIREE, chargerEcoles, clientAdmin, majEcole, type ResultatAdmin } from "./_commun";
+import type { EcoleAdmin } from "@/types/metier";
 
 /** Liste des écoles avec leurs totaux et leur état d'abonnement */
 export async function listerEcoles(): Promise<ResultatAdmin<{ ecoles: EcoleAdmin[]; totauxDisponibles: boolean }>> {

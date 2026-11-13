@@ -1,20 +1,6 @@
-import { RIEN_A_ENCAISSER, choixALinscription, lignesAEncaisser, situationInscription, type ArticleCalcul, type CalendrierEcole } from "@/lib/metier/scolarite";
+import { RIEN_A_ENCAISSER, choixALinscription, lignesAEncaisser, situationInscription } from "@/lib/metier/scolarite";
 import type { Classe, Ecole, NatureArticle } from "@/types/database";
-
-/** Ligne du catalogue d'une classe, telle que lue dans articles_classe */
-export type ArticleCatalogue = {
-  id: string;
-  libelle: string;
-  nature: NatureArticle;
-  quantite_defaut: number;
-  obligatoire: boolean;
-};
-
-/** Article coché dans le formulaire d'inscription (quantité saisie pour un frais unique) */
-export type ChoixArticle = { article_classe_id?: string; quantite?: string | number };
-
-/** Article retenu pour l'élève, envoyé à la fonction SQL inscrire_eleve (qui recopie prix et libellé) */
-export type ArticleRetenu = { article_classe_id: string; quantite: number };
+import type { ArticleCalcul, ArticleCatalogue, ArticleCatalogueTarif, ArticleRetenu, CalendrierEcole, ChoixArticle, LignePaiementInscription } from "@/types/metier";
 
 /**
  * Articles retenus à l'inscription : les obligatoires toujours, les optionnels s'ils sont cochés.
@@ -41,18 +27,6 @@ export function selectionnerArticles(
   }
   return { articles };
 }
-
-/** Article du catalogue avec son prix, nécessaire pour calculer ce qui est dû à l'inscription */
-export type ArticleCatalogueTarif = ArticleCatalogue & { prix_unitaire: number };
-
-/** Ligne de reçu envoyée à la fonction SQL inscrire_eleve (p_lignes_paiement) ; l'article est désigné par son article_classe_id */
-export type LignePaiementInscription = {
-  type: "inscription" | "mensualite" | "autre";
-  mois: string | null;
-  article_classe_id: string | null;
-  montant: number;
-  libelle: string | null;
-};
 
 /**
  * Lignes du reçu d'inscription : frais d'inscription, mensualités exigibles dès l'inscription (1er et/ou dernier

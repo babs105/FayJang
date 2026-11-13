@@ -3,25 +3,13 @@
 // ce n'est pas de l'argent encaissé ce jour-là. Il compte dans le total de l'année (l'argent a bien été versé),
 // jamais dans les totaux du jour, du mois ou par mode.
 import { estRecuDeReprise } from "@/lib/metier/reprise-recu";
+import type { TotauxCaisse } from "@/types/metier";
 
 type PaiementCaisse = { montant: number; paye_le: string; annule: boolean; mode: string; encaisse_par: string | null };
 
 /** Encaissement réel de la caisse : non annulé et hors reprise */
 export function estEncaissementDeCaisse(p: Pick<PaiementCaisse, "annule" | "encaisse_par">): boolean {
   return !p.annule && !estRecuDeReprise(p.encaisse_par);
-}
-
-export interface TotauxCaisse {
-  /** Encaissé aujourd'hui (hors reprise) */
-  jour: number;
-  /** Encaissé ce mois-ci (hors reprise) */
-  mois: number;
-  /** Ce mois-ci par mode de paiement (hors reprise) */
-  parModeMois: Map<string, number>;
-  /** Tout ce qui a été versé sur l'année, reprise comprise */
-  annee: number;
-  /** Part de l'année reprise à l'import */
-  reprise: number;
 }
 
 export function totauxCaisse(paiements: PaiementCaisse[], aujourdhui: string): TotauxCaisse {

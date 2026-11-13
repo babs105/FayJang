@@ -1,28 +1,7 @@
 import { formatMoisCourt } from "@/lib/metier/dates";
 import { libellePaiement } from "@/lib/metier/libelles";
 import type { Paiement } from "@/types/database";
-
-/** Champs minimaux d'une ligne de paiement pour la regrouper par reçu */
-export type LigneRecu = Pick<
-  Paiement,
-  "id" | "inscription_id" | "lot_id" | "numero_recu" | "type" | "mois" | "libelle" | "montant" | "annule" | "motif_annulation"
->;
-
-/** Un reçu (lot) : les lignes encaissées ensemble, affichées sur une seule ligne */
-export type Recu<L extends LigneRecu> = {
-  /** Clé unique du reçu : inscription + lot (ou la ligne seule si elle n'a pas de lot) */
-  cle: string;
-  /** Première ligne du reçu : porte le numéro, la date, le mode, l'élève, et sert de lien vers le PDF */
-  premiere: L;
-  lignes: L[];
-  /** Total encaissé : somme des lignes non annulées */
-  total: number;
-  /** Somme de toutes les lignes, annulées comprises (affichée barrée si le reçu est annulé) */
-  totalBrut: number;
-  /** Reçu annulé : toutes ses lignes le sont */
-  annule: boolean;
-  motif_annulation: string | null;
-};
+import type { LigneRecu, Recu } from "@/types/metier";
 
 /**
  * Regroupe les lignes de paiement par reçu, en gardant l'ordre d'arrivée (le premier reçu rencontré reste devant).

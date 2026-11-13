@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { moisScolaires } from "@/lib/metier/dates";
 import { CAS_REPRISE, type CasReprise, type ReglagesCas } from "@/lib/metier/reprise-cas.fixture";
-import { repartirReprise, type ArticleCatalogueRep, type EntreeRepartition, type ResultatRepartition } from "@/lib/metier/reprise-repartition";
-import { situationInscription, type ArticleCalcul } from "@/lib/metier/scolarite";
+import { repartirReprise } from "@/lib/metier/reprise-repartition";
+import { situationInscription } from "@/lib/metier/scolarite";
+import type { ArticleCalcul } from "@/types/metier";
+import type { ArticleCatalogueRep, EntreeRepartition, ResultatRepartition } from "@/types/reprise";
 
 type Ok = Extract<ResultatRepartition, { ok: true }>;
 

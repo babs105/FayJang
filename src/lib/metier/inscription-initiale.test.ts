@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { lignesPaiementInscription, selectionnerArticles, type ArticleCatalogue, type ArticleCatalogueTarif } from "@/lib/metier/inscription-initiale";
+import { lignesPaiementInscription, selectionnerArticles } from "@/lib/metier/inscription-initiale";
+import type { ArticleCatalogue, ArticleCatalogueTarif } from "@/types/metier";
 
 const tenue: ArticleCatalogue = { id: "tenue", libelle: "Tenue", nature: "unique", quantite_defaut: 2, obligatoire: true };
 const blouson: ArticleCatalogue = { id: "blouson", libelle: "Blouson", nature: "unique", quantite_defaut: 1, obligatoire: false };

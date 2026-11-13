@@ -2,28 +2,7 @@
 // La base revérifie les formes et les plafonds dans enregistrer_classe (supabase/schema/05-migrations.sql, bloc v1.9).
 import { estUuid, montant, texte } from "@/lib/validation/saisie";
 import type { NatureArticle } from "@/types/database";
-
-export interface SaisieArticle {
-  /** Ligne existante du catalogue (mise à jour sur place) ; absent = nouvelle ligne */
-  id?: string;
-  libelle: string;
-  nature: string;
-  prix_unitaire: string | number;
-  quantite_defaut?: string | number;
-  obligatoire: boolean;
-}
-
-/** Ligne du catalogue prête pour la fonction enregistrer_classe (un `type` : supabase-js exige une signature d'index pour le JSON) */
-export type LigneCatalogue = {
-  id?: string;
-  libelle: string;
-  nature: NatureArticle;
-  prix_unitaire: number;
-  quantite_defaut: number;
-  obligatoire: boolean;
-  /** Position dans la saisie (les lignes vides comptent) */
-  ordre: number;
-};
+import type { LigneCatalogue, SaisieArticle } from "@/types/metier";
 
 export const MAX_ARTICLES_CLASSE = 30;
 

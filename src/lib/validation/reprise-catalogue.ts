@@ -13,7 +13,7 @@ import {
   texteCellule,
 } from "@/lib/validation/reprise-cellules";
 import { lignesDeDonnees, trouverEntete } from "@/lib/validation/reprise-feuilles";
-import type { ArticleApercu, CatalogueClasse, ClasseApercu, ContexteReprise } from "@/lib/validation/reprise-apercu";
+import type { ArticleApercu, CatalogueClasse, ClasseApercu, ContexteReprise } from "@/types/reprise";
 
 export interface ClassesLues {
   classes: ClasseApercu[];

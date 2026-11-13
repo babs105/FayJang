@@ -1,6 +1,6 @@
 // Mois payé par tranches (option de l'école) : mois ciblé, mois qui portent une tranche, réglages, libellés et part exigible.
 import { formatMois, moisScolaires } from "@/lib/metier/dates";
-import type { CalendrierEcole, InfoTranches, LigneMois, Situation } from "@/lib/metier/scolarite";
+import type { CalendrierEcole, InfoTranches, LigneMois, Situation, TrancheIncluse } from "@/types/metier";
 
 const NOM_RANG: Record<number, string> = { 1: "dernier mois", 2: "avant-dernier mois", 3: "antépénultième mois" };
 export function nomRang(rang: number | null | undefined): string {
@@ -87,12 +87,6 @@ export function libelleTranche(ligne: Pick<LigneMois, "mois" | "du"> & { tranche
   const fin = trancheAtteinte(ligne.du, total, payeAvant + montant);
   const mois = formatMois(ligne.mois);
   return debut === fin ? `Tranche ${fin}/${total} de ${mois}` : `Tranches ${debut} à ${fin}/${total} de ${mois}`;
-}
-
-export interface TrancheIncluse {
-  mois: string; // mois payé par tranches (YYYY-MM-01)
-  montant: number;
-  libelle: string;
 }
 
 /**

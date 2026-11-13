@@ -7,8 +7,9 @@ import { formatDate, formatMois, formatMoisCourt } from "@/lib/metier/dates";
 import { LIBELLE_MODE, libellePaiement } from "@/lib/metier/libelles";
 import { estRecuDeReprise } from "@/lib/metier/reprise-recu";
 import { regrouperParRecu, resumeRecu } from "@/lib/metier/regrouper-recus";
-import { situationInscription, type StatutMois } from "@/lib/metier/scolarite";
+import { situationInscription } from "@/lib/metier/scolarite";
 import { cn, formatFCFA } from "@/lib/utils";
+import type { StatutMois } from "@/types/metier";
 
 export const dynamic = "force-dynamic";
 

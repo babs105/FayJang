@@ -3,10 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { messageErreur } from "@/lib/securite/erreurs";
 import { NIVEAUX } from "@/lib/metier/libelles";
-import { lireArticles, type SaisieArticle } from "@/lib/metier/classe-catalogue";
+import { lireArticles } from "@/lib/metier/classe-catalogue";
 import { estUuid, montant, texte } from "@/lib/validation/saisie";
 import type { Niveau } from "@/types/database";
 import { refusDroit, sessionEcriture, type Resultat } from "./_commun";
+import type { SaisieArticle } from "@/types/metier";
 
 export interface SaisieClasse {
   id?: string;

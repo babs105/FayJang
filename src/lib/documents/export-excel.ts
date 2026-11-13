@@ -4,9 +4,10 @@ import ExcelJS from "exceljs";
 import { celluleTexte } from "@/lib/documents/export-sur";
 import { LIBELLE_MODE, LIBELLE_STATUT_INSCRIPTION, libellePaiement } from "@/lib/metier/libelles";
 import { estRecuDeReprise } from "@/lib/metier/reprise-recu";
-import { situationInscription, type ArticleCalcul, type CalendrierEcole } from "@/lib/metier/scolarite";
-import { ENTETES_EXPORT_ADMIN, lignesExportAdmin, type EcoleAdmin } from "@/lib/metier/admin-ecoles";
+import { situationInscription } from "@/lib/metier/scolarite";
+import { ENTETES_EXPORT_ADMIN, lignesExportAdmin } from "@/lib/metier/admin-ecoles";
 import type { Classe, Eleve, Inscription, Paiement, Parent } from "@/types/database";
+import type { ArticleCalcul, CalendrierEcole, EcoleAdmin } from "@/types/metier";
 
 export const TYPE_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 

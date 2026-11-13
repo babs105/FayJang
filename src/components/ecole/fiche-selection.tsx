@@ -4,10 +4,10 @@
 import { Plus, Trash2 } from "lucide-react";
 import { cn, formatFCFA } from "@/lib/utils";
 import { formatMoisCourt } from "@/lib/metier/dates";
-import type { LigneArticle, Situation, StatutMois } from "@/lib/metier/scolarite";
 import { ajouterArticleInscription, retirerArticleInscription } from "@/app/ecole/actions/articles";
 import type { ClasseVue, EcoleVue, EleveVue } from "@/types/ecole";
 import { basculer, type Encaissement } from "./use-encaissement";
+import type { LigneArticle, Situation, StatutMois } from "@/types/metier";
 
 export const STYLE_MOIS: Record<StatutMois, string> = {
   paye: "bg-jang-50 border-jang-200 text-jang-700",

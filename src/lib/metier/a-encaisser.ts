@@ -1,31 +1,10 @@
 // Lignes d'un encaissement calculées depuis la situation de l'élève (le serveur ne croit pas les montants du client).
-import { libelleTranche, trancheAvecMois, type TrancheIncluse } from "@/lib/metier/tranches";
-import type { Situation } from "@/lib/metier/scolarite";
+import { libelleTranche, trancheAvecMois } from "@/lib/metier/tranches";
 import type { StatutInscription, TypePaiement } from "@/types/database";
+import type { ChoixEncaissement, LigneEncaissement, Situation, TrancheIncluse } from "@/types/metier";
 
 /** Message de lignesAEncaisser quand tout ce qui est choisi est déjà payé (comparé par les appelants, jamais recopié) */
 export const RIEN_A_ENCAISSER = "Rien à encaisser : ce qui est choisi est déjà payé.";
-
-/** Ce que l'administration coche à l'encaissement */
-export interface ChoixEncaissement {
-  inscription?: boolean;
-  /** Mensualités (YYYY-MM-01) */
-  mois?: string[];
-  /** Clés de LigneArticle.cle */
-  articles?: string[];
-  /** Montant partiel : accepté pour une seule ligne choisie */
-  montant?: number | null;
-  /** Ajouter la tranche portée par les mois choisis (par défaut oui) */
-  inclure_tranche?: boolean;
-}
-
-export interface LigneEncaissement {
-  type: TypePaiement;
-  mois: string | null;
-  article_id: string | null;
-  montant: number;
-  libelle: string | null;
-}
 
 /**
  * Lignes d'un encaissement, calculées depuis la situation (le serveur ne croit pas les montants du client).

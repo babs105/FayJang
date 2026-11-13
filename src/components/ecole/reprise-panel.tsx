@@ -6,11 +6,11 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { AlertTriangle, CheckCircle2, Download, FileSpreadsheet, Loader2, Users } from "lucide-react";
 import { formatFCFA } from "@/lib/utils";
 import { Bouton, Carte, Kpi, Message } from "@/components/ui";
-import type { ApercuReprise } from "@/lib/validation/reprise-validation";
 import { cleDe, decouper, TAILLE_LOT } from "@/lib/metier/reprise-lots";
 import { analyserFichierReprise, importerClassesReprise, importerLotReprise } from "@/app/ecole/actions/import";
 import { CarteArticles, CarteClasses, CarteEleves, type Creation, type Filtre } from "./reprise-tableaux";
 import { MODES_REPRISE, SuiviImport, type Avancement } from "./reprise-suivi";
+import type { ApercuReprise } from "@/types/reprise";
 
 export function ReprisePanel() {
   const [apercu, setApercu] = useState<ApercuReprise | null>(null);
