@@ -3,7 +3,7 @@
 > **Fichier généré automatiquement.** Ne pas éditer à la main.
 > Régénérer : `bash scripts/schema-index.sh`
 
-**Total : 5345 lignes.**
+**Total : 5425 lignes.**
 
 ## Tables
 
@@ -32,6 +32,7 @@
 - `changer_statut_utilisateur` — L4728
 - `code_correspond` — L244
 - `controler_tentatives` — L186
+- `creer_ecole` — L5368
 - `creer_utilisateur_ecole` — L4688
 - `echanger_acces_ecole` — L270
 - `echanger_jeton_parent` — L332
@@ -172,6 +173,7 @@
 - L4775 : v1.24 : seul le directeur annule un reçu, et on sait qui (D09, tranche 4).
 - L4872 : v1.25 : plusieurs utilisateurs par école, tranche 5 (feature D09) : le caissier ne touche ni aux paramètres de
 - L5297 : v1.26 : plusieurs utilisateurs par école, tranche 6 (feature D09) : le SuperAdmin réinitialise le mot de passe
+- L5350 : v1.27 : création d'une école par le SuperAdmin, tranche 1 (feature D11).
 
 ## Notes pour l'agent
 

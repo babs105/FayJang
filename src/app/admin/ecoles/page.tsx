@@ -6,6 +6,7 @@ import { formatDate } from "@/lib/dates";
 import { Carte } from "@/components/ui";
 import { AlerteTotaux, EnteteAdmin, ErreurLecture } from "@/components/admin/entete";
 import { ResumeEcole } from "@/components/admin/etat-ecole";
+import { CreerEcole } from "@/components/admin/creer-ecole";
 import { ActionsEcole } from "@/components/admin/actions-ecole";
 import { listerEcoles, voirEcole } from "../actions/ecoles";
 
@@ -29,6 +30,7 @@ async function Liste() {
   if (!r.success || !r.data) return <ErreurLecture message={r.message} />;
   return (
     <>
+      <CreerEcole />
       {!r.data.totauxDisponibles && <AlerteTotaux />}
       <p className="text-xs text-neutral-500">{r.data.ecoles.length} école(s), la plus récente d&apos;abord.</p>
       <div className="space-y-3">
