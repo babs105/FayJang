@@ -13,6 +13,7 @@ import { ClassesPanel } from "./classes-panel";
 import { ParametresPanel } from "./parametres-panel";
 import { FicheEleve } from "./fiche-eleve";
 import { BandeauAbonnement } from "./bandeau-abonnement";
+import { peutFaire } from "@/lib/droits";
 import { peutEcrire, type SituationAbonnement } from "@/lib/abonnement";
 import type { ClasseVue, EcoleVue, EleveVue, PaiementVue, UtilisateurListeVue, UtilisateurVue } from "./types";
 
@@ -129,6 +130,7 @@ export function EcoleDashboardClient(props: DonneesEcole & { bienvenue: boolean;
           aujourdhui={props.aujourdhui}
           paiements={props.paiements.filter((p) => p.eleve_id === eleve.id)}
           lectureSeule={!peutEcrire(props.abonnement.etat)}
+          peutAnnuler={peutFaire(props.utilisateur.role, "annuler")}
           onClose={() => setEleveOuvert(null)}
         />
       )}

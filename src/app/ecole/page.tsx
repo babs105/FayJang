@@ -111,7 +111,7 @@ export default async function EcolePage({ searchParams }: PageProps) {
       toutLireParIds(idsInscriptions, (paquet, apres) =>
         supabase
           .from("paiements")
-          .select("id, inscription_id, lot_id, numero_recu, type, mois, montant, mode, reference, libelle, paye_le, annule, motif_annulation, article_id, encaisse_par, created_at")
+          .select("id, inscription_id, lot_id, numero_recu, type, mois, montant, mode, reference, libelle, paye_le, annule, motif_annulation, annule_par, article_id, encaisse_par, created_at")
           .eq("ecole_id", ecoleId)
           .in("inscription_id", paquet)
           .gt("id", apres)
@@ -211,6 +211,7 @@ export default async function EcolePage({ searchParams }: PageProps) {
       paye_le: p.paye_le,
       annule: p.annule,
       motif_annulation: p.motif_annulation,
+      annule_par: p.annule_par,
       encaisse_par: p.encaisse_par,
       eleve_id: e?.eleveId ?? "",
       eleve_nom: e?.nom ?? "Élève retiré",

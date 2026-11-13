@@ -51,6 +51,8 @@ export interface PaiementVue {
   paye_le: string;
   annule: boolean;
   motif_annulation: string | null;
+  /** Qui a annulé le reçu (Espace École seulement) */
+  annule_par: string | null;
   /** « Reprise de l'existant » pour un reçu importé, sinon null */
   encaisse_par: string | null;
   eleve_id: string;

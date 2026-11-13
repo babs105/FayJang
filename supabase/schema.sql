@@ -4770,3 +4770,100 @@ END;
 $$;
 REVOKE EXECUTE ON FUNCTION public.reinitialiser_mot_de_passe_utilisateur(UUID, TEXT) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.reinitialiser_mot_de_passe_utilisateur(UUID, TEXT) TO authenticated;
+
+-- ==============================================================================
+-- v1.24 : seul le directeur annule un reçu, et on sait qui (D09, tranche 4).
+-- Bloc final : garder en dernier.
+--   - paiements.annule_par : nom de la personne qui a annulé (copie de nom_utilisateur_courant() au moment de
+--     l'annulation, jamais fourni par le client). Visible dans l'Espace École seulement (la page parent et le reçu
+--     parent ne le sélectionnent pas ; les anciennes annulations ont NULL).
+--   - proteger_paiement : même version que le bloc v1.22 ; en plus, annule_par est immuable hors annulation (il
+--     rejoint la liste IS DISTINCT FROM : un client ne peut pas le fournir) et il est renseigné à la transition
+--     annule faux -> vrai.
+--   - numeroter_recu : même version que le bloc v1.4 ; en plus, annule_par est remis à NULL à l'insertion, comme
+--     motif_annulation et annule_at.
+--   - policy ecole_annule : USING et WITH CHECK exigent en plus jwt_role_utilisateur() = 'directeur' (le refus du
+--     caissier est appliqué par la base, pas seulement par l'action et les boutons).
+--   La lecture (ecole_lit_ses_paiements) et l'insertion (ecole_encaisse) ne changent pas : le caissier encaisse.
+-- ==============================================================================
+ALTER TABLE public.paiements ADD COLUMN IF NOT EXISTS annule_par TEXT;
+
+CREATE OR REPLACE FUNCTION public.numeroter_recu()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+    v_annee INTEGER := extract(year FROM NEW.paye_le)::int;
+    v_num INTEGER;
+    v_numero TEXT;
+    v_inscription UUID;
+    v_created TIMESTAMPTZ;
+BEGIN
+    NEW.annule := false;
+    NEW.motif_annulation := NULL;
+    NEW.annule_at := NULL;
+    NEW.annule_par := NULL;
+
+    IF NEW.lot_id IS NOT NULL THEN
+        SELECT numero_recu, inscription_id, created_at INTO v_numero, v_inscription, v_created
+        FROM public.paiements
+        WHERE ecole_id = NEW.ecole_id AND lot_id = NEW.lot_id
+        LIMIT 1;
+        IF FOUND THEN
+            IF v_created IS DISTINCT FROM now() THEN
+                RAISE EXCEPTION 'Ce reçu est déjà émis : impossible d''y ajouter une ligne.' USING ERRCODE = 'FJ412';
+            END IF;
+            IF v_inscription IS DISTINCT FROM NEW.inscription_id THEN
+                RAISE EXCEPTION 'Un reçu ne concerne qu''un seul élève.' USING ERRCODE = 'FJ422';
+            END IF;
+            NEW.numero_recu := v_numero;
+            RETURN NEW;
+        END IF;
+    END IF;
+
+    INSERT INTO public.compteurs_recus AS c (ecole_id, annee, dernier)
+    VALUES (NEW.ecole_id, v_annee, 1)
+    ON CONFLICT (ecole_id, annee) DO UPDATE SET dernier = c.dernier + 1
+    RETURNING dernier INTO v_num;
+    NEW.numero_recu := 'FJ-' || v_annee || '-' || lpad(v_num::text, 5, '0');
+    RETURN NEW;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.numeroter_recu() FROM PUBLIC, anon, authenticated;
+
+CREATE OR REPLACE FUNCTION public.proteger_paiement()
+RETURNS TRIGGER LANGUAGE plpgsql SET search_path = public AS $$
+BEGIN
+    IF OLD.annule THEN
+        RAISE EXCEPTION 'Ce paiement est déjà annulé.' USING ERRCODE = 'FJ412';
+    END IF;
+    IF NEW.inscription_id IS DISTINCT FROM OLD.inscription_id
+       OR NEW.ecole_id IS DISTINCT FROM OLD.ecole_id
+       OR NEW.type IS DISTINCT FROM OLD.type
+       OR NEW.mois IS DISTINCT FROM OLD.mois
+       OR NEW.montant IS DISTINCT FROM OLD.montant
+       OR NEW.mode IS DISTINCT FROM OLD.mode
+       OR NEW.reference IS DISTINCT FROM OLD.reference
+       OR NEW.libelle IS DISTINCT FROM OLD.libelle
+       OR NEW.numero_recu IS DISTINCT FROM OLD.numero_recu
+       OR NEW.lot_id IS DISTINCT FROM OLD.lot_id
+       OR NEW.article_id IS DISTINCT FROM OLD.article_id
+       OR NEW.paye_le IS DISTINCT FROM OLD.paye_le
+       OR NEW.encaisse_par IS DISTINCT FROM OLD.encaisse_par
+       OR NEW.annule_par IS DISTINCT FROM OLD.annule_par
+       OR NEW.created_at IS DISTINCT FROM OLD.created_at THEN
+        RAISE EXCEPTION 'Un paiement encaissé ne se modifie pas : annulez-le puis saisissez le bon.' USING ERRCODE = 'FJ412';
+    END IF;
+    IF NEW.annule AND length(trim(coalesce(NEW.motif_annulation, ''))) < 3 THEN
+        RAISE EXCEPTION 'Indiquez le motif de l''annulation.' USING ERRCODE = 'FJ422';
+    END IF;
+    IF NEW.annule THEN
+        NEW.annule_at := now();
+        NEW.annule_par := public.nom_utilisateur_courant(); -- D09 : lu d'après le JWT, jamais fourni par le client
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+DROP POLICY IF EXISTS ecole_annule ON public.paiements;
+CREATE POLICY ecole_annule ON public.paiements FOR UPDATE TO authenticated
+    USING (public.jwt_role_app() = 'ecole' AND public.jwt_role_utilisateur() = 'directeur' AND ecole_id = public.jwt_ecole_id())
+    WITH CHECK (public.jwt_role_app() = 'ecole' AND public.jwt_role_utilisateur() = 'directeur' AND ecole_id = public.jwt_ecole_id());

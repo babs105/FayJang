@@ -599,4 +599,13 @@ describe("novembre encaissé par un utilisateur nommé", () => {
     expect(s.arriere).toBe(0);
     expect(s.resteAnnee).toBe(140000);
   });
+  it("après l'annulation de novembre : arriéré 20 000 et reste 160 000", () => {
+    const payes: P[] = [
+      { type: "mensualite", mois: "2026-10-01", montant: 20000, annule: false },
+      { type: "mensualite", mois: "2026-11-01", montant: 20000, annule: true },
+    ];
+    const s = sit("2026-11-12", payes, { ins: { frais_inscription: 0 }, articles: [], ecole: { ...ECOLE, premier_mois_a_linscription: false, dernier_mois_a_linscription: false } });
+    expect(s.arriere).toBe(20000);
+    expect(s.resteAnnee).toBe(160000);
+  });
 });

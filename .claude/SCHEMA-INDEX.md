@@ -3,7 +3,7 @@
 > **Fichier généré automatiquement.** Ne pas éditer à la main.
 > Régénérer : `bash scripts/schema-index.sh`
 
-**Total : 4772 lignes.**
+**Total : 4869 lignes.**
 
 ## Tables
 
@@ -57,12 +57,12 @@
 - `lister_utilisateurs_ecole` — L4671
 - `nom_utilisateur_courant` — L4035
 - `noter_echec_plafonne` — L198
-- `numeroter_recu` — L786 **(active)** · remplace L417
+- `numeroter_recu` — L4791 **(active)** · remplace L417, L786
 - `prochain_matricule` — L2954
 - `proteger_article_inscription` — L2114 **(active)** · remplace L958
 - `proteger_colonnes_ecole` — L377
 - `proteger_inscription` — L465
-- `proteger_paiement` — L4297 **(active)** · remplace L436, L826, L925
+- `proteger_paiement` — L4832 **(active)** · remplace L436, L826, L925, L4297
 - `reinitialiser_mot_de_passe_utilisateur` — L4748
 - `session_ecole_valide` — L318
 - `session_utilisateur_valide` — L3944
@@ -73,7 +73,7 @@
 
 ## Policies
 
-- `ecole_annule` sur `paiements` — L549
+- `ecole_annule` sur `paiements` — L4867 **(active)** · remplace L549
 - `ecole_encaisse` sur `paiements` — L546
 - `ecole_gere_ses_articles_classe` sur `articles_classe` — L861
 - `ecole_gere_ses_articles_inscription` sur `articles_inscription` — L866
@@ -160,6 +160,7 @@
 - L3780 : v1.21 : plusieurs utilisateurs par école, tranche 1 (feature D09) : connexion par e-mail + mot de passe.
 - L4001 : v1.22 : chaque reçu dit qui l'a encaissé (D09, tranche 2).
 - L4627 : v1.23 : plusieurs utilisateurs par école, tranche 3 (feature D09) : le directeur gère ses caissiers.
+- L4775 : v1.24 : seul le directeur annule un reçu, et on sait qui (D09, tranche 4).
 
 ## Notes pour l'agent
 
