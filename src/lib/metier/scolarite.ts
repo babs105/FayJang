@@ -1,5 +1,11 @@
+// Situation d'une inscription : ce qui est dû, payé, en retard et restant, mois par mois et article par article.
+// Tranches du mois ciblé : tranches.ts ; lignes d'un encaissement : a-encaisser.ts (réexportés ici).
 import { echeanceDuMois, formatMois, moisScolaires } from "@/lib/metier/dates";
-import type { ArticleInscription, Ecole, Inscription, Paiement, StatutInscription, TypePaiement } from "@/types/database";
+import { indexCible, moisDesTranches, partEchue } from "@/lib/metier/tranches";
+import type { ArticleInscription, Ecole, Inscription, Paiement } from "@/types/database";
+
+export * from "@/lib/metier/tranches";
+export * from "@/lib/metier/a-encaisser";
 
 export type StatutMois = "paye" | "partiel" | "retard" | "a_venir" | "non_du";
 
@@ -103,70 +109,6 @@ export function mensualiteDernierMois(ins: Pick<Inscription, "mensualite" | "red
   return Math.max(0, (ins.mensualite_dernier_mois ?? ins.mensualite) - ins.reduction_mensuelle);
 }
 
-const NOM_RANG: Record<number, string> = { 1: "dernier mois", 2: "avant-dernier mois", 3: "antépénultième mois" };
-export function nomRang(rang: number | null | undefined): string {
-  return NOM_RANG[rang ?? 1] ?? "dernier mois";
-}
-
-/** Index (dans les mois de l'année) du mois payé par tranches */
-function indexCible(nbMois: number, ecole: CalendrierEcole): number {
-  return nbMois - Math.min(Math.max(ecole.rang_mois_tranches ?? 1, 1), 3);
-}
-
-/** Mois payé par tranches (YYYY-MM-01) d'après le rang choisi par l'école, ou null */
-export function moisCibleTranches(anneeScolaire: string, ecole: CalendrierEcole): string | null {
-  const mois = moisScolaires(anneeScolaire, ecole.mois_debut, ecole.nb_mensualites);
-  const i = indexCible(mois.length, ecole);
-  return i >= 0 ? mois[i] : null;
-}
-
-/** Nombre maximal de tranches possible à partir d'un mois de début (jusqu'au mois qui précède le mois ciblé), 0 si impossible */
-export function maxTranches(anneeScolaire: string, ecole: CalendrierEcole, moisDebutTranches: number): number {
-  const mois = moisScolaires(anneeScolaire, ecole.mois_debut, ecole.nb_mensualites);
-  const debut = mois.findIndex((m) => Number(m.slice(5, 7)) === moisDebutTranches);
-  return debut < 0 ? 0 : Math.max(0, indexCible(mois.length, ecole) - debut);
-}
-
-/**
- * Mois qui portent une tranche du mois ciblé : `nb_tranches` mois consécutifs à partir de `mois_debut_tranches`
- * (sans nombre : jusqu'au mois qui précède le mois ciblé). Les tranches doivent finir avant le mois ciblé.
- * Vide si l'option est désactivée ou si le réglage ne tient pas dans l'année scolaire.
- */
-export function moisDesTranches(anneeScolaire: string, ecole: CalendrierEcole): string[] {
-  if (!ecole.tranches_dernier_mois || !ecole.mois_debut_tranches) return [];
-  const mois = moisScolaires(anneeScolaire, ecole.mois_debut, ecole.nb_mensualites);
-  const cible = indexCible(mois.length, ecole);
-  const debut = mois.findIndex((m) => Number(m.slice(5, 7)) === ecole.mois_debut_tranches);
-  if (cible < 1 || debut < 0 || debut >= cible) return [];
-  const fin = ecole.nb_tranches ? debut + ecole.nb_tranches : cible;
-  if (fin > cible) return [];
-  return mois.slice(debut, fin);
-}
-
-/**
- * Contrôle des réglages d'encaissement de l'école. Renvoie un message d'erreur lisible, ou null.
- * Le mois payé par tranches ne peut pas être aussi un mois payé à l'inscription.
- */
-export function verifierReglages(anneeScolaire: string, ecole: CalendrierEcole): string | null {
-  const mois = moisScolaires(anneeScolaire, ecole.mois_debut, ecole.nb_mensualites);
-  if (!ecole.tranches_dernier_mois) return null;
-  const cible = indexCible(mois.length, ecole);
-  if (cible < 1) return "L'année est trop courte pour payer ce mois par tranches.";
-  if (cible === mois.length - 1 && ecole.dernier_mois_a_linscription)
-    return "Le dernier mois est payé à l'inscription : choisissez l'avant-dernier mois pour les tranches.";
-  if (!ecole.mois_debut_tranches) return "Choisissez le mois de la première tranche.";
-  const max = maxTranches(anneeScolaire, ecole, ecole.mois_debut_tranches);
-  if (max < 1) return `La première tranche doit tomber avant le ${nomRang(ecole.rang_mois_tranches)} (${formatMois(mois[cible])}).`;
-  if (ecole.nb_tranches && ecole.nb_tranches > max)
-    return `À partir de ce mois, ${max} tranche${max > 1 ? "s" : ""} au plus avant ${formatMois(mois[cible])}.`;
-  return null;
-}
-
-/** Part exigible du mois ciblé après `echues` tranches sur `total` (la dernière tranche solde le mois) */
-export function partEchue(du: number, echues: number, total: number): number {
-  if (echues >= total) return du;
-  return echues * Math.floor(du / total);
-}
 
 function statutDe(du: number, paye: number, reste: number, resteEchu: number): StatutMois {
   return du === 0 ? "non_du" : reste === 0 ? "paye" : resteEchu > 0 && paye === 0 ? "retard" : paye > 0 ? "partiel" : "a_venir";
@@ -323,132 +265,4 @@ export function situationInscription(
   const moisEnRetard = mois.filter((m) => m.resteEchu > 0).length;
 
   return { inscriptionDue, inscriptionPayee, mois, articles: lignesArticles, totalEchu, totalPaye, arriere, resteAnnee, moisEnRetard };
-}
-
-/** Plus petit nombre de tranches k (1..total) dont la part atteint `montant` */
-function trancheAtteinte(du: number, total: number, montant: number): number {
-  let k = 1;
-  while (k < total && partEchue(du, k, total) < montant) k++;
-  return k;
-}
-
-/**
- * Libellé d'un versement sur le mois payé par tranches, d'après ce qui était déjà payé avant lui :
- * « Tranche 2/3 de mai 2027 », ou « Tranches 1 à 2/3 de mai 2027 » s'il en couvre plusieurs.
- */
-export function libelleTranche(ligne: Pick<LigneMois, "mois" | "du"> & { tranches?: InfoTranches }, payeAvant: number, montant: number): string | null {
-  if (!ligne.tranches || montant <= 0) return null;
-  const { total } = ligne.tranches;
-  // Première tranche que ce versement entame : celle dont la part dépasse ce qui était déjà payé
-  let debut = 1;
-  while (debut < total && partEchue(ligne.du, debut, total) <= payeAvant) debut++;
-  const fin = trancheAtteinte(ligne.du, total, payeAvant + montant);
-  const mois = formatMois(ligne.mois);
-  return debut === fin ? `Tranche ${fin}/${total} de ${mois}` : `Tranches ${debut} à ${fin}/${total} de ${mois}`;
-}
-
-export interface TrancheIncluse {
-  mois: string; // mois payé par tranches (YYYY-MM-01)
-  montant: number;
-  libelle: string;
-}
-
-/**
- * Tranche à encaisser avec les mensualités choisies : pour chaque mois choisi qui porte une tranche, le mois
- * ciblé doit être payé jusqu'à la part de cette tranche. Renvoie ce qui manque (déjà payé et paiements
- * d'avance déduits), ou null s'il n'y a rien à ajouter. Rien si le mois ciblé est lui-même choisi.
- */
-export function trancheAvecMois(situation: Situation, moisChoisis: string[]): TrancheIncluse | null {
-  const ligne = situation.mois.find((m) => m.tranches);
-  if (!ligne?.tranches || ligne.reste === 0 || moisChoisis.includes(ligne.mois)) return null;
-  const indices = moisChoisis.map((m) => ligne.tranches!.mois.indexOf(m)).filter((i) => i >= 0);
-  if (indices.length === 0) return null;
-  const cible = partEchue(ligne.du, Math.max(...indices) + 1, ligne.tranches.total);
-  const montant = Math.min(ligne.reste, Math.max(0, cible - ligne.paye));
-  if (montant === 0) return null;
-  return { mois: ligne.mois, montant, libelle: libelleTranche(ligne, ligne.paye, montant)! };
-}
-
-/** Message de lignesAEncaisser quand tout ce qui est choisi est déjà payé (comparé par les appelants, jamais recopié) */
-export const RIEN_A_ENCAISSER = "Rien à encaisser : ce qui est choisi est déjà payé.";
-
-/** Ce que l'administration coche à l'encaissement */
-export interface ChoixEncaissement {
-  inscription?: boolean;
-  /** Mensualités (YYYY-MM-01) */
-  mois?: string[];
-  /** Clés de LigneArticle.cle */
-  articles?: string[];
-  /** Montant partiel : accepté pour une seule ligne choisie */
-  montant?: number | null;
-  /** Ajouter la tranche portée par les mois choisis (par défaut oui) */
-  inclure_tranche?: boolean;
-}
-
-export interface LigneEncaissement {
-  type: TypePaiement;
-  mois: string | null;
-  article_id: string | null;
-  montant: number;
-  libelle: string | null;
-}
-
-/**
- * Lignes d'un encaissement, calculées depuis la situation (le serveur ne croit pas les montants du client).
- * Ce qui est déjà soldé est ignoré. Renvoie une erreur lisible si rien n'est dû ou si le montant est invalide.
- */
-export function lignesAEncaisser(
-  situation: Situation,
-  choix: ChoixEncaissement
-): { lignes: LigneEncaissement[]; tranche: TrancheIncluse | null } | { erreur: string } {
-  const lignes: LigneEncaissement[] = [];
-  if (choix.inscription) {
-    const reste = Math.max(0, situation.inscriptionDue - situation.inscriptionPayee);
-    if (reste > 0) lignes.push({ type: "inscription", mois: null, article_id: null, montant: reste, libelle: null });
-  }
-  const moisChoisis = [...new Set(choix.mois ?? [])];
-  for (const m of moisChoisis) {
-    const ligne = situation.mois.find((l) => l.mois === m);
-    if (!ligne) return { erreur: "Mois invalide pour cette année scolaire." };
-    if (ligne.reste > 0)
-      lignes.push({ type: "mensualite", mois: m, article_id: null, montant: ligne.reste, libelle: libelleTranche(ligne, ligne.paye, ligne.reste) });
-  }
-  for (const cle of new Set(choix.articles ?? [])) {
-    const ligne = situation.articles.find((l) => l.cle === cle);
-    if (!ligne) return { erreur: "Article introuvable pour cet élève." };
-    if (ligne.reste > 0)
-      lignes.push({ type: "autre", mois: ligne.mois, article_id: ligne.article_id, montant: ligne.reste, libelle: ligne.libelle });
-  }
-  if (lignes.length === 0) return { erreur: RIEN_A_ENCAISSER };
-
-  const partiel = choix.montant != null && choix.montant > 0;
-  if (partiel) {
-    if (lignes.length > 1) return { erreur: "Un montant partiel ne s'applique qu'à une seule ligne." };
-    const ligne = lignes[0];
-    if (choix.montant! > ligne.montant) return { erreur: `Le montant dépasse le reste dû (${ligne.montant} FCFA).` };
-    ligne.montant = choix.montant!;
-    if (ligne.type === "mensualite") {
-      const l = situation.mois.find((x) => x.mois === ligne.mois)!;
-      ligne.libelle = libelleTranche(l, l.paye, ligne.montant);
-    }
-  }
-
-  const tranche = !partiel && choix.inclure_tranche !== false ? trancheAvecMois(situation, moisChoisis) : null;
-  if (tranche) lignes.push({ type: "mensualite", mois: tranche.mois, article_id: null, montant: tranche.montant, libelle: tranche.libelle });
-  return { lignes, tranche };
-}
-
-/** Ce qui est exigible dès l'inscription : frais, mensualités payées d'avance, frais uniques (articles obligatoires ou choisis) */
-export function choixALinscription(situation: Situation): ChoixEncaissement {
-  return {
-    inscription: situation.inscriptionDue > situation.inscriptionPayee,
-    mois: situation.mois.filter((m) => m.aLinscription && m.reste > 0).map((m) => m.mois),
-    articles: situation.articles.filter((a) => a.nature === "unique" && a.reste > 0).map((a) => a.cle),
-    inclure_tranche: false,
-  };
-}
-
-/** Le paiement libre (hors catalogue) n'est permis que pour un élève encore inscrit : un élève parti ne règle que son solde dû */
-export function paiementLibreAutorise(statut: StatutInscription): boolean {
-  return statut === "active";
 }
