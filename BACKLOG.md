@@ -43,12 +43,13 @@ _Aucun bug à planifier en attente._
 - [ ] **Tests de non-régression SQL** | Aucun changement visible ; les fonctions `encaisser_paiement` et `importer_reprise` sont testées sur une base | Review database de la tranche 3 et tranche 5 « reprise de l'existant » (H4, 2026-11-11) | Base de test dédiée |
 - [ ] **Import : analyse du fichier gardée entre les étapes** | Aucun changement visible ; un gros fichier s'importe plus vite (le fichier n'est plus relu ni réanalysé à chaque clic et à chaque lot de 25) | Review security de la tranche 4 et tranche 5 « reprise de l'existant » (S10/S13, 2026-11-11) | Où garder l'analyse : table temporaire ou cache signé |
 
-- [ ] **Test instable : archive aux tailles qui mentent** | Aucun changement visible ; `npm test` échoue parfois (1 fois sur 3 à 4) sur « refuse une archive dont les tailles annoncées mentent » (`src/lib/documents/reprise-lecture.test.ts`), sans lien avec le code : l'archive de 20 Mo générée par le test dépasse le délai de 5 s quand toute la suite tourne en parallèle | Constaté pendant la réorganisation (2026-11-13) | Délai propre au test, ou archive plus petite |
 - [ ]**Sauvegarde régulière des paiements**  L'école et FayJàng gardent une copie hors de la base  `docs/mise-en-prod.md`, section 5  Export mensuel par école, ou offre Supabase avec sauvegardes 
 
 ---
 
 ## Bugs corrigés (avec la preuve, ne plus rouvrir)
+
+- [x] **Test instable : archive aux tailles qui mentent** | Corrigé le 2026-11-13 : délai de 20 s pour le bloc « verifierContenu (archives piégées) » de `src/lib/documents/reprise-lecture.test.ts` (2 à 3 s seul, plus de 5 s sous charge) | Preuve : 6 passages de toute la suite, 403/403 à chaque fois |
 
 - [x] **Inscription d'élève atomique** — fonction SQL `inscrire_eleve` (bloc v1.7 de
   `supabase/schema/05-migrations.sql`) : parent, élève, inscription, articles et reçu d'inscription

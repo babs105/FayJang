@@ -53,7 +53,8 @@ function finRepertoire(buf: Uint8Array): number {
   throw new Error("EOCD introuvable");
 }
 
-describe("verifierContenu (archives piégées)", () => {
+// Archives de plusieurs Mo générées dans le test : 2 à 3 s seules, davantage quand toute la suite tourne en parallèle
+describe("verifierContenu (archives piégées)", { timeout: 20_000 }, () => {
   it("refuse une archive qui annonce moins d'entrées qu'elle n'en contient", async () => {
     // 3 fichiers de 4 Mo : le répertoire n'en déclare qu'un, la pré-vérification ne voit que 4 Mo
     const buf = await archive({ "a.xml": 4e6, "b.xml": 4e6, "c.xml": 4e6 });
