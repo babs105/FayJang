@@ -244,7 +244,7 @@ sur une table sensible (`ecoles`, `parents`, `eleves`, `inscriptions`, `paiement
 `security-reviewer` est **obligatoire** si la tranche touche :
 `jeton.ts`, `server.ts`, `client-serveur.ts`, une session (`ecole-session.ts`,
 `admin-session.ts`), `admin.ts`, une route `**/route.ts` (reçus, export,
-diagnostic), une page de login ou d'inscription, `/p/[token]`, ou un nouveau
+diagnostic), une page de login ou d'inscription, `/parent/[token]`, ou un nouveau
 flow d'auth.
 
 **Une tranche UI pure (couleur, libellé, icône) ne déclenche aucune review.**
@@ -265,7 +265,7 @@ l'agent qui la code.
 | Un calcul métier sensible (`scolarite.ts` à FayJàng, équivalent ailleurs) | **1** (database) |
 | Une Server Action avec inputs (`actions.ts`) | **1** (security) |
 | Une Server Action qui appelle `.rpc()`, ou `.from()` sur une table sensible (`ecoles`, `parents`, `eleves`, `inscriptions`, `paiements`) | **2** (security sur l'action + database sur l'appel) |
-| Une route de téléchargement (`/ecole/recu/[id]`, `/p/[token]/recu/[id]`, `/export`) | **1** (security) |
+| Une route de téléchargement (`/ecole/recu/[id]`, `/parent/[token]/recu/[id]`, `/export`) | **1** (security) |
 | Un cookie, un JWT, une session | **1** (security) |
 | L'UI seule (composant, JSX, CSS), sans nouvelle donnée lue côté serveur | **0** (juste `tsc` + `npm test`) |
 | Un composant qui affiche une **nouvelle** donnée d'une école ou d'une famille (nouvelle lecture côté serveur) | **1** (security sur la lecture et le composant) |

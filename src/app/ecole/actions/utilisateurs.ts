@@ -4,18 +4,17 @@ import { revalidatePath } from "next/cache";
 import { getSessionEcole, hashCode } from "@/lib/ecole-session";
 import { createClientEcole } from "@/lib/supabase/server";
 import { messageErreur } from "@/lib/erreurs";
-import { erreurMotDePasse } from "@/lib/mot-de-passe";
+import { erreurMotDePasse, MOT_DE_PASSE_MAX } from "@/lib/mot-de-passe";
 import { lireSaisieCaissier } from "@/lib/utilisateurs";
 import { estUuid } from "@/lib/saisie";
 import { peutFaire } from "@/lib/droits";
-import type { Resultat } from "./actions";
+import { SESSION_EXPIREE, session, type Resultat } from "./_commun";
 
 /**
  * Gestion des caissiers par le directeur (D09, tranche 3). Le rôle est contrôlé ici ET en base
  * (exiger_directeur, bloc v1.23) : un caissier qui appellerait ces actions est refusé deux fois.
  */
 
-const SESSION_EXPIREE = "Session expirée : reconnectez-vous à l'Espace École.";
 const RESERVE_DIRECTEUR = "Réservé au directeur de l'école.";
 
 async function sessionDirecteur() {
@@ -66,4 +65,19 @@ export async function reinitialiserMotDePasseUtilisateur(id: string, nouveau: st
   if (error) return { success: false, message: messageErreur("utilisateurs", error) };
   revalidatePath("/ecole");
   return { success: true, message: "Mot de passe réinitialisé : sa session est coupée, communiquez-lui le nouveau." };
+}
+
+/** Changement de son propre mot de passe (directeur ou caissier) ; permis en lecture seule (décision F21) */
+export async function changerMonMotDePasse(ancien: string, nouveau: string): Promise<Resultat> {
+  const s = await session();
+  if (!s) return { success: false, message: SESSION_EXPIREE };
+  const refus = erreurMotDePasse(String(nouveau ?? ""));
+  if (refus) return { success: false, message: refus };
+  const { data, error } = await (s.supabase as any).rpc("changer_mon_mot_de_passe", {
+    p_ancien_hash: hashCode(String(ancien ?? "").slice(0, MOT_DE_PASSE_MAX)),
+    p_nouveau_hash: hashCode(nouveau),
+  });
+  if (error) return { success: false, message: messageErreur("mot-de-passe", error) };
+  if (data !== true) return { success: false, message: "Mot de passe actuel incorrect." };
+  return { success: true, message: "Mot de passe changé : reconnectez-vous avec le nouveau mot de passe." };
 }

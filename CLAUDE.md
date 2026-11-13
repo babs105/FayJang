@@ -25,9 +25,17 @@ Répondre et écrire en **français** : messages, commentaires de code, libellé
 ## Carte du code
 
 - `src/app/<route>/page.tsx` : composant **serveur** qui lit Supabase et passe les données en props
-- `src/app/<route>/*-client.tsx` et `*-panel.tsx` : composants **client** (`"use client"`) avec l'état et les clics
+- `src/components/ecole/` : composants **client** (`"use client"`) de l'Espace École (`ecole-dashboard-client.tsx`, `*-panel.tsx`,
+  `fiche-eleve.tsx`, `reprise-panel.tsx`) avec l'état et les clics ; `src/components/ui/` : composants réutilisables
+  (un fichier par composant, importés depuis `@/components/ui`) ; `src/components/admin/` : composants de la console
 - `src/app/<route>/actions.ts` : Server Actions (`"use server"`) appelées depuis le client
-- `src/app/**/route.ts` : téléchargements et API (`/ecole/recu/[id]`, `/ecole/export`, `/p/[token]/recu/[id]`, `/api/diagnostic`)
+- `src/app/admin/` : console SuperAdmin, pages `page.tsx` (tableau de bord), `ecoles/` (liste et fiche `?id=`), `abonnements/` ;
+  actions dans `actions/` (`session.ts`, `ecoles.ts`, `abonnements.ts`, `stats.ts`) ; `_commun.ts` porte la session SuperAdmin
+  (`clientAdmin()`, `chargerEcoles()`), sans rapport avec celle de l'école ; calculs purs dans `src/lib/admin-ecoles.ts`
+- `src/app/ecole/actions/` : les actions de l'Espace École, un fichier par domaine (`classes.ts`, `inscriptions.ts`,
+  `encaissement.ts`, `articles.ts`, `parents.ts`, `parametres.ts`, `utilisateurs.ts`) ; `_commun.ts` porte la colle
+  (`session()`, `sessionEcriture()`, `refusDroit()`, `lireEcole()`) **sans** `"use server"`, pour ne jamais être appelable du navigateur
+- `src/app/**/route.ts` : téléchargements et API (`/ecole/recu/[id]`, `/ecole/export`, `/parent/[token]/recu/[id]`, `/api/diagnostic`)
 - `src/lib/` : logique partagée (`dates.ts`, `scolarite.ts` (calcul des soldes), `whatsapp.ts`, `recu-pdf.ts`, `ecole-session.ts`, ...)
 - `src/types/database.ts` : types des tables Supabase (des `type`, pas des `interface` : supabase-js exige une signature d'index)
 - `supabase/schema.sql` : schéma complet et **idempotent** (relancé en entier dans l'éditeur SQL Supabase)
@@ -36,11 +44,21 @@ Répondre et écrire en **français** : messages, commentaires de code, libellé
 - `docs/feature-spec.md` : inventaire des features (livrées, à développer, pistes) et **fiche de feature** à faire valider par l'humain avant tout plan `architect` (procédure en section 8)
 - `BACKLOG.md` : backlog des **bugs mineurs** et de la **dette** (`impact: maintien`) dont la correction a été reportée ; après une review, rien d'autre n'est consigné, et ni un reviewer ni un agent dev ne signale de besoin ou de piste (une nouvelle feature vient de l'humain, dans `docs/feature-spec.md`) (géré par le dev, agent ou session principale : il ajoute librement ses bugs non corrigés, mais ne coche, supprime ou modifie qu'avec l'accord explicite de l'humain ; les décisions tranchées sont en section 9 du feature spec) ; `docs/mise-en-prod.md` : checklist de mise en production
 
-Espaces : `/ecole` (Espace École, 7 onglets dans `ecole-dashboard-client.tsx`, dont Importer, + `fiche-eleve.tsx`), `/p/[token]`
+Espaces : `/ecole` (Espace École, 7 onglets dans `ecole-dashboard-client.tsx`, dont Importer, + `fiche-eleve.tsx`), `/parent/[token]`
 (parent, page serveur sans JS client), `/admin` (SuperAdmin), `/inscription` (ouverture d'un compte école).
 
 ## Règles du code
 Le processus de livraison (plan → tranche → dev → reviews → merge) est documenté dans `.claude/WORKFLOW.md`.
+
+### Organisation des fichiers (règle)
+1. **Un fichier = un domaine, 300 lignes au plus.** Au-delà, on découpe. Jamais de `actions.ts` qui contient tout.
+2. **`lib/` = pur** : pas de Next.js, pas de Supabase, pas de session, pas de `revalidatePath`. Des calculs, des
+   validations, des messages, testables sans base.
+3. **`actions/_commun.ts` = colle locale** : session et accès à la base pour ce dossier uniquement, **sans**
+   `"use server"`. Le `_` veut dire : « ne m'importe pas depuis un autre dossier ».
+4. **Un espace ne touche jamais le `_commun` d'un autre** : École n'importe jamais celui d'Admin, ni l'inverse.
+   Seul `lib/` est partagé.
+5. **Une fonction utile à 2 dossiers monte dans `lib/`** ; utile à un seul, elle reste dans son `_commun`.
 
 ### Accès à Supabase : RLS + JWT hybride (`src/lib/supabase/`)
 Aucune requête ne passe par la clé admin, sauf exceptions ci-dessous. Pattern « token → JWT court » :
@@ -54,7 +72,7 @@ Le JWT ne quitte jamais le serveur.
 |---|---|
 | Utilisateur de l'école (cookie de session) | `createClientEcole(session)` après `getSessionEcole()` (`getEcoleId()` si seul l'id sert) |
 | Connexion École (e-mail + mot de passe) | `echangerUtilisateurEcole(email, motDePasse)` |
-| Parent `/p/[token]` | `echangerJetonParent(token)` → `{ supabase, parentId, ecoleId }` |
+| Parent `/parent/[token]` | `echangerJetonParent(token)` → `{ supabase, parentId, ecoleId }` |
 | SuperAdmin, inscription d'une école, diagnostic | `createAdminClient()` (`admin.ts`, contourne la RLS) |
 
 Ne jamais utiliser `createAdminClient()` ailleurs. Le client navigateur (`client.ts`) ne lit rien : pas de politique pour `anon`.
@@ -65,7 +83,7 @@ Il n'y a **pas de `src/middleware.ts`** : chaque page, Server Action et route v�
 
 ### Server Actions (sécurité)
 Toute action École suit ce modèle, dans cet ordre :
-1. `const session = await getSessionEcole(); if (!session) return { success: false, message: SESSION_EXPIREE }` (helper `session()`)
+1. `const session = await getSessionEcole(); if (!session) return { success: false, message: SESSION_EXPIREE }` (helper `session()` de `actions/_commun.ts`)
 2. `createClientEcole(session)` puis requêtes **filtrées** par `.eq("ecole_id", ecoleId)` en plus de la RLS
 3. `revalidatePath("/ecole")` après une écriture
 4. Retour `{ success: boolean; message?: string; data? }`, message en français lisible par l'administration
@@ -99,7 +117,7 @@ Année scolaire « 2026-2027 », mois des mensualités au format `YYYY-MM-01` (`
 
 ### Interface
 - Mobile d'abord : la page parent reste légère (serveur seul, réseau 3G/4G).
-- Couleur de marque verte (`jang-600`, `#059669`), icônes lucide-react, `cn()` de `lib/utils.ts`, composants de `src/components/ui.tsx`.
+- Couleur de marque verte (`jang-600`, `#059669`), icônes lucide-react, `cn()` de `lib/utils.ts`, composants de `src/components/ui/`.
 - Les envois WhatsApp sont des liens `wa.me` ouverts par l'école (mode manuel).
 
 ### Vocabulaire métier

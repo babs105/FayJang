@@ -2,7 +2,7 @@
 name: regles-dev-comptes
 description: >
   Règles d'implémentation des comptes, droits, mots de passe, abonnement et console SuperAdmin de FayJàng.
-  Charger ce skill dès qu'on modifie utilisateurs-panel.tsx, utilisateurs-actions.ts, changerMonMotDePasse,
+  Charger ce skill dès qu'on modifie utilisateurs-panel.tsx, actions/utilisateurs.ts, changerMonMotDePasse,
   src/lib/droits.ts, utilisateurs.ts, mot-de-passe.ts, abonnement.ts, abonnement-ecole.ts,
   bandeau-abonnement.tsx ou src/app/admin/** (hors login). Contient les invariants (double contrôle des
   droits, règles de F22, mots de passe, session coupée, abonnement en base seulement, nom figé sur les
@@ -21,12 +21,12 @@ abonnements et réinitialise le mot de passe d'un directeur. À venir : **D10**,
 l'e-mail d'un directeur.
 
 **Fichiers :**
-- `src/app/ecole/utilisateurs-panel.tsx`, `utilisateurs-actions.ts` (`sessionDirecteur()`)
-- `src/app/ecole/actions.ts` : `changerMonMotDePasse` ; helper `refusDroit()`
+- `src/components/ecole/utilisateurs-panel.tsx`, `actions/utilisateurs.ts` (`sessionDirecteur()`)
+- `src/app/ecole/actions/utilisateurs.ts` : aussi `changerMonMotDePasse` ; helper `refusDroit()` dans `src/app/ecole/actions/_commun.ts`
 - `src/lib/droits.ts` : `Droit`, `DROITS_CAISSIER`, `peutFaire()`
 - `src/lib/utilisateurs.ts` : `lireSaisieCaissier()` ; `src/lib/mot-de-passe.ts` : `normaliserEmail()`, `erreurMotDePasse()`
 - `src/lib/abonnement.ts`, `abonnement-ecole.ts` (`lireAbonnementEcole`, `refusLectureSeule`), `bandeau-abonnement.tsx`
-- `src/app/admin/actions.ts`, `admin-client.tsx`, `page.tsx`
+- `src/app/admin/actions/*.ts` (chaque action commence par `clientAdmin()` de `_commun.ts`), les pages de `src/app/admin/`, `src/components/admin/*.tsx`, `src/lib/admin-ecoles.ts`
 
 **Fonctions SQL (version active dans `.claude/SCHEMA-INDEX.md`) :** `creer_utilisateur_ecole`,
 `changer_statut_utilisateur`, `reinitialiser_mot_de_passe_utilisateur`, `reinitialiser_mot_de_passe_directeur`,
@@ -122,8 +122,8 @@ deux navigateurs (ou une fenêtre privée). Jamais une vraie école sans accord.
 ```bash
 grep -rn "createAdminClient\|service_role" src/app/ecole/ src/lib/ | grep -v "lib/supabase/admin.ts"
 grep -rn "role === \|role !== " src/app/ src/lib/ | grep -v test
-grep -rn "console\.\(log\|error\)" src/app/ecole/utilisateurs-actions.ts src/app/admin/actions.ts
-grep -n "export async function" src/app/admin/actions.ts   # chacune doit commencer par isAdmin()
+grep -rn "console\.\(log\|error\)" src/app/ecole/actions/utilisateurs.ts src/app/admin/actions/*.ts
+grep -n "export async function" src/app/admin/actions/*.ts   # chacune doit commencer par clientAdmin() (ou appeler listerEcoles)
 ```
 
 ## Reviews habituelles

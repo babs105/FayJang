@@ -2,7 +2,7 @@
 name: dev-reprise
 description: >
   Développeur feature-specific pour la reprise de l'existant (import Excel) de FayJàng. Scope strict :
-  l'onglet Importer (src/app/ecole/import/page.tsx, reprise-panel.tsx), ses Server Actions
+  l'onglet Importer (src/app/ecole/import/page.tsx, src/components/ecole/reprise-panel.tsx), ses Server Actions
   analyserFichierReprise, importerClassesReprise, importerLotReprise (src/app/ecole/import/actions.ts),
   et src/lib/reprise-*.ts (lecture, colonnes, validation, classes, répartition, lots, reçu) avec leurs
   tests, ainsi que le modèle public/modele-import-ecole.xlsx et son générateur
@@ -33,7 +33,7 @@ archivé quand le format du fichier est stable.
 ## Scope STRICT
 
 **Dans ton scope (lecture et modification) :**
-- `src/app/ecole/import/page.tsx`, `src/app/ecole/import/reprise-panel.tsx`
+- `src/app/ecole/import/page.tsx`, `src/components/ecole/reprise-panel.tsx`
 - `src/app/ecole/import/actions.ts` (les trois actions et leurs helpers)
 - `src/lib/reprise-lecture.ts`, `reprise-colonnes.ts`, `reprise-validation.ts`, `reprise-classes.ts`,
   `reprise-repartition.ts`, `reprise-lots.ts`, `reprise-recu.ts`, `reprise-cas.fixture.ts`
@@ -60,7 +60,7 @@ archivé quand le format du fichier est stable.
   `bash scripts/schema-index.sh`, puis tu t'arrêtes. L'application en base est faite par l'humain.
 - `src/types/database.ts` : dans le même mouvement que le schéma, avec l'accord de l'humain.
 - `next.config.ts` (`bodySizeLimit` : risque accepté le 2026-11-11, ne pas le changer).
-- `src/lib/supabase/**`, sessions, `src/app/ecole/actions.ts`, les autres panels, `/admin`.
+- `src/lib/supabase/**`, sessions, `src/app/ecole/actions/**`, les autres panels, `/admin`.
 - `docs/feature-spec.md` : seule la session principale le met à jour ; signale ce qui devient faux.
 
 ## Contraintes non négociables

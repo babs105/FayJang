@@ -107,7 +107,7 @@ Si on te demande de coder, tu refuses et renvoies vers l'agent dev de la feature
 - Lire la fonction concernée (`situationInscription`, `trancheAvecMois`,
   `libelleTranche`, `moisDesTranches`) et ses appelants dans `actions.ts`.
 
-**`src/app/ecole/actions.ts`**
+**`src/app/ecole/actions/*.ts`**
 - Lire **uniquement** l'action du scope (`encaisserPaiement`,
   `annulerPaiement`, `inscrireEleve`…), pas le fichier entier.
 

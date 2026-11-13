@@ -15,7 +15,7 @@
 | Acteur | Espace | Accès |
 |---|---|---|
 | Administration de l'école (directeur, caissiers) | `/ecole` (Espace École, 7 onglets ; moins pour un caissier) | E-mail + mot de passe personnel, cookie de session 30 jours (F22) |
-| Parent ou tuteur | `/p/[token]` | Lien magique, sans mot de passe, page serveur seule |
+| Parent ou tuteur | `/parent/[token]` | Lien magique, sans mot de passe, page serveur seule |
 | SuperAdmin FayJàng | `/admin` | Code SuperAdmin, session 12 h |
 | École qui découvre | `/` et `/inscription` | Public |
 
@@ -47,8 +47,8 @@
 | F12 | Impayés et relance WhatsApp | Onglet Impayés | Livrée (main) |
 | F13 | Tableau de bord | Onglet Tableau de bord | Livrée (main) |
 | F14 | Paramètres de l'école et passage à l'année suivante | Onglet Paramètres | Livrée (main) |
-| F15 | Page parent par lien magique | `/p/[token]` | Livrée (main) |
-| F16 | Reçu PDF | `/ecole/recu/[id]`, `/p/[token]/recu/[id]` | Livrée (main) |
+| F15 | Page parent par lien magique | `/parent/[token]` | Livrée (main) |
+| F16 | Reçu PDF | `/ecole/recu/[id]`, `/parent/[token]/recu/[id]` | Livrée (main) |
 | F17 | Export Excel | `/ecole/export` | Livrée (main) |
 | F18 | Console SuperAdmin | `/admin` | Livrée (main) |
 | F19 | Sécurité et exploitation | Transverse | Livrée (main) |
@@ -166,6 +166,13 @@
   s'ils sont indisponibles.
 - **Depuis F21** : chaque école affiche son état d'abonnement (normal, fin proche, délai de grâce, lecture seule) ;
   le statut « Actif » est refusé sans date de fin, et une école « Actif » sans date est signalée.
+- **Depuis la réorganisation de la console (2026-11-13)** : trois pages. Le **tableau de bord** (`/admin`) donne le
+  nombre d'écoles, d'abonnées, d'écoles en essai, en retard (délai de grâce ou lecture seule) et en fin proche,
+  les élèves suivis et l'encaissé, la liste des écoles en retard et l'**export Excel** de toutes les écoles (refusé si
+  les totaux sont incomplets). La page **Écoles** (`/admin/ecoles`) liste les écoles ; leur fiche (`?id=`) permet de
+  désactiver ou réactiver l'école, de réinitialiser le mot de passe du directeur et de corriger l'abonnement à la main.
+  La page **Abonnements** (`/admin/abonnements`) range les écoles par urgence et permet de prolonger (date de fin
+  aujourd'hui ou plus tard, statut « Actif »), de suspendre (lecture seule immédiate) et de changer d'offre.
 
 ### F19 — Sécurité et exploitation (transverse)
 - RLS sur toutes les tables, JWT de 5 minutes signé par le serveur, pas de middleware (chaque route se protège).
@@ -240,6 +247,8 @@ reviewer ou un agent dev ne signale ni besoin ni piste, et rien n'entre dans ce 
 |---|---|---|---|---|
 | D01 | **Changement de classe en cours d'année** | Passer un élève dans une autre classe sans le réinscrire | Règle posée le 2026-11-10 (« on paie d'abord ») | Déjà tranché : seulement si l'élève a soldé son dû à date ; mois passés à l'ancien tarif, nouveau tarif dès le mois du changement. À trancher : sort des articles de l'ancienne classe |
 | D10 | **Changer le nom et l'e-mail d'un directeur** | Quand le directeur change (départ, remplacement) ou corrige son e-mail, le compte directeur prend le nom et l'e-mail du nouveau titulaire : ses encaissements suivants sont signés à son nom et il se connecte avec son propre e-mail | Piste proposée et validée par l'humain le 2026-11-13, après la livraison de F22 (aujourd'hui : un seul directeur par école, jamais désactivé ; seule la réinitialisation du mot de passe existe, dans `/admin`) | Existe déjà : `reinitialiser_mot_de_passe_directeur` (v1.26), « Encaissé par » figé sur chaque paiement (les anciens reçus gardent l'ancien nom). À trancher : qui fait le changement (`/admin` seulement, ou le directeur lui-même pour son e-mail) ; nouveau mot de passe provisoire imposé au même moment ou non ; session coupée ; e-mail déjà pris dans FayJàng ; trace de l'ancien titulaire |
+| D11 | **Création d'une école par le SuperAdmin** | Dans `/admin/ecoles`, créer une école et le compte de son directeur (mot de passe provisoire), sans passer par `/inscription` | Demande de l'humain le 2026-11-13 (arborescence de la console : `creerEcole`) | Tranché le 2026-11-13 : l'école démarre en essai, comme en ligne ; la création (école, accès, directeur) devient une fonction SQL `creer_ecole` en une transaction, appelée par `/inscription` et `/admin`. Fiche validée le 2026-11-13 (section 10) |
+| D12 | **Comptes admin nominatifs** | Chaque membre de FayJàng se connecte à `/admin` avec son e-mail et son mot de passe ; page `/admin/utilisateurs` pour créer, désactiver un admin et changer son mot de passe | Demande de l'humain le 2026-11-13 (`creerAdmin`, `desactiverAdmin`, `changerMotDePasseAdmin`) | Tranché le 2026-11-13 : nouvelle table en base ; le code `SUPERADMIN_CODE` ne sert plus qu'à créer le premier compte. À trancher : rôle support distinct ou non ; qui réinitialise le mot de passe d'un admin ; désactivation du dernier admin actif |
 
 D02 (abonnement appliqué automatiquement) est livrée : voir F21 ; D09 (plusieurs utilisateurs par école) est
 livrée : voir F22. Leurs numéros ne sont pas réattribués.
@@ -411,4 +420,29 @@ session ajoute une ligne ici après l'accord de l'humain, avec la date. Les bugs
 Fiches validées par l'humain selon la section 8, en attente de plan ou en cours de développement. Une fiche
 livrée quitte cette section pour la section 4 (section 8.5).
 
-Aucune fiche en cours. La dernière (D09) est livrée : voir F22.
+### D11 — Création d'une école par le SuperAdmin
+**Acteur** : SuperAdmin
+**Ce que l'utilisateur peut faire** : dans `/admin/ecoles`, créer une école et le compte de son directeur, puis
+transmettre à l'école son e-mail de connexion et son mot de passe provisoire.
+**Règles métier** :
+- Mêmes contrôles que `/inscription` : nom de l'école (3 caractères au moins), responsable obligatoire, e-mail valide
+  et libre dans tout FayJàng (ni une autre école, ni un utilisateur), téléphone au format sénégalais, mot de passe
+  provisoire conforme à la règle des mots de passe (choisi par l'admin).
+- L'école démarre **en essai de 30 jours**, comme en ligne ; l'admin la prolonge ensuite depuis Abonnements.
+- Identifiant de l'école calculé comme aujourd'hui (« cours-sainte-marie », puis « -2 » s'il est pris).
+- Une seule transaction : si une étape échoue, rien n'est créé. `/inscription` passe aussi par `creer_ecole`, sans
+  changement visible pour l'école.
+- L'admin n'est pas connecté à l'école créée ; pas de limite par IP pour l'admin.
+**Argent** : aucun (pas de reçu, pas d'arriéré ; l'abonnement FayJàng n'est pas encaissé dans l'application).
+**Données** : nouvelle fonction SQL `creer_ecole` (exécutable par le client admin seulement) ; tables existantes
+`ecoles`, `acces_ecole`, `utilisateurs_ecole` (insertions seulement, aucune colonne nouvelle).
+**Hors feature** : pas d'envoi automatique des identifiants (ni e-mail ni WhatsApp) ; pas de choix de l'offre à la
+création ; pas de création de caissiers.
+**Critère de done** : l'admin crée « École Test D11 » ; le directeur se connecte à `/ecole` avec l'e-mail et le mot
+de passe provisoire ; l'école apparaît « En essai » dans la console. Une deuxième création avec le même e-mail est
+refusée et ne crée rien.
+**Exemple chiffré** : école créée le 13/11/2026 → essai jusqu'au 13/12/2026 ; bandeau « fin proche » à partir du
+06/12/2026 ; délai de grâce jusqu'au 20/12/2026 ; lecture seule le 21/12/2026.
+**Questions tranchées** : état de départ → essai, comme en ligne (2026-11-13) ; code partagé → fonction SQL
+`creer_ecole` (2026-11-13).
+**Statut de la fiche** : validée le 2026-11-13

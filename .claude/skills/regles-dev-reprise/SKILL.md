@@ -2,7 +2,7 @@
 name: regles-dev-reprise
 description: >
   Règles d'implémentation de la reprise de l'existant (import Excel) de FayJàng. Charger ce skill dès
-  qu'on modifie src/app/ecole/import/** (page, reprise-panel.tsx, actions analyserFichierReprise /
+  qu'on modifie src/app/ecole/import/** (page, actions analyserFichierReprise /
   importerClassesReprise / importerLotReprise), src/lib/reprise-*.ts, le fixture reprise-cas.fixture.ts
   ou le modèle public/modele-import-ecole.xlsx. Contient le pipeline (lecture → colonnes → validation →
   répartition → lots → RPC), les invariants (fichier hostile, dû unique, rejeu sûr, reçu hors caisse),

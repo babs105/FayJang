@@ -51,7 +51,7 @@ reviewers. Ce n'est PAS un plan "par couche" (schéma → serveur → client).
 |---|---|---|
 | `/admin/**` | SuperAdmin | Cookie `fayjang_admin` (code `SUPERADMIN_CODE`), client admin |
 | `/ecole/**` | Direction / comptabilité d'une école | Cookie `fayjang_ecole` → JWT court `role_app='ecole'` |
-| `/p/[token]` | Parent | Token URL → JWT court `role_app='parent'` (`parent_id`, `ecole_id`) |
+| `/parent/[token]` | Parent | Token URL → JWT court `role_app='parent'` (`parent_id`, `ecole_id`) |
 | `/inscription` | Nouvelle école | Public, client admin (l'école n'existe pas encore) |
 | `/api/diagnostic` | Exploitation | En-tête `x-diagnostic-secret`, 404 sinon (en production) |
 
@@ -110,7 +110,7 @@ pour rien. Ordre de lecture, **12 appels d'outils au plus** :
 - Chaque fonction, trigger ou action existante est citée avec son nom exact
   et sa version active (« `encaisser_paiement`, bloc v1.16 »).
 - Avant d'écrire « il faut créer X », vérifier que X n'existe pas déjà
-  (helper de `src/lib`, fonction SQL, composant de `src/components/ui.tsx`).
+  (helper de `src/lib`, fonction SQL, composant de `src/components/ui/`).
 - Une affirmation non vérifiée s'écrit « à vérifier par le dev », pas comme un fait.
 
 ## Contenu obligatoire d'une tranche
@@ -304,8 +304,8 @@ reçoit un seul reçu numéroté avec le détail par enfant.
 **Qui code** : `dev-encaissement` (fiche élève, encaissement)
 **Règles de la fiche appliquées** : « un reçu famille ne concerne qu'un seul parent » (tranché le …)
 **Fichiers** : `supabase/schema/05-migrations.sql`, `supabase/schema.sql` et
-`.claude/SCHEMA-INDEX.md` (générés), `src/types/database.ts`, `src/app/ecole/actions.ts`,
-`src/app/ecole/fiche-eleve.tsx`, `src/lib/encaissement.ts`, `src/lib/encaissement.test.ts`
+`.claude/SCHEMA-INDEX.md` (générés), `src/types/database.ts`, `src/app/ecole/actions/*.ts`,
+`src/components/ecole/fiche-eleve.tsx`, `src/lib/encaissement.ts`, `src/lib/encaissement.test.ts`
 **SQL** : `05-migrations.sql`, bloc **v1.19** : remplace `numeroter_recu` (un lot = un parent),
 crée `encaisser_paiement_famille` (verrou des deux inscriptions, empreinte, clé d'idempotence)
 **Effets de bord à traiter** : `annulerPaiement` annule déjà par lot (rien à changer) ;
@@ -325,7 +325,7 @@ page parent : chaque enfant garde ses lignes (à vérifier par le dev) ; aucune 
 ### Tranche 2 — Le reçu PDF détaille chaque enfant
 **Fichiers** : `src/lib/recu-donnees.ts`, `src/lib/recu-pdf.ts`
 **Scope des reviews** :
-- `security-reviewer` : sur la route `/p/[token]/recu/[id]` (un parent ne voit que ses enfants)
+- `security-reviewer` : sur la route `/parent/[token]/recu/[id]` (un parent ne voit que ses enfants)
 **Porte de sortie** : PDF avec une section par enfant et le total
 **Tests manuels** :
 - [ ] PDF côté école et côté parent identiques

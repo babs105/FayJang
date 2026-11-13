@@ -22,10 +22,10 @@ l'identité, de la réduction mensuelle, des articles, départ (abandon, transfe
 régénéré. À venir : **changement de classe** (D01) et **réinscription en masse** (P02).
 
 **Fichiers :**
-- `src/app/ecole/eleves-panel.tsx` : liste, recherche, formulaire d'inscription
-- `src/app/ecole/classes-panel.tsx` : classes, tarifs, catalogue, archivage
-- `src/app/ecole/fiche-eleve.tsx` : partie identité / inscription / articles / départ / lien parent
-- `src/app/ecole/actions.ts` : actions listées dans la description
+- `src/components/ecole/eleves-panel.tsx` : liste, recherche, formulaire d'inscription
+- `src/components/ecole/classes-panel.tsx` : classes, tarifs, catalogue, archivage
+- `src/components/ecole/fiche-eleve.tsx` : partie identité / inscription / articles / départ / lien parent
+- `src/app/ecole/actions/` (`inscriptions.ts`, `classes.ts`, `articles.ts`, `parents.ts`) : actions listées dans la description
 - `src/lib/inscription-initiale.ts` : `selectionnerArticles()`, `lignesPaiementInscription()`
 - `src/lib/classe-catalogue.ts` : `lireArticles()`, `MAX_ARTICLES_CLASSE`
 - `src/lib/matricule.ts`, `src/lib/telephone.ts`, `src/lib/saisie.ts`
@@ -131,9 +131,9 @@ sans accord. Référence : classe CM1, inscription 25 000, mensualité 20 000, 9
 
 ```bash
 grep -rn "createAdminClient\|service_role" src/app/ecole/
-grep -n 'from("inscriptions")' src/app/ecole/actions.ts | grep -E "insert|update"
+grep -n 'from("inscriptions")' src/app/ecole/actions/*.ts | grep -E "insert|update"
 grep -n 'role === ' src/app/ecole/*.ts src/app/ecole/*.tsx
-grep -n "new Date()" src/app/ecole/actions.ts src/lib/inscription-initiale.ts
+grep -n "new Date()" src/app/ecole/actions/*.ts src/lib/inscription-initiale.ts
 ```
 
 ## Reviews habituelles (grille de `.claude/WORKFLOW.md`)

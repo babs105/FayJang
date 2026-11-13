@@ -7,7 +7,7 @@ import { situationInscription } from "@/lib/scolarite";
 import { lireAbonnementEcole } from "@/lib/abonnement-ecole";
 import { derniereModification } from "@/lib/modifications";
 import { LectureTropLongue, TAILLE_PAGE, comparer, toutLire, toutLireParIds } from "@/lib/lecture-paginee";
-import { EcoleDashboardClient } from "./ecole-dashboard-client";
+import { EcoleDashboardClient } from "@/components/ecole/ecole-dashboard-client";
 import type { ClasseVue, EcoleVue, EleveVue, PaiementVue, UtilisateurListeVue } from "./types";
 
 export const dynamic = "force-dynamic";
@@ -110,8 +110,7 @@ export default async function EcolePage({ searchParams }: PageProps) {
     const idsInscriptions = inscriptions.map((i) => i.id);
     const [paiementsLus, articlesEleves] = await Promise.all([
       toutLireParIds(idsInscriptions, (paquet, apres) =>
-        supabase
-          .from("paiements")
+        supabase.from("paiements")
           .select("id, inscription_id, lot_id, numero_recu, type, mois, montant, mode, reference, libelle, paye_le, annule, motif_annulation, annule_par, article_id, encaisse_par, created_at")
           .eq("ecole_id", ecoleId)
           .in("inscription_id", paquet)
@@ -177,7 +176,7 @@ export default async function EcolePage({ searchParams }: PageProps) {
       nom: e.nom,
       sexe: e.sexe,
       date_naissance: e.date_naissance,
-      parent: parent ? { id: parent.id, nom: parent.nom, telephone: parent.telephone, lien: `${appBaseUrl}/p/${parent.token}` } : null,
+      parent: parent ? { id: parent.id, nom: parent.nom, telephone: parent.telephone, lien: `${appBaseUrl}/parent/${parent.token}` } : null,
       inscription: ins
         ? {
             id: ins.id,

@@ -10,7 +10,7 @@ description: >
   Ne modifie jamais de fichier. Produit un rapport structuré avec sévérités.
   À invoquer dès qu'un changement touche : src/lib/supabase/**,
   src/lib/ecole-session.ts, src/lib/admin-session.ts, src/app/api/**,
-  src/app/**/route.ts, une page de login ou d'inscription, /p/[token],
+  src/app/**/route.ts, une page de login ou d'inscription, /parent/[token],
   ou un nouveau flow d'auth.
 tools: Read, Grep, Glob
 model: sonnet

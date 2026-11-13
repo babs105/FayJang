@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { ShieldCheck } from "lucide-react";
-import { loginAdminAction } from "../actions";
+import { loginAdminAction } from "../actions/session";
 
 export default function AdminLoginPage() {
   const [state, formAction, isPending] = useActionState(loginAdminAction, undefined);
