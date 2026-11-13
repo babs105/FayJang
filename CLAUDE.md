@@ -68,6 +68,8 @@ Le processus de livraison (plan → tranche → dev → reviews → merge) est d
 
 ### Organisation des fichiers (règle)
 1. **Un fichier = un domaine, 300 lignes au plus.** Au-delà, on découpe. Jamais de `actions.ts` qui contient tout.
+   Exceptions : les fichiers de test (`*.test.ts`), le fixture `reprise-cas.fixture.ts` et `src/types/database.ts`
+   (reflet du schéma).
 2. **`lib/metier/` et `lib/validation/` = purs** : pas de Next.js, pas de Supabase, pas de session, pas de `revalidatePath`.
    Des calculs, des validations, des messages, testables sans base. Le reste de `lib/` est côté serveur :
    `supabase/` (clients, JWT), `securite/` (auth, sessions, droits, erreurs), `documents/` (PDF, Excel).
