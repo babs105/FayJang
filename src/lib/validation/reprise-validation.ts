@@ -2,7 +2,7 @@
 // (reprise-repartition.ts). Produit l'aperçu ligne par ligne affiché à l'école avant tout import. N'écrit rien.
 // Feuilles : reprise-feuilles.ts ; classes et articles : reprise-catalogue.ts ; options d'un élève : reprise-options.ts.
 import { moisScolaires } from "@/lib/metier/dates";
-import type { ClasseurBrut } from "@/types/reprise";
+import type { ApercuReprise, ArticleCatalogue, ClasseurBrut, ContexteReprise, EleveApercu, RepartitionEleve } from "@/types/reprise";
 import { normaliser } from "@/lib/validation/reprise-colonnes";
 import { repartirReprise } from "@/lib/metier/reprise-repartition";
 import {
@@ -20,7 +20,6 @@ import {
 import { EXEMPLES, TELEPHONES_EXEMPLES, cleSouple, cleStricte, lignesDeDonnees, trierFeuilles } from "@/lib/validation/reprise-feuilles";
 import { analyserArticles, analyserClasses } from "@/lib/validation/reprise-catalogue";
 import { lireOptionsEleve } from "@/lib/validation/reprise-options";
-import type { ApercuReprise, ArticleCatalogue, ContexteReprise, EleveApercu, RepartitionEleve } from "@/types/reprise";
 
 export * from "@/lib/validation/reprise-cellules";
 

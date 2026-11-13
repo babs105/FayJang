@@ -6,9 +6,8 @@ import { useRef, useState, type TransitionStartFunction } from "react";
 import { cleAEnvoyer, signatureEncaissement } from "@/lib/metier/encaissement";
 import { choixALinscription, lignesAEncaisser, paiementLibreAutorise } from "@/lib/metier/scolarite";
 import { encaisserPaiement } from "@/app/ecole/actions/encaissement";
-import type { EleveVue } from "@/types/ecole";
+import type { EleveVue, TentativeEncaissement } from "@/types/ecole";
 import type { Situation } from "@/types/commun";
-import type { TentativeEncaissement } from "@/types/ecole";
 
 export type Retour = { ok: boolean; texte: string } | null;
 

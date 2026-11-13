@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { Cellule, ClasseurBrut } from "@/types/reprise";
+import type { Cellule, ClasseurBrut, ContexteReprise } from "@/types/reprise";
 import { analyserReprise, dateCellule, lireOption, lirePeriode, moisCellule, separerDebut, montantCellule, ressembleAUneFormule, telephoneCellule } from "@/lib/validation/reprise-validation";
-import type { ContexteReprise } from "@/types/reprise";
 
 const CTX: ContexteReprise = {
   anneeScolaire: "2026-2027",

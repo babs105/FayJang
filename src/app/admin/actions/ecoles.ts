@@ -7,8 +7,7 @@ import { slugifier, validerCreationEcole } from "@/lib/validation/creation-ecole
 import { erreurMotDePasse } from "@/lib/validation/mot-de-passe";
 import { estUuid } from "@/lib/validation/saisie";
 import { SESSION_EXPIREE, chargerEcoles, clientAdmin, majEcole } from "./_commun";
-import type { IdentifiantsDirecteur, ResultatAdmin } from "@/types/admin";
-import type { EcoleAdmin } from "@/types/admin";
+import type { EcoleAdmin, IdentifiantsDirecteur, ResultatAdmin } from "@/types/admin";
 
 /** Liste des écoles avec leurs totaux et leur état d'abonnement */
 export async function listerEcoles(): Promise<ResultatAdmin<{ ecoles: EcoleAdmin[]; totauxDisponibles: boolean }>> {

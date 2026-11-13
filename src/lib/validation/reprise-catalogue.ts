@@ -1,5 +1,5 @@
 // Reprise de l'existant : feuilles « Classes » et « Articles », et catalogue de chaque classe utilisable par les élèves.
-import type { FeuilleBrute } from "@/types/reprise";
+import type { ArticleApercu, CatalogueClasse, ClasseApercu, ContexteReprise, FeuilleBrute } from "@/types/reprise";
 import { normaliser } from "@/lib/validation/reprise-colonnes";
 import {
   MAX_ARTICLES_CLASSE,
@@ -13,7 +13,6 @@ import {
   texteCellule,
 } from "@/lib/validation/reprise-cellules";
 import { lignesDeDonnees, trouverEntete } from "@/lib/validation/reprise-feuilles";
-import type { ArticleApercu, CatalogueClasse, ClasseApercu, ContexteReprise } from "@/types/reprise";
 
 export interface ClassesLues {
   classes: ClasseApercu[];
