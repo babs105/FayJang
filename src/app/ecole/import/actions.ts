@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getSessionEcole, type SessionEcole } from "@/lib/ecole-session";
+import { peutFaire } from "@/lib/droits";
 import { createClientEcole } from "@/lib/supabase/server";
 import { todayDakar } from "@/lib/config";
 import { moisScolaires } from "@/lib/dates";
@@ -42,6 +43,8 @@ const SESSION_EXPIREE = "Session expirée : reconnectez-vous à l'Espace École.
 async function sessionReprise(): Promise<string | { ecoleId: string; utilisateur: SessionEcole }> {
   const utilisateur = await getSessionEcole();
   if (!utilisateur) return SESSION_EXPIREE;
+  // D09 : la reprise de l'existant est réservée au directeur (importer_reprise refuse aussi en base)
+  if (!peutFaire(utilisateur.role, "importer")) return "Réservé au directeur de l'école.";
   return (await refusLectureSeule(createClientEcole(utilisateur), "import/actions")) ?? { ecoleId: utilisateur.ecoleId, utilisateur };
 }
 

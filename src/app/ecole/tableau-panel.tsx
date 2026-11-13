@@ -7,6 +7,7 @@ import { LIBELLE_MODE } from "@/lib/libelles";
 import { regrouperParRecu, resumeRecu } from "@/lib/regrouper-recus";
 import { Carte, Kpi } from "@/components/ui";
 import { estEncaissementDeCaisse, totauxCaisse } from "@/lib/caisse";
+import { peutFaire } from "@/lib/droits";
 import type { DonneesEcole, Onglet } from "./ecole-dashboard-client";
 
 export function TableauPanel({
@@ -14,6 +15,7 @@ export function TableauPanel({
   paiements,
   aujourdhui,
   classes,
+  utilisateur,
   ouvrirEleve,
   allerA,
 }: DonneesEcole & { ouvrirEleve: (id: string) => void; allerA: (o: Onglet) => void }) {
@@ -38,10 +40,16 @@ export function TableauPanel({
     return (
       <Carte className="text-center py-10">
         <p className="text-sm font-bold text-neutral-900">Aucune classe pour cette année</p>
-        <p className="text-xs text-neutral-500 mt-1">Créez vos classes et leurs tarifs pour commencer les inscriptions.</p>
-        <button onClick={() => allerA("classes")} className="mt-4 text-xs font-bold text-jang-700">
-          Créer les classes →
-        </button>
+        {peutFaire(utilisateur.role, "classes") ? (
+          <>
+            <p className="text-xs text-neutral-500 mt-1">Créez vos classes et leurs tarifs pour commencer les inscriptions.</p>
+            <button onClick={() => allerA("classes")} className="mt-4 text-xs font-bold text-jang-700">
+              Créer les classes →
+            </button>
+          </>
+        ) : (
+          <p className="text-xs text-neutral-500 mt-1">Le directeur doit d&apos;abord créer les classes et leurs tarifs.</p>
+        )}
       </Carte>
     );
   }

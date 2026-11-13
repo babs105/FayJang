@@ -1,7 +1,10 @@
 import type { RoleUtilisateur } from "@/types/database";
 
-/** Gestes réservés selon le rôle (D09). Source unique pour l'interface et les actions ; la base applique le même refus. */
-export type Droit = "annuler";
+/**
+ * Gestes réservés selon le rôle (D09) : annuler un reçu, classes et tarifs, paramètres de l'école, import, export
+ * Excel, comptes. Source unique pour l'interface et les actions ; la base applique le même refus (sauf l'export).
+ */
+export type Droit = "annuler" | "classes" | "parametres" | "importer" | "exporter" | "utilisateurs";
 
 const DROITS_CAISSIER: readonly Droit[] = [];
 

@@ -9,6 +9,7 @@ import { changerMonMotDePasse, enregistrerParametres } from "./actions";
 import { MOT_DE_PASSE_MIN } from "@/lib/mot-de-passe";
 import { MentionLectureSeule } from "./bandeau-abonnement";
 import { UtilisateursPanel } from "./utilisateurs-panel";
+import { peutFaire } from "@/lib/droits";
 import { peutEcrire } from "@/lib/abonnement";
 import type { DonneesEcole } from "./ecole-dashboard-client";
 
@@ -75,6 +76,7 @@ export function ParametresPanel({ ecole, abonnement, numeroWave, utilisateur, ut
 
   return (
     <div className="grid lg:grid-cols-3 gap-4">
+      {peutFaire(utilisateur.role, "parametres") ? (
       <Carte className="lg:col-span-2 space-y-4">
         <h3 className="text-sm font-extrabold">École et calendrier</h3>
         {retour && <Message ok={retour.ok}>{retour.texte}</Message>}
@@ -183,6 +185,12 @@ export function ParametresPanel({ ecole, abonnement, numeroWave, utilisateur, ut
           {lectureSeule ? <MentionLectureSeule /> : <Bouton type="submit" disabled={isPending}>Enregistrer</Bouton>}
         </form>
       </Carte>
+      ) : (
+        <Carte className="lg:col-span-2 space-y-2">
+          <h3 className="text-sm font-extrabold">Paramètres de l&apos;école</h3>
+          <p className="text-xs text-neutral-500">Le calendrier, les tarifs et les comptes sont gérés par le directeur.</p>
+        </Carte>
+      )}
 
       <div className="space-y-4">
         <Carte className="space-y-2">

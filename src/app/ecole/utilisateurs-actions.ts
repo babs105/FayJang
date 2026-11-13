@@ -7,6 +7,7 @@ import { messageErreur } from "@/lib/erreurs";
 import { erreurMotDePasse } from "@/lib/mot-de-passe";
 import { lireSaisieCaissier } from "@/lib/utilisateurs";
 import { estUuid } from "@/lib/saisie";
+import { peutFaire } from "@/lib/droits";
 import type { Resultat } from "./actions";
 
 /**
@@ -20,7 +21,7 @@ const RESERVE_DIRECTEUR = "Réservé au directeur de l'école.";
 async function sessionDirecteur() {
   const utilisateur = await getSessionEcole();
   if (!utilisateur) return SESSION_EXPIREE;
-  if (utilisateur.role !== "directeur") return RESERVE_DIRECTEUR;
+  if (!peutFaire(utilisateur.role, "utilisateurs")) return RESERVE_DIRECTEUR;
   return { supabase: createClientEcole(utilisateur) };
 }
 

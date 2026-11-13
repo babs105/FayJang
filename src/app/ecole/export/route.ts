@@ -1,5 +1,6 @@
 import ExcelJS from "exceljs";
 import { getSessionEcole } from "@/lib/ecole-session";
+import { peutFaire } from "@/lib/droits";
 import { createClientEcole } from "@/lib/supabase/server";
 import { todayDakar } from "@/lib/config";
 import { LIBELLE_MODE, LIBELLE_STATUT_INSCRIPTION, libellePaiement } from "@/lib/libelles";
@@ -14,6 +15,8 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const session = await getSessionEcole();
   if (!session) return new Response("Session expirée", { status: 401 });
+  // D09 : l'export complet (élèves, téléphones des parents, paiements) est réservé au directeur
+  if (!peutFaire(session.role, "exporter")) return new Response("Réservé au directeur de l'école", { status: 403 });
   const { ecoleId } = session;
   const supabase = createClientEcole(session);
   const aujourdhui = todayDakar();
