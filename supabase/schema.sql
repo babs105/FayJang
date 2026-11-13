@@ -5292,3 +5292,54 @@ REVOKE EXECUTE ON FUNCTION public.importer_reprise(JSONB, TEXT) FROM PUBLIC, ano
 GRANT EXECUTE ON FUNCTION public.importer_reprise(JSONB, TEXT) TO authenticated;
 
 
+
+-- ==============================================================================
+-- v1.26 : plusieurs utilisateurs par école, tranche 6 (feature D09) : le SuperAdmin réinitialise le mot de passe
+-- d'un directeur depuis /admin (décision du 2026-11-12 : oubli du directeur → FayJàng).
+-- Bloc final : garder en dernier.
+--
+-- reinitialiser_mot_de_passe_directeur(école, sha256) : renvoie l'e-mail de connexion du directeur.
+--   - appelée seulement par la console /admin (client admin, clé service_role) : EXECUTE accordé au seul
+--     service_role, et refus FJ403 si le JWT porte un role_app (école, parent, connexion) ;
+--   - le trigger de hachage stocke le bcrypt et date mdp_modifie_at : la session du directeur est coupée ;
+--   - le hash est recopié dans acces_ecole (retour arrière vers l'ancien code sans perte, comme
+--     changer_mon_mot_de_passe) ;
+--   - les compteurs d'échecs de connexion de son e-mail sont effacés (un directeur bloqué se reconnecte aussitôt) ;
+--   - permise quel que soit l'abonnement (UPDATE non gardé par trg_abonnement_ecriture).
+-- ==============================================================================
+CREATE OR REPLACE FUNCTION public.reinitialiser_mot_de_passe_directeur(p_ecole_id UUID, p_nouveau_hash TEXT)
+RETURNS TEXT
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+    v_email TEXT;
+    v_email_cle TEXT;
+BEGIN
+    IF public.jwt_role_app() IS NOT NULL THEN
+        RAISE EXCEPTION 'Réservé à FayJàng.' USING ERRCODE = 'FJ403';
+    END IF;
+    IF p_nouveau_hash IS NULL OR p_nouveau_hash !~ '^[0-9a-f]{64}$' THEN
+        RAISE EXCEPTION 'Mot de passe invalide.' USING ERRCODE = 'FJ422';
+    END IF;
+
+    UPDATE public.utilisateurs_ecole
+    SET code_hash = p_nouveau_hash
+    WHERE ecole_id = p_ecole_id AND role = 'directeur'
+    RETURNING email INTO v_email;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Aucun compte directeur pour cette école.' USING ERRCODE = 'FJ404';
+    END IF;
+
+    UPDATE public.acces_ecole a SET code_hash = u.code_hash, updated_at = now()
+    FROM public.utilisateurs_ecole u
+    WHERE u.ecole_id = p_ecole_id AND u.role = 'directeur' AND a.ecole_id = p_ecole_id;
+
+    -- Mêmes clés que echanger_utilisateur_ecole (bloc v1.21) : par e-mail, et par IP + e-mail
+    v_email_cle := md5(left(v_email, 120));
+    DELETE FROM public.tentatives_connexion
+    WHERE cle = 'utilisateur:' || v_email_cle
+       OR cle LIKE 'utilisateurip:%|' || v_email_cle;
+    RETURN v_email;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.reinitialiser_mot_de_passe_directeur(UUID, TEXT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.reinitialiser_mot_de_passe_directeur(UUID, TEXT) TO service_role;
