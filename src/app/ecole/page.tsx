@@ -7,7 +7,7 @@ import { lireAbonnementEcole } from "@/lib/abonnement-ecole";
 import { derniereModification } from "@/lib/modifications";
 import { LectureTropLongue, TAILLE_PAGE, comparer, toutLire, toutLireParIds } from "@/lib/lecture-paginee";
 import { EcoleDashboardClient } from "./ecole-dashboard-client";
-import type { ClasseVue, EcoleVue, EleveVue, PaiementVue } from "./types";
+import type { ClasseVue, EcoleVue, EleveVue, PaiementVue, UtilisateurListeVue } from "./types";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +44,15 @@ export default async function EcolePage({ searchParams }: PageProps) {
   // Lecture en échec (ou bloc v1.20 pas encore appliqué) : pas de bandeau plutôt qu'une page en erreur,
   // le refus des écritures ne dépend pas de cet affichage.
   const abonnement = (await lireAbonnementEcole(supabase, "ecole/page")) ?? { etat: "normal" as const, fin: null, finGrace: null, joursRestants: null };
+
+  // Comptes de l'école (D09) : lus pour le directeur seulement, par une fonction qui ne renvoie jamais le hash.
+  // Lecture en échec (bloc v1.23 pas encore appliqué) : liste vide plutôt qu'une page en erreur.
+  let utilisateurs: UtilisateurListeVue[] | null = null;
+  if (session.role === "directeur") {
+    const { data: comptes, error: erreurComptes } = await (supabase as any).rpc("lister_utilisateurs_ecole");
+    if (erreurComptes) console.error("[ecole/page] lecture des utilisateurs :", erreurComptes.code ?? "erreur");
+    utilisateurs = ((comptes ?? []) as UtilisateurListeVue[]).map(({ id, nom, email, role, actif }) => ({ id, nom, email, role, actif }));
+  }
 
   const annee = ecole.annee_scolaire;
   // Lectures paginées (PostgREST renvoie 1000 lignes au plus) avec un ordre stable terminé par l'id ;
@@ -228,6 +237,7 @@ export default async function EcolePage({ searchParams }: PageProps) {
       aujourdhui={aujourdhui}
       abonnement={abonnement}
       utilisateur={{ nom: session.nom, email: session.email, role: session.role }}
+      utilisateurs={utilisateurs}
       bienvenue={bienvenue === "1"}
       numeroWave={process.env.WAVE_NUMERO_PAIEMENT || null}
     />

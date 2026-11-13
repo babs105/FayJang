@@ -8,12 +8,13 @@ import { Badge, Bouton, Carte, Label, Message, champ } from "@/components/ui";
 import { changerMonMotDePasse, enregistrerParametres } from "./actions";
 import { MOT_DE_PASSE_MIN } from "@/lib/mot-de-passe";
 import { MentionLectureSeule } from "./bandeau-abonnement";
+import { UtilisateursPanel } from "./utilisateurs-panel";
 import { peutEcrire } from "@/lib/abonnement";
 import type { DonneesEcole } from "./ecole-dashboard-client";
 
 const MOIS = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
 
-export function ParametresPanel({ ecole, abonnement, numeroWave, utilisateur }: DonneesEcole & { numeroWave: string | null }) {
+export function ParametresPanel({ ecole, abonnement, numeroWave, utilisateur, utilisateurs }: DonneesEcole & { numeroWave: string | null }) {
   const lectureSeule = !peutEcrire(abonnement.etat);
   const [f, setF] = useState({
     nom: ecole.nom,
@@ -224,6 +225,8 @@ export function ParametresPanel({ ecole, abonnement, numeroWave, utilisateur }: 
             <Bouton type="submit" variante="sombre" disabled={isPending || !code.ancien || code.nouveau.trim().length < MOT_DE_PASSE_MIN} className="w-full">Changer le mot de passe</Bouton>
           </form>
         </Carte>
+
+        {utilisateurs && <UtilisateursPanel utilisateurs={utilisateurs} lectureSeule={lectureSeule} />}
       </div>
     </div>
   );

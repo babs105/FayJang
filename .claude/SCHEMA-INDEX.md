@@ -3,7 +3,7 @@
 > **Fichier généré automatiquement.** Ne pas éditer à la main.
 > Régénérer : `bash scripts/schema-index.sh`
 
-**Total : 4624 lignes.**
+**Total : 4772 lignes.**
 
 ## Tables
 
@@ -29,8 +29,10 @@
 - `abonnement_ecole` — L3711
 - `changer_code_ecole` — L344
 - `changer_mon_mot_de_passe` — L3958
+- `changer_statut_utilisateur` — L4728
 - `code_correspond` — L244
 - `controler_tentatives` — L186
+- `creer_utilisateur_ecole` — L4688
 - `echanger_acces_ecole` — L270
 - `echanger_jeton_parent` — L332
 - `echanger_utilisateur_ecole` — L3892
@@ -38,6 +40,7 @@
 - `encaisser_paiement` — L4045 **(active)** · remplace L1276, L2300
 - `enregistrer_classe` — L1538
 - `enregistrer_parametres` — L1973
+- `exiger_directeur` — L4651
 - `exiger_ecriture_ecole` — L3737
 - `exiger_ecriture_parent` — L3746
 - `hacher_code_bcrypt` — L257
@@ -51,6 +54,7 @@
 - `jwt_role_app` — L176
 - `jwt_role_utilisateur` — L3887
 - `jwt_utilisateur_id` — L3884
+- `lister_utilisateurs_ecole` — L4671
 - `nom_utilisateur_courant` — L4035
 - `noter_echec_plafonne` — L198
 - `numeroter_recu` — L786 **(active)** · remplace L417
@@ -59,6 +63,7 @@
 - `proteger_colonnes_ecole` — L377
 - `proteger_inscription` — L465
 - `proteger_paiement` — L4297 **(active)** · remplace L436, L826, L925
+- `reinitialiser_mot_de_passe_utilisateur` — L4748
 - `session_ecole_valide` — L318
 - `session_utilisateur_valide` — L3944
 - `set_updated_at` — L2264
@@ -154,6 +159,7 @@
 - L3653 : v1.20 : abonnement appliqué automatiquement (feature D02, tranche 1).
 - L3780 : v1.21 : plusieurs utilisateurs par école, tranche 1 (feature D09) : connexion par e-mail + mot de passe.
 - L4001 : v1.22 : chaque reçu dit qui l'a encaissé (D09, tranche 2).
+- L4627 : v1.23 : plusieurs utilisateurs par école, tranche 3 (feature D09) : le directeur gère ses caissiers.
 
 ## Notes pour l'agent
 

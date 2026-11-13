@@ -4622,3 +4622,151 @@ REVOKE EXECUTE ON FUNCTION public.inscrire_eleve(UUID, UUID, TEXT, TEXT, TEXT, D
     FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.inscrire_eleve(UUID, UUID, TEXT, TEXT, TEXT, DATE, TEXT, TEXT, INTEGER, JSONB, DATE, TEXT, TEXT, JSONB)
     TO authenticated;
+
+-- ==============================================================================
+-- v1.23 : plusieurs utilisateurs par école, tranche 3 (feature D09) : le directeur gère ses caissiers.
+-- Bloc final : garder en dernier.
+--
+-- Toutes les fonctions sont réservées au directeur, vérifié deux fois : rôle du JWT (jwt_role_utilisateur) ET
+-- compte actif de rôle « directeur » dans utilisateurs_ecole pour l'utilisateur et l'école du JWT. Refus : FJ403.
+-- Elles ne touchent qu'un caissier de l'école du JWT (FJ404 sinon) : un directeur n'est jamais créé, désactivé
+-- ni réinitialisé par l'école (décision du 2026-11-12 : un seul directeur, réinitialisé par /admin en T6).
+--   - lister_utilisateurs_ecole() : id, nom, e-mail, rôle, actif, créé le. Jamais code_hash (la table reste sans
+--     aucun droit direct : une policy SELECT exposerait le hash, la RLS ne filtre pas les colonnes).
+--   - creer_utilisateur_ecole(nom, e-mail, sha256) : crée un caissier actif. E-mail déjà pris (toutes écoles) :
+--     FJ422 sans dire où. 20 comptes au plus par école, directeur et désactivés compris (décision du
+--     2026-11-12) : FJ422 au-delà ; verrou par école pour que deux créations simultanées ne dépassent pas. Nom réservé : refusé par la contrainte du bloc v1.22. Lecture seule (F21) : refusé
+--     par trg_abonnement_ecriture (FJ403).
+--   - changer_statut_utilisateur(id, actif) : désactive ou réactive un caissier (décision du 2026-11-12 :
+--     réactivation permise). Chaque changement date mdp_modifie_at : les sessions émises avant sont coupées,
+--     et un cookie d'avant la désactivation ne revit pas à la réactivation.
+--   - reinitialiser_mot_de_passe_utilisateur(id, sha256) : nouveau mot de passe provisoire pour un caissier ;
+--     le trigger le hache en bcrypt et date mdp_modifie_at (session coupée). Les compteurs d'échecs de
+--     connexion de son e-mail sont effacés : un caissier bloqué (FJ429) se reconnecte aussitôt (décision du
+--     2026-11-12).
+-- Désactiver et réinitialiser restent permis en lecture seule (UPDATE non gardé, comme changer son mot de passe).
+-- ==============================================================================
+
+-- Directeur actif de l'école du JWT, sinon FJ403 ; renvoie l'école
+CREATE OR REPLACE FUNCTION public.exiger_directeur()
+RETURNS UUID
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+    v_ecole UUID := public.jwt_ecole_id();
+BEGIN
+    IF public.jwt_role_app() IS DISTINCT FROM 'ecole'
+       OR public.jwt_role_utilisateur() IS DISTINCT FROM 'directeur'
+       OR v_ecole IS NULL
+       OR NOT EXISTS (
+           SELECT 1 FROM public.utilisateurs_ecole
+           WHERE id = public.jwt_utilisateur_id() AND ecole_id = v_ecole AND role = 'directeur' AND actif
+       ) THEN
+        RAISE EXCEPTION 'Réservé au directeur de l''école.' USING ERRCODE = 'FJ403';
+    END IF;
+    RETURN v_ecole;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.exiger_directeur() FROM PUBLIC, anon, authenticated;
+
+CREATE OR REPLACE FUNCTION public.lister_utilisateurs_ecole()
+RETURNS TABLE (id UUID, nom TEXT, email TEXT, role TEXT, actif BOOLEAN, created_at TIMESTAMPTZ)
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
+#variable_conflict use_column
+DECLARE
+    v_ecole UUID := public.exiger_directeur();
+BEGIN
+    RETURN QUERY
+    SELECT u.id, u.nom, u.email, u.role, u.actif, u.created_at
+    FROM public.utilisateurs_ecole u
+    WHERE u.ecole_id = v_ecole
+    ORDER BY (u.role = 'directeur') DESC, u.actif DESC, u.nom, u.id;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.lister_utilisateurs_ecole() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.lister_utilisateurs_ecole() TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.creer_utilisateur_ecole(p_nom TEXT, p_email TEXT, p_code_hash TEXT)
+RETURNS UUID
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+    v_ecole UUID := public.exiger_directeur();
+    v_nom TEXT := btrim(coalesce(p_nom, ''));
+    v_email TEXT := lower(btrim(coalesce(p_email, '')));
+    v_id UUID;
+BEGIN
+    IF length(v_nom) NOT BETWEEN 1 AND 100 THEN
+        RAISE EXCEPTION 'Indiquez le nom du caissier (100 caractères au plus).' USING ERRCODE = 'FJ422';
+    END IF;
+    IF length(v_email) > 120 OR v_email !~ '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]{2,}$' THEN
+        RAISE EXCEPTION 'Adresse e-mail invalide.' USING ERRCODE = 'FJ422';
+    END IF;
+    IF p_code_hash IS NULL OR p_code_hash !~ '^[0-9a-f]{64}$' THEN
+        RAISE EXCEPTION 'Mot de passe invalide.' USING ERRCODE = 'FJ422';
+    END IF;
+
+    -- Verrous : par école (plafond de comptes) puis par e-mail (deux créations du même e-mail ne se croisent pas)
+    PERFORM pg_advisory_xact_lock(hashtextextended('utilisateurs-ecole:' || v_ecole::text, 0));
+    PERFORM pg_advisory_xact_lock(hashtextextended('utilisateur-email:' || v_email, 0));
+    IF (SELECT count(*) FROM public.utilisateurs_ecole WHERE ecole_id = v_ecole) >= 20 THEN
+        RAISE EXCEPTION 'Limite de 20 comptes par école atteinte (comptes désactivés compris) : contactez FayJàng.'
+            USING ERRCODE = 'FJ422';
+    END IF;
+    IF EXISTS (SELECT 1 FROM public.utilisateurs_ecole WHERE email = v_email) THEN
+        RAISE EXCEPTION 'Cet e-mail est déjà utilisé par un compte FayJàng : choisissez une autre adresse.'
+            USING ERRCODE = 'FJ422';
+    END IF;
+
+    INSERT INTO public.utilisateurs_ecole (ecole_id, nom, email, code_hash, role)
+    VALUES (v_ecole, v_nom, v_email, p_code_hash, 'caissier')
+    RETURNING id INTO v_id;
+    RETURN v_id;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.creer_utilisateur_ecole(TEXT, TEXT, TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.creer_utilisateur_ecole(TEXT, TEXT, TEXT) TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.changer_statut_utilisateur(p_id UUID, p_actif BOOLEAN)
+RETURNS VOID
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+    v_ecole UUID := public.exiger_directeur();
+BEGIN
+    IF p_actif IS NULL THEN
+        RAISE EXCEPTION 'Statut invalide.' USING ERRCODE = 'FJ422';
+    END IF;
+    UPDATE public.utilisateurs_ecole
+    SET actif = p_actif, mdp_modifie_at = now()
+    WHERE id = p_id AND ecole_id = v_ecole AND role = 'caissier';
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Caissier introuvable dans cette école.' USING ERRCODE = 'FJ404';
+    END IF;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.changer_statut_utilisateur(UUID, BOOLEAN) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.changer_statut_utilisateur(UUID, BOOLEAN) TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.reinitialiser_mot_de_passe_utilisateur(p_id UUID, p_nouveau_hash TEXT)
+RETURNS VOID
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+    v_ecole UUID := public.exiger_directeur();
+    v_email_cle TEXT;
+BEGIN
+    IF p_nouveau_hash IS NULL OR p_nouveau_hash !~ '^[0-9a-f]{64}$' THEN
+        RAISE EXCEPTION 'Mot de passe invalide.' USING ERRCODE = 'FJ422';
+    END IF;
+    UPDATE public.utilisateurs_ecole
+    SET code_hash = p_nouveau_hash
+    WHERE id = p_id AND ecole_id = v_ecole AND role = 'caissier'
+    RETURNING md5(left(email, 120)) INTO v_email_cle;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Caissier introuvable dans cette école.' USING ERRCODE = 'FJ404';
+    END IF;
+    -- Mêmes clés que echanger_utilisateur_ecole (bloc v1.21) : par e-mail, et par IP + e-mail
+    DELETE FROM public.tentatives_connexion
+    WHERE cle = 'utilisateur:' || v_email_cle
+       OR cle LIKE 'utilisateurip:%|' || v_email_cle;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.reinitialiser_mot_de_passe_utilisateur(UUID, TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.reinitialiser_mot_de_passe_utilisateur(UUID, TEXT) TO authenticated;

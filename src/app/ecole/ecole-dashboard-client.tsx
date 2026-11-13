@@ -14,7 +14,7 @@ import { ParametresPanel } from "./parametres-panel";
 import { FicheEleve } from "./fiche-eleve";
 import { BandeauAbonnement } from "./bandeau-abonnement";
 import { peutEcrire, type SituationAbonnement } from "@/lib/abonnement";
-import type { ClasseVue, EcoleVue, EleveVue, PaiementVue, UtilisateurVue } from "./types";
+import type { ClasseVue, EcoleVue, EleveVue, PaiementVue, UtilisateurListeVue, UtilisateurVue } from "./types";
 
 export type Onglet = "tableau" | "eleves" | "paiements" | "impayes" | "classes" | "parametres";
 
@@ -37,6 +37,8 @@ export interface DonneesEcole {
   abonnement: SituationAbonnement;
   /** Membre de l'administration connecté (D09) */
   utilisateur: UtilisateurVue;
+  /** Comptes de l'école, lus pour le directeur seulement (null pour un caissier) */
+  utilisateurs: UtilisateurListeVue[] | null;
 }
 
 export function EcoleDashboardClient(props: DonneesEcole & { bienvenue: boolean; numeroWave: string | null }) {
