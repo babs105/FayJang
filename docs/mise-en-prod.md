@@ -134,7 +134,7 @@ Avec l'école de test, pas les données d'une vraie école.
 - [ ] Export Excel : onglets Paiements et Soldes.
 
 **Parent**
-- [ ] Le lien « Envoyer le lien parent » pointe vers `https://fayjang.vercel.app/p/...` (pas `localhost`).
+- [ ] Le lien « Envoyer le lien parent » pointe vers `https://fayjang.vercel.app/parent/...` (pas `localhost`).
 - [ ] La page parent affiche les deux enfants, les tranches et les reçus ; un reçu annulé n'apparaît pas.
 - [ ] « Nouveau lien » → l'ancien lien renvoie une page introuvable.
 

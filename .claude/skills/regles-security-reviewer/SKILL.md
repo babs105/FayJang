@@ -35,7 +35,7 @@ Deux mécanismes distincts, à ne pas confondre :
    chaque requête et **ne quitte jamais le serveur** : il sert seulement
    d'en-tête `Authorization` vers Supabase. Rôles : `ecole`, `parent`, `connexion`.
 
-L'identifiant de la page parent est dans l'URL (`/p/[token]`, 128 bits hex) et
+L'identifiant de la page parent est dans l'URL (`/parent/[token]`, 128 bits hex) et
 ré-échangé à chaque requête par `echanger_jeton_parent` (`SECURITY DEFINER`).
 
 **Il n'y a pas de `src/middleware.ts`.** Chaque page, Server Action et route
@@ -55,8 +55,8 @@ escalader vers `database-reviewer`.
 | `src/lib/ecole-session.ts`, `admin-session.ts` | Cookies de session, HMAC, hachage des codes |
 | `src/lib/supabase/admin.ts` | Seul fichier qui lit la clé admin |
 | `src/lib/supabase/server.ts`, `client-serveur.ts` | Client anon + JWT, fonctions d'échange, contrôle de session |
-| `src/app/**/actions.ts` | Points d'entrée appelables depuis le navigateur |
-| `src/app/ecole/recu/[id]/route.ts`, `src/app/ecole/export/route.ts`, `src/app/p/[token]/recu/[id]/route.ts`, `src/app/api/diagnostic/route.ts` | Routes HTTP, chacune doit se protéger seule |
+| `src/app/**/actions.ts`, `src/app/ecole/actions/*.ts` | Points d'entrée appelables depuis le navigateur |
+| `src/app/ecole/recu/[id]/route.ts`, `src/app/ecole/export/route.ts`, `src/app/parent/[token]/recu/[id]/route.ts`, `src/app/api/diagnostic/route.ts` | Routes HTTP, chacune doit se protéger seule |
 
 ---
 
@@ -103,9 +103,9 @@ Pas de middleware : vérifier dans **chaque** fichier touché.
 
 | Espace | Vérification attendue en tête de page / action / route |
 |---|---|
-| `/ecole/**` (page, actions, `recu/[id]`, `export`) | `getEcoleId()` (helper `session()` dans `actions.ts`) → sinon redirection `/ecole/login`, `SESSION_EXPIREE` ou 401 |
+| `/ecole/**` (page, actions, `recu/[id]`, `export`) | `getEcoleId()` (helper `session()` dans `actions/_commun.ts`) → sinon redirection `/ecole/login`, `SESSION_EXPIREE` ou 401 |
 | `/admin/**` | `isAdmin()` dans la page **et** dans chaque action |
-| `/p/[token]` (page, `recu/[id]`) | `echangerJetonParent(token)` → `notFound()` / 404 sinon |
+| `/parent/[token]` (page, `recu/[id]`) | `echangerJetonParent(token)` → `notFound()` / 404 sinon |
 | `/api/diagnostic` | En-tête `x-diagnostic-secret` = `DIAGNOSTIC_SECRET` (16 car. min.), 404 sinon en production |
 
 **Routes publiques assumées** : `/`, `/inscription`, `/ecole/login`,
@@ -113,11 +113,11 @@ Pas de middleware : vérifier dans **chaque** fichier touché.
 
 ```bash
 # Server Actions École : chaque export doit commencer par session()
-grep -n "export async function\|await session()" src/app/ecole/actions.ts
+grep -n "export async function\|await session()" src/app/ecole/actions/*.ts
 # Actions admin sans isAdmin
-grep -n "export async function\|isAdmin()" src/app/admin/actions.ts
+grep -n "export async function\|clientAdmin()\|isAdmin()" src/app/admin/actions/*.ts
 # Routes de téléchargement : session vérifiée
-grep -n "getEcoleId()\|echangerJetonParent(" src/app/ecole/recu/\[id\]/route.ts src/app/ecole/export/route.ts src/app/p/\[token\]/recu/\[id\]/route.ts
+grep -n "getEcoleId()\|echangerJetonParent(" src/app/ecole/recu/\[id\]/route.ts src/app/ecole/export/route.ts src/app/parent/\[token\]/recu/\[id\]/route.ts
 ```
 
 ### S4 — Clé de signature JWT serveur uniquement
@@ -160,10 +160,10 @@ await createEcoleSession(ecoleId);
 redirect("/ecole");
 ```
 
-**Exception** : `/p/[token]` porte son identifiant dans l'URL par conception
+**Exception** : `/parent/[token]` porte son identifiant dans l'URL par conception
 (lien WhatsApp au parent). Le token doit rester aléatoire (`generateToken()`,
 16 octets), révocable (`parents.is_active`, bouton « Nouveau lien ») et la page
-reste `noindex`. Les liens de reçu parent (`/p/[token]/recu/[id]`) héritent de
+reste `noindex`. Les liens de reçu parent (`/parent/[token]/recu/[id]`) héritent de
 la même règle.
 
 ### S7 — Server Actions : validation des entrées et recalcul des montants

@@ -5,7 +5,7 @@ description: >
   les onglets Élèves et Classes (eleves-panel.tsx, classes-panel.tsx), la partie identité / inscription /
   articles de la fiche élève, les Server Actions inscrireEleve, modifierInscription, modifierEleve,
   supprimerEleve, enregistrerClasse, archiverClasse, ajouterArticleInscription, retirerArticleInscription,
-  regenererLienParent (src/app/ecole/actions.ts), et src/lib/inscription-initiale.ts, matricule.ts,
+  regenererLienParent (src/app/ecole/actions/inscriptions.ts, classes.ts, articles.ts, parents.ts), et src/lib/inscription-initiale.ts, matricule.ts,
   classe-catalogue.ts, telephone.ts. Ne touche JAMAIS : encaisserPaiement / annulerPaiement,
   src/lib/scolarite.ts et encaissement.ts (dev-encaissement), schema.sql (escalader à l'humain),
   src/lib/supabase/**, les sessions, l'import, /admin.
@@ -34,11 +34,11 @@ classe) et P02 (réinscription en masse) ; archivé quand ces flows sont stables
 ## Scope STRICT
 
 **Dans ton scope (lecture et modification) :**
-- `src/app/ecole/eleves-panel.tsx`, `src/app/ecole/classes-panel.tsx`
-- `src/app/ecole/fiche-eleve.tsx` : **seulement** l'identité, l'inscription,
+- `src/components/ecole/eleves-panel.tsx`, `src/components/ecole/classes-panel.tsx`
+- `src/components/ecole/fiche-eleve.tsx` : **seulement** l'identité, l'inscription,
   le départ, les articles et le lien parent ; jamais la grille des mois,
   le formulaire d'encaissement ni l'historique des reçus (`dev-encaissement`)
-- `src/app/ecole/actions.ts` : **uniquement** `inscrireEleve`, `modifierInscription`,
+- `src/app/ecole/actions/` (`inscriptions.ts`, `classes.ts`, `articles.ts`, `parents.ts`) : **uniquement** `inscrireEleve`, `modifierInscription`,
   `modifierEleve`, `supprimerEleve`, `enregistrerClasse`, `archiverClasse`,
   `ajouterArticleInscription`, `retirerArticleInscription`, `regenererLienParent`,
   et les nouvelles actions de ta tranche (ex. `changerClasse`, `reinscrireClasse`)
@@ -108,7 +108,7 @@ classe) et P02 (réinscription en masse) ; archivé quand ces flows sont stables
 
 1. **Charger le skill `regles-dev-inscriptions`**.
 2. **Lire la tranche du plan `architect`**. Pas de plan : refuser et demander à `architect`.
-3. Lire l'action touchée dans `src/app/ecole/actions.ts` (Read ciblé, pas le fichier entier)
+3. Lire l'action touchée dans son fichier de `src/app/ecole/actions/`
    et, si elle appelle une RPC, sa **version active** via `.claude/SCHEMA-INDEX.md`.
 4. Vérifier les types dans `src/types/database.ts` : aucune colonne inventée.
 

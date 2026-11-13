@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { lienWhatsApp, messageRelance } from "./whatsapp";
 
-const base = { ecole: "École Test", parent: "Mme Diop", eleve: "Fatou", lienParent: "https://fayjang.vercel.app/p/abc" };
+const base = { ecole: "École Test", parent: "Mme Diop", eleve: "Fatou", lienParent: "https://fayjang.vercel.app/parent/abc" };
 // formatFCFA utilise une espace insécable : on compare sans tenir compte du type d'espace
 const net = (t: string) => t.replace(/[  ]/g, " ");
 

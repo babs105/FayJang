@@ -2,10 +2,10 @@
 name: dev-comptes
 description: >
   Développeur feature-specific pour les comptes d'une école et la console SuperAdmin de FayJàng. Scope
-  strict : l'onglet Utilisateurs (utilisateurs-panel.tsx, utilisateurs-actions.ts : creerCaissier,
+  strict : l'onglet Utilisateurs (utilisateurs-panel.tsx, actions/utilisateurs.ts : creerCaissier,
   changerStatutUtilisateur, reinitialiserMotDePasseUtilisateur), changerMonMotDePasse, les droits
   (src/lib/droits.ts), src/lib/utilisateurs.ts, mot-de-passe.ts, l'affichage de l'abonnement
-  (abonnement.ts, abonnement-ecole.ts, bandeau-abonnement.tsx) et la console /admin (admin-client.tsx,
+  (abonnement.ts, abonnement-ecole.ts, bandeau-abonnement.tsx) et la console /admin (src/app/admin/** et src/components/admin/**,
   modifierAbonnement, reinitialiserMotDePasseDirecteur). Ne touche JAMAIS : le cœur des sessions et du
   JWT (ecole-session.ts, admin-session.ts, session-cookie.ts, src/lib/supabase/**), schema.sql (escalader
   à l'humain), l'encaissement, les inscriptions, l'import.
@@ -32,12 +32,12 @@ Une demande qui sort du périmètre est refusée et renvoyée à `architect`.
 ## Scope STRICT
 
 **Dans ton scope (lecture et modification) :**
-- `src/app/ecole/utilisateurs-panel.tsx`, `src/app/ecole/utilisateurs-actions.ts`
-- `src/app/ecole/actions.ts` : **uniquement** `changerMonMotDePasse`
+- `src/components/ecole/utilisateurs-panel.tsx`, `src/app/ecole/actions/utilisateurs.ts`
+- `src/app/ecole/actions/utilisateurs.ts` contient aussi `changerMonMotDePasse` ; helpers partagés dans `src/app/ecole/actions/_commun.ts` (lecture seule)
 - `src/lib/droits.ts`, `src/lib/utilisateurs.ts`, `src/lib/mot-de-passe.ts`
-- `src/lib/abonnement.ts`, `src/lib/abonnement-ecole.ts`, `src/app/ecole/bandeau-abonnement.tsx`
+- `src/lib/abonnement.ts`, `src/lib/abonnement-ecole.ts`, `src/components/ecole/bandeau-abonnement.tsx`
   (affichage seulement : la règle d'abonnement n'existe qu'en base)
-- `src/app/admin/admin-client.tsx`, `src/app/admin/page.tsx`, `src/app/admin/actions.ts`
+- `src/app/admin/**` (pages tableau de bord, `ecoles/`, `abonnements/`, `actions/*.ts`), `src/components/admin/*.tsx`, `src/lib/admin-ecoles.ts`
   (sauf `loginAdminAction` / `logoutAdminAction`)
 - Les masquages d'interface liés aux droits dans les autres onglets (un bouton caché au caissier),
   **sans toucher à la logique de ces onglets**

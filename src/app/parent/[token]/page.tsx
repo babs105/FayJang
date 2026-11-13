@@ -185,7 +185,7 @@ export default async function ParentPage({ params }: { params: Promise<{ token: 
                       </div>
                     );
                     const lien = (
-                      <a href={`/p/${token}/recu/${p.id}`} className="flex items-center gap-1 text-[11px] font-bold text-jang-700">
+                      <a href={`/parent/${token}/recu/${p.id}`} className="flex items-center gap-1 text-[11px] font-bold text-jang-700">
                         <FileText className="w-4 h-4" /> Reçu
                       </a>
                     );

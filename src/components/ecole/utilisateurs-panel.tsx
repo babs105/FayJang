@@ -4,8 +4,8 @@ import { useState, useTransition } from "react";
 import { Badge, Bouton, Carte, Message, champ } from "@/components/ui";
 import { MOT_DE_PASSE_MIN } from "@/lib/mot-de-passe";
 import { lireSaisieCaissier } from "@/lib/utilisateurs";
-import { changerStatutUtilisateur, creerCaissier, reinitialiserMotDePasseUtilisateur } from "./utilisateurs-actions";
-import type { UtilisateurListeVue } from "./types";
+import { changerStatutUtilisateur, creerCaissier, reinitialiserMotDePasseUtilisateur } from "@/app/ecole/actions/utilisateurs";
+import type { UtilisateurListeVue } from "@/app/ecole/types";
 
 /**
  * Comptes de l'école, pour le directeur (D09, tranche 3) : ajouter un caissier, le désactiver ou le réactiver,

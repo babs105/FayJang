@@ -1,71 +1,54 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { isAdmin } from "@/lib/admin-session";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { LectureTropLongue, TAILLE_PAGE, toutLire } from "@/lib/lecture-paginee";
-import { todayDakar } from "@/lib/dates";
-import { lireSituationAbonnement, type SituationAbonnement } from "@/lib/abonnement";
-import { AdminClient, type EcoleAdmin } from "./admin-client";
-
-/** Toutes les écoles réunies : plafond plus haut que pour une seule école */
-const MAX_LIGNES_ADMIN = 500_000;
+import { formatFCFA } from "@/lib/utils";
+import { Carte, Kpi } from "@/components/ui";
+import { AlerteTotaux, EnteteAdmin, ErreurLecture } from "@/components/admin/entete";
+import { ResumeEcole } from "@/components/admin/etat-ecole";
+import { ExportBouton } from "@/components/admin/export-bouton";
+import { statsGlobales } from "./actions/stats";
 
 export const dynamic = "force-dynamic";
 
+/** Tableau de bord de la console : nombre d'écoles, abonnements, écoles en retard */
 export default async function AdminPage() {
   if (!(await isAdmin())) redirect("/admin/login");
-  const supabase = createAdminClient();
+  const r = await statsGlobales();
 
-  const { data: ecoles } = await supabase
-    .from("ecoles")
-    .select("id, nom, slug, ville, responsable_nom, email_contact, telephone_contact, annee_scolaire, plan, statut_abonnement, trial_ends_at, abonnement_fin, is_active, created_at")
-    .order("created_at", { ascending: false });
-
-  // Lecture complète, page par page : une requête simple est coupée à 1000 lignes et les totaux seraient faux
-  // sans erreur. En cas d'échec, on affiche les écoles sans totaux plutôt que des chiffres incomplets.
-  const eleves = new Map<string, number>();
-  const encaisse = new Map<string, number>();
-  let totauxDisponibles = true;
-  try {
-    const [inscriptions, paiements] = await Promise.all([
-      toutLire(
-        (apres) => supabase.from("inscriptions").select("id, ecole_id, annee_scolaire").eq("statut", "active").gt("id", apres).order("id").limit(TAILLE_PAGE),
-        MAX_LIGNES_ADMIN
-      ),
-      toutLire(
-        (apres) => supabase.from("paiements").select("id, ecole_id, montant").eq("annule", false).gt("id", apres).order("id").limit(TAILLE_PAGE),
-        MAX_LIGNES_ADMIN
-      ),
-    ]);
-    const anneeDe = new Map((ecoles ?? []).map((e) => [e.id, e.annee_scolaire]));
-    for (const i of inscriptions) if (anneeDe.get(i.ecole_id) === i.annee_scolaire) eleves.set(i.ecole_id, (eleves.get(i.ecole_id) ?? 0) + 1);
-    for (const p of paiements) encaisse.set(p.ecole_id, (encaisse.get(p.ecole_id) ?? 0) + p.montant);
-  } catch (err) {
-    totauxDisponibles = false;
-    console.error("[admin] totaux :", err instanceof LectureTropLongue ? "trop de lignes" : ((err as { code?: string })?.code ?? "erreur"));
-  }
-
-  // État de l'abonnement de chaque école, calculé par la base (situation_abonnement, bloc v1.20 : la règle n'existe
-  // que là). Un appel par école : la console liste peu d'écoles. En échec, l'état est affiché « inconnu ».
-  const jour = todayDakar();
-  const situations = await Promise.all(
-    (ecoles ?? []).map(async (e): Promise<SituationAbonnement | null> => {
-      const { data, error } = await supabase.rpc("situation_abonnement", {
-        p_statut: e.statut_abonnement,
-        p_trial_ends_at: e.trial_ends_at,
-        p_abonnement_fin: e.abonnement_fin,
-        p_jour: jour,
-      });
-      if (error) console.error("[admin] état de l'abonnement :", error.code ?? "erreur");
-      return error ? null : lireSituationAbonnement(data);
-    })
+  return (
+    <div className="min-h-screen bg-neutral-50">
+      <EnteteAdmin actif="tableau" />
+      <main className="max-w-6xl mx-auto px-4 py-6 space-y-4">
+        {!r.success || !r.data ? (
+          <ErreurLecture message={r.message} />
+        ) : (
+          <>
+            {!r.data.totauxDisponibles && <AlerteTotaux />}
+            <div className="flex justify-end">
+              <ExportBouton />
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <Kpi label="Écoles" valeur={String(r.data.stats.ecoles)} detail={`${r.data.stats.desactivees} désactivée(s)`} />
+              <Kpi label="Abonnées" valeur={String(r.data.stats.abonnees)} ton="vert" detail={`${r.data.stats.enEssai} en essai`} />
+              <Kpi label="En retard" valeur={String(r.data.stats.enRetard)} ton={r.data.stats.enRetard ? "rouge" : undefined} detail={`${r.data.stats.finProche} fin dans 7 jours`} />
+              <Kpi label="Élèves suivis" valeur={String(r.data.stats.eleves)} detail={`${formatFCFA(r.data.stats.encaisse)} encaissés`} />
+            </div>
+            <Carte className="space-y-3">
+              <div className="flex justify-between items-center">
+                <p className="text-xs font-extrabold">Écoles en retard (délai de grâce ou lecture seule)</p>
+                <Link href="/admin/abonnements" className="text-[11px] font-bold text-jang-700">
+                  Voir les abonnements
+                </Link>
+              </div>
+              {r.data.enRetard.length === 0 ? (
+                <p className="text-xs text-neutral-500">Aucune école en retard.</p>
+              ) : (
+                r.data.enRetard.map((e) => <ResumeEcole key={e.id} ecole={e} />)
+              )}
+            </Carte>
+          </>
+        )}
+      </main>
+    </div>
   );
-
-  const vue: EcoleAdmin[] = (ecoles ?? []).map((e, i) => ({
-    ...e,
-    eleves: eleves.get(e.id) ?? 0,
-    encaisse: encaisse.get(e.id) ?? 0,
-    abonnement: situations[i],
-  }));
-
-  return <AdminClient ecoles={vue} totauxDisponibles={totauxDisponibles} />;
 }

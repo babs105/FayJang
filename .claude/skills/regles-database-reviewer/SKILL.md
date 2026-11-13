@@ -291,8 +291,8 @@ REVOKE ALL ON public.compteurs_recus FROM PUBLIC, anon, authenticated;
   ni réutiliser un `lot_id` reçu du client.
 
 ```bash
-grep -rn "numero_recu" src/app/*/actions.ts   # aucun résultat attendu (seules les actions écrivent)
-grep -n "lot_id\|cle" src/app/ecole/actions.ts   # clé reçue du formulaire (lireCleEncaissement), randomUUID() en secours
+grep -rn "numero_recu" src/app/*/actions.ts src/app/*/actions/*.ts   # aucun résultat attendu (seules les actions écrivent)
+grep -n "lot_id\|cle" src/app/ecole/actions/*.ts   # clé reçue du formulaire (lireCleEncaissement), randomUUID() en secours
 ```
 
 ### C14 — Codes d'erreur custom documentés, causes jamais reconnues par leur texte
@@ -330,7 +330,7 @@ d'un `FJ4xx` (pas de nouvel essai automatique).
 ```bash
 grep -n "ERRCODE = 'FJ" supabase/schema.sql
 grep -n "CODES_METIER" src/lib/erreurs.ts
-grep -n "message.*includes(\|message.*startsWith(\|erreur\.startsWith(" src/app/*/actions.ts   # cause reconnue par son texte = finding
+grep -n "message.*includes(\|message.*startsWith(\|erreur\.startsWith(" src/app/*/actions.ts src/app/*/actions/*.ts   # cause reconnue par son texte = finding
 ```
 
 ### C15 — Défense en profondeur : REVOKE ALL + ALTER DEFAULT PRIVILEGES
@@ -532,7 +532,7 @@ grep -n "Ce reçu est déjà émis" supabase/schema.sql   # FJ412 du trigger att
 grep -n "UNIQUE.*lot_id" supabase/schema.sql          # aucun résultat attendu
 
 # Cause d'erreur reconnue par son texte (C14)
-grep -rn "message.*includes(\|erreur\.startsWith(" src/app/*/actions.ts
+grep -rn "message.*includes(\|erreur\.startsWith(" src/app/*/actions.ts src/app/*/actions/*.ts
 ```
 
 ---

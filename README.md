@@ -17,7 +17,7 @@
    * **Paiements :** journal du jour / du mois / de l'année, **export Excel** (paiements + soldes par élève).
    * **Paramètres :** calendrier (mois de la 1ʳᵉ mensualité, nombre de mensualités, jour d'échéance), **dernier mois payé par tranches** (mois de début et nombre de tranches), passage à l'année suivante (classes reprises), changement du code d'accès.
 
-2. **Espace Parent (`/p/[token]`) :**
+2. **Espace Parent (`/parent/[token]`) :**
    * Accessible sans mot de passe via un lien magique envoyé par WhatsApp.
    * Page serveur légère (aucun JavaScript client), pensée pour la 3G/4G.
    * Tous les enfants du parent, la grille des mois, le reste à payer, les tranches du dernier mois et les reçus PDF.

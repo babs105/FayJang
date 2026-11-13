@@ -18,19 +18,19 @@ elle touche les mois à payer dans la grille, choisit le mode (espèces, Wave,
 Orange Money, Free Money, virement, chèque) et valide. Le serveur recalcule ce
 qui est dû, crée une ou plusieurs lignes dans `paiements` sous un même `lot_id`,
 et la base leur attribue **un seul numéro de reçu**. Le reçu PDF liste les lignes
-et le total. Le parent retrouve ses reçus sur `/p/[token]`.
+et le total. Le parent retrouve ses reçus sur `/parent/[token]`.
 
 **Fichiers du flow :**
-- `src/app/ecole/fiche-eleve.tsx` : grille des mois, formulaire, bouton « Payer la
+- `src/components/ecole/fiche-eleve.tsx` : grille des mois, formulaire, bouton « Payer la
   tranche », case « Inclure la tranche … », historique, annulation.
-- `src/app/ecole/actions.ts` : `encaisserPaiement(saisie)` et `annulerPaiement(id, motif)`.
+- `src/app/ecole/actions/encaissement.ts` : `encaisserPaiement(saisie)` et `annulerPaiement(id, motif)`.
 - `src/lib/scolarite.ts` : `situationInscription()`, `mensualiteNette()`,
   `moisDesTranches()`, `maxTranches()`, `partEchue()`, `libelleTranche()`, `trancheAvecMois()`.
   **Partagé client / serveur** : la fiche affiche le même calcul que celui que le serveur applique.
 - `src/lib/libelles.ts` : `libellePaiement()` (« Mensualité de janvier 2027 »,
   « Tranche 1/3 de juin 2027 »), `MODES_PAIEMENT`, `LIBELLE_MODE`.
 - `src/lib/recu-donnees.ts` + `src/lib/recu-pdf.ts` : lecture du lot, PDF A5.
-- `src/app/ecole/recu/[id]/route.ts`, `src/app/p/[token]/recu/[id]/route.ts`.
+- `src/app/ecole/recu/[id]/route.ts`, `src/app/parent/[token]/recu/[id]/route.ts`.
 - `src/lib/dates.ts` : `todayDakar()`, `moisScolaires()`, `echeanceDuMois()`, `formatMois()`.
 
 **Tables lues/écrites :**
@@ -181,10 +181,10 @@ Avec l'école de test (`docs/compte-test.local.md`), jamais les données d'une v
 
 ### E7 — Isolation
 - [ ] Le reçu d'une autre école (id copié) → 404 côté École
-- [ ] Le reçu d'un autre parent via `/p/<mon-token>/recu/<id>` → 404
+- [ ] Le reçu d'un autre parent via `/parent/<mon-token>/recu/<id>` → 404
 
 ### E8 — Parent
-- [ ] `/p/<token>` : grille, tranches « k/n », reçus téléchargeables, aucun reçu annulé
+- [ ] `/parent/<token>` : grille, tranches « k/n », reçus téléchargeables, aucun reçu annulé
 
 ## Tests chiffrés de `scolarite.ts`
 
@@ -214,16 +214,16 @@ désactivée, élève en abandon, et l'exemple de référence de la v1.5 (132 00
 
 ```bash
 # client admin introduit par erreur
-grep -rn "createAdminClient\|service_role" src/app/ecole/ src/app/p/ src/lib/scolarite.ts
+grep -rn "createAdminClient\|service_role" src/app/ecole/ src/app/parent/ src/lib/scolarite.ts
 
 # suppression ou modification de paiement
 grep -rn 'from("paiements")' src/ | grep -E "delete|update" | grep -v "annule: true"
 
 # numéro de reçu écrit par le code
-grep -rn "numero_recu" src/app/*/actions.ts   # aucun résultat attendu
+grep -rn "numero_recu" src/app/*/actions.ts src/app/*/actions/*.ts   # aucun résultat attendu
 
 # date métier calculée avec new Date()
-grep -rn "new Date()" src/app/ecole/actions.ts src/lib/scolarite.ts
+grep -rn "new Date()" src/app/ecole/actions/*.ts src/lib/scolarite.ts
 ```
 
 ## Format de sortie attendu

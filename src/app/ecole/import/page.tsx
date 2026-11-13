@@ -4,7 +4,7 @@ import { ArrowLeft, Lock, Upload } from "lucide-react";
 import { getSessionEcole } from "@/lib/ecole-session";
 import { peutFaire } from "@/lib/droits";
 import { createClientEcole } from "@/lib/supabase/server";
-import { ReprisePanel } from "./reprise-panel";
+import { ReprisePanel } from "@/components/ecole/reprise-panel";
 import { lireAbonnementEcole } from "@/lib/abonnement-ecole";
 import { MESSAGE_LECTURE_SEULE, peutEcrire } from "@/lib/abonnement";
 

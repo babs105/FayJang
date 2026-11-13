@@ -12,19 +12,13 @@ import { Badge, Bouton, Label, Message, Modal, champ } from "@/components/ui";
 import { cleAEnvoyer, signatureEncaissement, type TentativeEncaissement } from "@/lib/encaissement";
 import { choixALinscription, lignesAEncaisser, paiementLibreAutorise, type LigneArticle, type StatutMois } from "@/lib/scolarite";
 import type { StatutInscription } from "@/types/database";
-import {
-  ajouterArticleInscription,
-  annulerPaiement,
-  encaisserPaiement,
-  modifierEleve,
-  modifierInscription,
-  regenererLienParent,
-  retirerArticleInscription,
-  supprimerEleve,
-} from "./actions";
+import { ajouterArticleInscription, retirerArticleInscription } from "@/app/ecole/actions/articles";
+import { annulerPaiement, encaisserPaiement } from "@/app/ecole/actions/encaissement";
+import { modifierEleve, modifierInscription, supprimerEleve } from "@/app/ecole/actions/inscriptions";
+import { regenererLienParent } from "@/app/ecole/actions/parents";
 import { InscriptionModal } from "./eleves-panel";
 import { MentionLectureSeule } from "./bandeau-abonnement";
-import type { ClasseVue, EcoleVue, EleveVue, PaiementVue } from "./types";
+import type { ClasseVue, EcoleVue, EleveVue, PaiementVue } from "@/app/ecole/types";
 
 const STYLE_MOIS: Record<StatutMois, string> = {
   paye: "bg-jang-50 border-jang-200 text-jang-700",
