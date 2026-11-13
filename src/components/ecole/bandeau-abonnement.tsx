@@ -1,7 +1,7 @@
 import { AlertTriangle, Lock } from "lucide-react";
-import { formatDate } from "@/lib/dates";
+import { formatDate } from "@/lib/metier/dates";
 import { cn } from "@/lib/utils";
-import type { SituationAbonnement } from "@/lib/abonnement";
+import type { SituationAbonnement } from "@/lib/metier/abonnement";
 import type { EcoleVue } from "@/types/ecole";
 
 /**

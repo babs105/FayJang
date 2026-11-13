@@ -1,8 +1,8 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { createAdminSession, destroyAdminSession, isAdminConfigure, verifyAdminCode } from "@/serveur/admin-session";
-import { createAdminClient } from "@/serveur/supabase/admin";
+import { createAdminSession, destroyAdminSession, isAdminConfigure, verifyAdminCode } from "@/lib/securite/admin-session";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function loginAdminAction(_prev: { error?: string } | undefined, formData: FormData): Promise<{ error?: string }> {
   if (!isAdminConfigure()) return { error: "Console non configurée (SUPERADMIN_CODE)." };

@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { CheckCircle2, ChevronRight, FileText, GraduationCap, Phone } from "lucide-react";
-import { echangerJetonParent } from "@/serveur/supabase/server";
+import { echangerJetonParent } from "@/lib/supabase/server";
 import { todayDakar } from "@/lib/config";
-import { formatDate, formatMois, formatMoisCourt } from "@/lib/dates";
-import { LIBELLE_MODE, libellePaiement } from "@/lib/libelles";
-import { estRecuDeReprise } from "@/lib/reprise-recu";
-import { regrouperParRecu, resumeRecu } from "@/lib/regrouper-recus";
-import { situationInscription, type StatutMois } from "@/lib/scolarite";
+import { formatDate, formatMois, formatMoisCourt } from "@/lib/metier/dates";
+import { LIBELLE_MODE, libellePaiement } from "@/lib/metier/libelles";
+import { estRecuDeReprise } from "@/lib/metier/reprise-recu";
+import { regrouperParRecu, resumeRecu } from "@/lib/metier/regrouper-recus";
+import { situationInscription, type StatutMois } from "@/lib/metier/scolarite";
 import { cn, formatFCFA } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";

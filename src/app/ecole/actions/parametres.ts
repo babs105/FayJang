@@ -1,12 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { isAnneeScolaireValide } from "@/lib/dates";
-import { messageErreur } from "@/lib/erreurs";
-import { verifierReglages } from "@/lib/scolarite";
-import { normaliserTelephone } from "@/lib/telephone";
-import { texte } from "@/lib/saisie";
-import { lireResultatParametres, messageParametres } from "@/lib/parametres";
+import { isAnneeScolaireValide } from "@/lib/metier/dates";
+import { messageErreur } from "@/lib/securite/erreurs";
+import { verifierReglages } from "@/lib/metier/scolarite";
+import { normaliserTelephone } from "@/lib/validation/telephone";
+import { texte } from "@/lib/validation/saisie";
+import { lireResultatParametres, messageParametres } from "@/lib/validation/parametres";
 import { refusDroit, sessionEcriture, type Resultat } from "./_commun";
 
 export interface SaisieParametres {

@@ -2,12 +2,12 @@
 
 import { ArrowRight } from "lucide-react";
 import { formatFCFA } from "@/lib/utils";
-import { formatDate, formatMois } from "@/lib/dates";
-import { LIBELLE_MODE } from "@/lib/libelles";
-import { regrouperParRecu, resumeRecu } from "@/lib/regrouper-recus";
+import { formatDate, formatMois } from "@/lib/metier/dates";
+import { LIBELLE_MODE } from "@/lib/metier/libelles";
+import { regrouperParRecu, resumeRecu } from "@/lib/metier/regrouper-recus";
 import { Carte, Kpi } from "@/components/ui";
-import { estEncaissementDeCaisse, totauxCaisse } from "@/lib/caisse";
-import { peutFaire } from "@/lib/droits";
+import { estEncaissementDeCaisse, totauxCaisse } from "@/lib/metier/caisse";
+import { peutFaire } from "@/lib/securite/droits";
 import type { DonneesEcole, Onglet } from "./ecole-dashboard-client";
 
 export function TableauPanel({

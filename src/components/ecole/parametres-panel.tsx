@@ -1,17 +1,17 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { formatDate, formatMois, moisScolaires } from "@/lib/dates";
+import { formatDate, formatMois, moisScolaires } from "@/lib/metier/dates";
 import { formatFCFA } from "@/lib/utils";
-import { maxTranches, moisCibleTranches, moisDesTranches, nomRang, partEchue, verifierReglages } from "@/lib/scolarite";
+import { maxTranches, moisCibleTranches, moisDesTranches, nomRang, partEchue, verifierReglages } from "@/lib/metier/scolarite";
 import { Badge, Bouton, Carte, Label, Message, champ } from "@/components/ui";
 import { enregistrerParametres } from "@/app/ecole/actions/parametres";
 import { changerMonMotDePasse } from "@/app/ecole/actions/utilisateurs";
-import { MOT_DE_PASSE_MIN } from "@/lib/mot-de-passe";
+import { MOT_DE_PASSE_MIN } from "@/lib/securite/mot-de-passe";
 import { MentionLectureSeule } from "./bandeau-abonnement";
 import { UtilisateursPanel } from "./utilisateurs-panel";
-import { peutFaire } from "@/lib/droits";
-import { peutEcrire } from "@/lib/abonnement";
+import { peutFaire } from "@/lib/securite/droits";
+import { peutEcrire } from "@/lib/metier/abonnement";
 import type { DonneesEcole } from "./ecole-dashboard-client";
 
 const MOIS = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];

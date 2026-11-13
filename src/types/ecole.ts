@@ -1,5 +1,5 @@
 import type { ArticleClasse, Classe, Ecole, ModePaiement, StatutInscription, TypePaiement, RoleUtilisateur } from "@/types/database";
-import type { Situation } from "@/lib/scolarite";
+import type { Situation } from "@/lib/metier/scolarite";
 
 /** Données préparées par page.tsx (serveur) pour l'Espace École (client) */
 

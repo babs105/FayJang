@@ -1,13 +1,13 @@
 // Colle partagée par les Server Actions de l'Espace École : session, droits, lecture de l'école.
 // PAS de "use server" ici : ces fonctions ne doivent jamais devenir des points d'entrée appelables du navigateur.
 import "server-only";
-import { getSessionEcole } from "@/serveur/ecole-session";
-import { createClientEcole } from "@/serveur/supabase/server";
+import { getSessionEcole } from "@/lib/securite/ecole-session";
+import { createClientEcole } from "@/lib/supabase/server";
 import { todayDakar } from "@/lib/config";
-import { MODES_PAIEMENT } from "@/lib/libelles";
-import { texte } from "@/lib/saisie";
-import { peutFaire, type Droit } from "@/lib/droits";
-import { refusLectureSeule } from "@/serveur/abonnement-ecole";
+import { MODES_PAIEMENT } from "@/lib/metier/libelles";
+import { texte } from "@/lib/validation/saisie";
+import { peutFaire, type Droit } from "@/lib/securite/droits";
+import { refusLectureSeule } from "@/lib/securite/abonnement-ecole";
 import type { ModePaiement, RoleUtilisateur } from "@/types/database";
 
 export interface Resultat<T = undefined> {

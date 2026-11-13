@@ -3,12 +3,12 @@
 import { useMemo, useState, useTransition } from "react";
 import { Plus, Search } from "lucide-react";
 import { formatFCFA } from "@/lib/utils";
-import { formatDate } from "@/lib/dates";
-import { LIBELLE_MODE, LIBELLE_STATUT_INSCRIPTION, MODES_PAIEMENT } from "@/lib/libelles";
+import { formatDate } from "@/lib/metier/dates";
+import { LIBELLE_MODE, LIBELLE_STATUT_INSCRIPTION, MODES_PAIEMENT } from "@/lib/metier/libelles";
 import { Badge, Bouton, Carte, Label, Message, Modal, champ } from "@/components/ui";
 import { inscrireEleve } from "@/app/ecole/actions/inscriptions";
 import { MentionLectureSeule } from "./bandeau-abonnement";
-import { peutEcrire } from "@/lib/abonnement";
+import { peutEcrire } from "@/lib/metier/abonnement";
 import type { DonneesEcole } from "./ecole-dashboard-client";
 import type { ClasseVue, EcoleVue, EleveVue } from "@/types/ecole";
 

@@ -3,12 +3,12 @@
 import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { todayDakar } from "@/lib/config";
-import { messageErreur } from "@/lib/erreurs";
-import { fcfa } from "@/lib/format";
-import { empreintePaiements, lignesPourRpc, messageAnnulation, lireCleEncaissement, lireResultatEncaissement } from "@/lib/encaissement";
-import { lignesAEncaisser, paiementLibreAutorise, situationInscription, type LigneEncaissement } from "@/lib/scolarite";
-import { estUuid, montant, texte } from "@/lib/saisie";
-import { peutFaire } from "@/lib/droits";
+import { messageErreur } from "@/lib/securite/erreurs";
+import { fcfa } from "@/lib/metier/format";
+import { empreintePaiements, lignesPourRpc, messageAnnulation, lireCleEncaissement, lireResultatEncaissement } from "@/lib/metier/encaissement";
+import { lignesAEncaisser, paiementLibreAutorise, situationInscription, type LigneEncaissement } from "@/lib/metier/scolarite";
+import { estUuid, montant, texte } from "@/lib/validation/saisie";
+import { peutFaire } from "@/lib/securite/droits";
 import { lireEcole, lireMode, sessionEcriture, type Client, type Resultat } from "./_commun";
 
 /** Inscription, paiements et articles d'un élève, puis sa situation recalculée côté serveur */

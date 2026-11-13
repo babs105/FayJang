@@ -1,10 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { messageErreur } from "@/lib/erreurs";
-import { NIVEAUX } from "@/lib/libelles";
-import { lireArticles, type SaisieArticle } from "@/lib/classe-catalogue";
-import { estUuid, montant, texte } from "@/lib/saisie";
+import { messageErreur } from "@/lib/securite/erreurs";
+import { NIVEAUX } from "@/lib/metier/libelles";
+import { lireArticles, type SaisieArticle } from "@/lib/metier/classe-catalogue";
+import { estUuid, montant, texte } from "@/lib/validation/saisie";
 import type { Niveau } from "@/types/database";
 import { refusDroit, sessionEcriture, type Resultat } from "./_commun";
 

@@ -3,8 +3,8 @@
 import { useMemo, useState } from "react";
 import { MessageCircle } from "lucide-react";
 import { formatFCFA } from "@/lib/utils";
-import { formatDate } from "@/lib/dates";
-import { lienWhatsApp, messageRelance } from "@/lib/whatsapp";
+import { formatDate } from "@/lib/metier/dates";
+import { lienWhatsApp, messageRelance } from "@/lib/metier/whatsapp";
 import { Carte, Kpi, champ } from "@/components/ui";
 import type { DonneesEcole } from "./ecole-dashboard-client";
 

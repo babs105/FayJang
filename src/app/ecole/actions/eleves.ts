@@ -3,10 +3,10 @@
 // Fiche d'identité d'un élève : modification (et son parent), suppression d'un élève saisi par erreur
 import { revalidatePath } from "next/cache";
 import { generateToken, todayDakar } from "@/lib/config";
-import { isDateValide } from "@/lib/dates";
-import { messageErreur } from "@/lib/erreurs";
-import { normaliserTelephone } from "@/lib/telephone";
-import { texte } from "@/lib/saisie";
+import { isDateValide } from "@/lib/metier/dates";
+import { messageErreur } from "@/lib/securite/erreurs";
+import { normaliserTelephone } from "@/lib/validation/telephone";
+import { texte } from "@/lib/validation/saisie";
 import { DATE_NAISSANCE_FUTURE, sessionEcriture, type Client, type Resultat } from "./_commun";
 
 /** Parent existant (même téléphone dans l'école) ou nouveau parent avec son lien magique (modification d'un élève) */

@@ -1,12 +1,12 @@
 import { redirect } from "next/navigation";
-import { createClientEcole } from "@/serveur/supabase/server";
-import { getSessionEcole } from "@/serveur/ecole-session";
-import { peutFaire } from "@/lib/droits";
+import { createClientEcole } from "@/lib/supabase/server";
+import { getSessionEcole } from "@/lib/securite/ecole-session";
+import { peutFaire } from "@/lib/securite/droits";
 import { getAppBaseUrl, todayDakar } from "@/lib/config";
-import { situationInscription } from "@/lib/scolarite";
-import { lireAbonnementEcole } from "@/serveur/abonnement-ecole";
-import { derniereModification } from "@/lib/modifications";
-import { LectureTropLongue, TAILLE_PAGE, comparer, toutLire, toutLireParIds } from "@/lib/lecture-paginee";
+import { situationInscription } from "@/lib/metier/scolarite";
+import { lireAbonnementEcole } from "@/lib/securite/abonnement-ecole";
+import { derniereModification } from "@/lib/metier/modifications";
+import { LectureTropLongue, TAILLE_PAGE, comparer, toutLire, toutLireParIds } from "@/lib/supabase/lecture-paginee";
 import { EcoleDashboardClient } from "@/components/ecole/ecole-dashboard-client";
 import type { ClasseVue, EcoleVue, EleveVue, PaiementVue, UtilisateurListeVue } from "@/types/ecole";
 

@@ -2,12 +2,12 @@
 
 // Actions de l'onglet Importer (reprise de l'existant) ; la session et l'analyse du fichier sont dans _import.ts
 import { revalidatePath } from "next/cache";
-import { createClientEcole } from "@/serveur/supabase/server";
-import { messageErreur } from "@/lib/erreurs";
-import { ErreurFichier } from "@/lib/reprise-lecture";
-import { classesACreer } from "@/lib/reprise-classes";
-import type { ApercuReprise } from "@/lib/reprise-validation";
-import { construireLot, lireCles, lireRetour, resumerRetour, type RefusLigne, type ResultatLotReprise } from "@/lib/reprise-lots";
+import { createClientEcole } from "@/lib/supabase/server";
+import { messageErreur } from "@/lib/securite/erreurs";
+import { ErreurFichier } from "@/lib/documents/reprise-lecture";
+import { classesACreer } from "@/lib/metier/reprise-classes";
+import type { ApercuReprise } from "@/lib/validation/reprise-validation";
+import { construireLot, lireCles, lireRetour, resumerRetour, type RefusLigne, type ResultatLotReprise } from "@/lib/metier/reprise-lots";
 import type { Json } from "@/types/database";
 import type { Resultat } from "./_commun";
 import { analyser, analyserComplet, sessionReprise } from "./_import";

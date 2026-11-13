@@ -3,11 +3,11 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { AlertTriangle, CheckCircle2, Download, FileSpreadsheet, Loader2, School, Users } from "lucide-react";
 import { cn, formatFCFA } from "@/lib/utils";
-import { formatDate, formatPeriode } from "@/lib/dates";
-import { LIBELLE_NIVEAU, LIBELLE_STATUT_INSCRIPTION } from "@/lib/libelles";
+import { formatDate, formatPeriode } from "@/lib/metier/dates";
+import { LIBELLE_NIVEAU, LIBELLE_STATUT_INSCRIPTION } from "@/lib/metier/libelles";
 import { Badge, Bouton, Carte, Kpi, Message } from "@/components/ui";
-import type { ApercuReprise, EleveApercu } from "@/lib/reprise-validation";
-import { cleDe, decouper, TAILLE_LOT, type CleEleve, type RefusLigne } from "@/lib/reprise-lots";
+import type { ApercuReprise, EleveApercu } from "@/lib/validation/reprise-validation";
+import { cleDe, decouper, TAILLE_LOT, type CleEleve, type RefusLigne } from "@/lib/metier/reprise-lots";
 import { analyserFichierReprise, importerClassesReprise, importerLotReprise, type ResultatClasses } from "@/app/ecole/actions/import";
 
 type Filtre = "tous" | "erreur" | "a_creer" | "deja_present";

@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { Check, ChevronDown, Copy } from "lucide-react";
 import { Bouton, Carte, Label, Message, champ } from "@/components/ui";
-import { MOT_DE_PASSE_MIN } from "@/lib/mot-de-passe";
+import { MOT_DE_PASSE_MIN } from "@/lib/securite/mot-de-passe";
 import { creerEcole } from "@/app/admin/actions/ecoles";
 
 const VIDE = { nom: "", ville: "", responsable: "", email: "", telephone: "", code: "" };

@@ -3,13 +3,13 @@
 import { Fragment, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, Download, FileText } from "lucide-react";
 import { cn, formatFCFA } from "@/lib/utils";
-import { formatDate } from "@/lib/dates";
-import { LIBELLE_MODE, MODES_PAIEMENT, libellePaiement } from "@/lib/libelles";
-import { regrouperParRecu, resumeRecu } from "@/lib/regrouper-recus";
+import { formatDate } from "@/lib/metier/dates";
+import { LIBELLE_MODE, MODES_PAIEMENT, libellePaiement } from "@/lib/metier/libelles";
+import { regrouperParRecu, resumeRecu } from "@/lib/metier/regrouper-recus";
 import { Badge, Carte, champ } from "@/components/ui";
-import { peutFaire } from "@/lib/droits";
+import { peutFaire } from "@/lib/securite/droits";
 import type { DonneesEcole } from "./ecole-dashboard-client";
-import { estRecuDeReprise } from "@/lib/reprise-recu";
+import { estRecuDeReprise } from "@/lib/metier/reprise-recu";
 
 export function PaiementsPanel({ paiements, aujourdhui, utilisateur, ouvrirEleve }: DonneesEcole & { ouvrirEleve: (id: string) => void }) {
   const [periode, setPeriode] = useState<"jour" | "mois" | "annee">("mois");

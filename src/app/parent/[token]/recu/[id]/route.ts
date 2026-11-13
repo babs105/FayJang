@@ -1,6 +1,6 @@
-import { echangerJetonParent } from "@/serveur/supabase/server";
-import { genererRecuPdf } from "@/lib/recu-pdf";
-import { lireDonneesRecu, reponsePdf } from "@/serveur/recu-donnees";
+import { echangerJetonParent } from "@/lib/supabase/server";
+import { genererRecuPdf } from "@/lib/documents/recu-pdf";
+import { lireDonneesRecu, reponsePdf } from "@/lib/documents/recu-donnees";
 
 export const dynamic = "force-dynamic";
 

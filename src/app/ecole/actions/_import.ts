@@ -1,19 +1,19 @@
 // Colle de l'import (reprise de l'existant) : session, lecture complète et analyse du fichier contre la base.
 // PAS de "use server" : rien ici ne doit devenir un point d'entrée appelable du navigateur.
 import "server-only";
-import { getSessionEcole, type SessionEcole } from "@/serveur/ecole-session";
-import { createClientEcole } from "@/serveur/supabase/server";
-import { refusLectureSeule } from "@/serveur/abonnement-ecole";
-import { peutFaire } from "@/lib/droits";
+import { getSessionEcole, type SessionEcole } from "@/lib/securite/ecole-session";
+import { createClientEcole } from "@/lib/supabase/server";
+import { refusLectureSeule } from "@/lib/securite/abonnement-ecole";
+import { peutFaire } from "@/lib/securite/droits";
 import { todayDakar } from "@/lib/config";
-import { moisScolaires } from "@/lib/dates";
-import { ErreurAffichable } from "@/lib/erreurs";
-import { LectureTropLongue, TAILLE_PAGE, toutLire as toutLirePartage } from "@/lib/lecture-paginee";
-import { verifierReglages } from "@/lib/scolarite";
-import { normaliserTelephone } from "@/lib/telephone";
-import { LIMITES, lireClasseur } from "@/lib/reprise-lecture";
-import { analyserReprise, type ApercuReprise, type ContexteReprise } from "@/lib/reprise-validation";
-import type { ArticleBase, ClasseBase } from "@/lib/reprise-lots";
+import { moisScolaires } from "@/lib/metier/dates";
+import { ErreurAffichable } from "@/lib/securite/erreurs";
+import { LectureTropLongue, TAILLE_PAGE, toutLire as toutLirePartage } from "@/lib/supabase/lecture-paginee";
+import { verifierReglages } from "@/lib/metier/scolarite";
+import { normaliserTelephone } from "@/lib/validation/telephone";
+import { LIMITES, lireClasseur } from "@/lib/documents/reprise-lecture";
+import { analyserReprise, type ApercuReprise, type ContexteReprise } from "@/lib/validation/reprise-validation";
+import type { ArticleBase, ClasseBase } from "@/lib/metier/reprise-lots";
 import { SESSION_EXPIREE, type Resultat } from "./_commun";
 
 

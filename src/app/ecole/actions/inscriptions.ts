@@ -3,12 +3,12 @@
 // Inscription d'un élève et modification de son inscription (classe, statut, réduction)
 import { revalidatePath } from "next/cache";
 import { todayDakar } from "@/lib/config";
-import { isDateValide, moisScolaires } from "@/lib/dates";
-import { contrainteViolee, messageErreur } from "@/lib/erreurs";
-import { fcfa } from "@/lib/format";
-import { lignesPaiementInscription, selectionnerArticles, type LignePaiementInscription } from "@/lib/inscription-initiale";
-import { normaliserTelephone } from "@/lib/telephone";
-import { estUuid, montant, texte } from "@/lib/saisie";
+import { isDateValide, moisScolaires } from "@/lib/metier/dates";
+import { contrainteViolee, messageErreur } from "@/lib/securite/erreurs";
+import { fcfa } from "@/lib/metier/format";
+import { lignesPaiementInscription, selectionnerArticles, type LignePaiementInscription } from "@/lib/metier/inscription-initiale";
+import { normaliserTelephone } from "@/lib/validation/telephone";
+import { estUuid, montant, texte } from "@/lib/validation/saisie";
 import type { StatutInscription } from "@/types/database";
 import { debutService, lireEcole, lireMode, sessionEcriture, type Resultat, DATE_NAISSANCE_FUTURE } from "./_commun";
 

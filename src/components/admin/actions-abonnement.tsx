@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Bouton, champ } from "@/components/ui";
-import type { EcoleAdmin } from "@/lib/admin-ecoles";
+import type { EcoleAdmin } from "@/lib/metier/admin-ecoles";
 import type { PlanId } from "@/types/database";
 import { changerOffre, prolongerAbonnement, suspendreAbonnement } from "@/app/admin/actions/abonnements";
 
