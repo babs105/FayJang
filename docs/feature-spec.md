@@ -4,7 +4,7 @@
 > **feature-specific** du projet (`.claude/WORKFLOW.md`) : une feature = un flow utilisateur
 > livrable de bout en bout, découpé en tranches verticales par `architect`.
 >
-> État au **2026-11-12**, branche `main` (merge `ccf271e`). Ce document décrit le **quoi** ; le plan
+> État au **2026-11-13**, branche `main` (merge `d9e6329`). Ce document décrit le **quoi** ; le plan
 > d'une feature (tranches, scope des reviews) reste produit par `architect` au moment de la lancer.
 > Les bugs dont la correction est reportée ne sont pas ici : ils vivent dans `BACKLOG.md` (backlog de bugs).
 > À l'inverse, un **besoin** (nouvelle feature à développer) ou une **piste** repéré pendant une review ou un
@@ -14,7 +14,7 @@
 
 | Acteur | Espace | Accès |
 |---|---|---|
-| Administration de l'école | `/ecole` (Espace École, 7 onglets) | Identifiant + code, cookie de session 30 jours |
+| Administration de l'école (directeur, caissiers) | `/ecole` (Espace École, 7 onglets ; moins pour un caissier) | E-mail + mot de passe personnel, cookie de session 30 jours (F22) |
 | Parent ou tuteur | `/p/[token]` | Lien magique, sans mot de passe, page serveur seule |
 | SuperAdmin FayJàng | `/admin` | Code SuperAdmin, session 12 h |
 | École qui découvre | `/` et `/inscription` | Public |
@@ -34,7 +34,7 @@
 | N° | Feature | Espace | État |
 |---|---|---|---|
 | F01 | Ouverture d'un compte école | `/inscription` | Livrée (main) |
-| F02 | Connexion de l'école et code d'accès | `/ecole/login`, Paramètres | Livrée (main) |
+| F02 | Connexion à l'Espace École | `/ecole/login`, Paramètres | Livrée (main), connexion par utilisateur depuis F22 |
 | F03 | Classes, tarifs et catalogue d'articles | Onglet Classes | Livrée (main) |
 | F04 | Inscription d'un élève (atomique, avec encaissement) | Onglet Élèves | Livrée (main) |
 | F05 | Fiche élève : suivi et modification | Fiche élève | Livrée (main) |
@@ -54,22 +54,26 @@
 | F19 | Sécurité et exploitation | Transverse | Livrée (main) |
 | F20 | Reprise de l'existant (import Excel) | Onglet Importer | Livrée (main, merge `ccf271e`) |
 | F21 | Abonnement appliqué automatiquement (ex-D02) | Espace École, `/admin` | Livrée (main, merge `6c0121d`) |
-| D01 à D08 | Features à développer, c'est-à-dire les besoins (D02 livrée, voir F21 ; D03 livrée, voir F07) | — | Voir section 6, fiche à remplir selon la section 8 |
-| P01 à P06 | Pistes à trancher | — | Voir section 7 |
+| F22 | Plusieurs utilisateurs par école (ex-D09, ex-P01) | Espace École, `/admin` | Livrée (main, merge `d9e6329`) |
+| D01 à D10 | Features à développer, c'est-à-dire les besoins (D02 livrée, voir F21 ; D03 livrée, voir F07 ; D09 livrée, voir F22) | — | Voir section 6, fiche à remplir selon la section 8 |
+| P02 à P06 | Pistes à trancher (P01 devenue D09) | — | Voir section 7 |
 
 ## 4. Features livrées
 
 ### F01 — Ouverture d'un compte école
-- **L'école peut** créer son compte seule (nom, responsable, contact, code d'accès) et arrive sur l'onglet Classes.
+- **L'école peut** créer son compte seule (nom, responsable, contact, mot de passe) et arrive sur l'onglet Classes ;
+  le responsable devient le directeur, avec l'e-mail de l'école comme e-mail de connexion (F22).
 - **Règles** : essai gratuit de 30 jours ; code de 8 caractères minimum, stocké en bcrypt ; 5 tentatives par IP
   et par quart d'heure ; champ piège contre les robots.
 - **Code** : `src/app/inscription/`, `createAdminClient()` (appelant autorisé).
 
-### F02 — Connexion de l'école et code d'accès
-- **L'école peut** se connecter avec son identifiant (slug ou e-mail) et son code, se déconnecter, changer son code.
-- **Règles** : blocage après 5 échecs (par IP et identifiant) ; changer le code déconnecte les sessions ; une école
-  désactivée ne se connecte plus.
-- **Code** : `echanger_acces_ecole`, `changer_code_ecole`, `src/lib/ecole-session.ts`.
+### F02 — Connexion à l'Espace École
+- **Chaque utilisateur peut** se connecter avec son e-mail et son mot de passe, se déconnecter, changer son mot de
+  passe (depuis F22 ; avant : identifiant de l'école et code unique).
+- **Règles** : blocage après 5 échecs (par IP et e-mail) ; changer, réinitialiser son mot de passe ou être
+  désactivé déconnecte ses sessions ; une école désactivée ne se connecte plus.
+- **Code** : `echanger_utilisateur_ecole`, `session_utilisateur_valide`, `changer_mon_mot_de_passe`,
+  `src/lib/ecole-session.ts`.
 
 ### F03 — Classes, tarifs et catalogue d'articles
 - **L'école peut** créer une classe par année (niveau, frais d'inscription, mensualité, dernier mois), lui attacher un
@@ -184,15 +188,13 @@
   `d38b5f1` et `626d80b`). Schéma relancé en production (blocs v1.16 à v1.19). **Reste à faire** : vérifications en
   production de `docs/mise-en-prod.md` (section 4, « Reprise de l'existant »).
 
-## 5. Dernière feature livrée
-
 ### F21 — Abonnement appliqué automatiquement (ex-D02)
 - **L'école peut** voir venir la fin de son essai ou de son abonnement (bandeau d'alerte 7 jours avant, bandeau
   rouge pendant les 7 jours de grâce) ; ensuite son Espace École passe seul en lecture seule.
 - **Le SuperAdmin peut** voir l'état de chaque école dans `/admin` ; « Actif » exige une date de fin.
 - **Règles** : la fin est `trial_ends_at` en essai, `abonnement_fin` en actif (jour de Dakar) ; « Suspendu » ou
   « Expiré » = lecture seule immédiate, sans grâce ; sans date de fin = normal. En lecture seule : consulter,
-  reçus PDF, export, relance WhatsApp, lien parent et code d'accès restent permis ; encaisser, annuler un reçu,
+  reçus PDF, export, relance WhatsApp, lien parent et changement de son mot de passe restent permis ; encaisser, annuler un reçu,
   inscrire, modifier (élèves, inscriptions, articles, classes, paramètres) et importer sont refusés. La page
   parent ne change pas ; la case « Active » décochée reste le blocage total. Aucun effet sur les reçus, les
   arriérés ni le reste sur l'année.
@@ -201,10 +203,34 @@
 - **État** : livrée sur `main` le 2026-11-12, merge `6c0121d` (4 tranches). Bloc v1.20 appliqué en production.
   **Reste à faire** : vérifier le déploiement Vercel.
 
+## 5. Dernière feature livrée
+
+### F22 — Plusieurs utilisateurs par école (ex-D09)
+- **Chaque membre de l'administration** se connecte avec son e-mail et son mot de passe (plus de connexion par
+  l'identifiant court de l'école) ; un e-mail = un seul compte dans tout FayJàng. Chacun change son mot de passe
+  dans Paramètres.
+- **Le directeur peut** tout ; dans Paramètres, il ajoute un caissier (nom, e-mail, mot de passe provisoire), le
+  désactive, le réactive ou réinitialise son mot de passe (ce qui le débloque aussi). 20 comptes au plus par école.
+- **Le caissier peut** encaisser, inscrire, consulter, relancer, imprimer les reçus, modifier un élève et ses
+  articles, régénérer le lien d'un parent, enregistrer un départ, supprimer un élève sans paiement. Il **ne peut
+  pas** annuler un reçu, ni toucher aux paramètres de l'école, aux classes et tarifs, à l'import, à l'export ou aux
+  comptes.
+- **Le SuperAdmin peut** réinitialiser le mot de passe d'un directeur dans `/admin`.
+- **Règles** : le nom de celui qui encaisse est figé sur chaque paiement (fiche élève et inscription) et affiché
+  « Encaissé par … » sur le reçu PDF, le journal, la fiche élève et la page parent ; l'auteur d'une annulation
+  (« annulé par … ») n'est visible que dans l'Espace École. Une désactivation, une réinitialisation ou un
+  changement de mot de passe coupe la session au clic suivant. Le nom « Reprise de l'existant » est interdit pour
+  un utilisateur. Aucun effet sur les soldes, les arriérés ni le reste sur l'année.
+- **Où vit la règle** : rôle relu en base à chaque requête (`getSessionEcole`), porté par le JWT
+  (`role_utilisateur`) ; refus côté serveur (`src/lib/droits.ts`) et en base (policies, `exiger_directeur`,
+  blocs v1.21 à v1.26), sauf l'export, refusé par le serveur seulement.
+- **État** : livrée sur `main` le 2026-11-13, merge `d9e6329` (6 tranches, blocs v1.21 à v1.26 appliqués en
+  production). **Reste à faire** : vérifier le déploiement Vercel ; prévenir les écoles (reconnexion unique par
+  e-mail) ; retirer plus tard `acces_ecole`, `echanger_acces_ecole`, `session_ecole_valide` et
+  `changer_code_ecole`, gardés pour un retour arrière.
+
 ## 6. Features à développer (identifiées dans le projet)
 
-Un **besoin** est une nouvelle feature à développer : on sait qu'il faut la faire, il reste des points à trancher
-avant le plan. Une feature technique sans changement visible pour l'école (D06 à D08) en fait partie.
 
 Chaque ligne cite sa source : demande de l'humain ou constat dans le code. Une review n'ajoute rien ici : un
 besoin ou une piste qu'elle signale reste dans son rapport, et n'entre dans ce fichier que si l'humain le demande
@@ -213,8 +239,10 @@ besoin ou une piste qu'elle signale reste dans son rapport, et n'entre dans ce f
 | N° | Feature | Ce que l'utilisateur pourra faire | Source | Points à trancher avant le plan |
 |---|---|---|---|---|
 | D01 | **Changement de classe en cours d'année** | Passer un élève dans une autre classe sans le réinscrire | Règle posée le 2026-11-10 (« on paie d'abord ») | Déjà tranché : seulement si l'élève a soldé son dû à date ; mois passés à l'ancien tarif, nouveau tarif dès le mois du changement. À trancher : sort des articles de l'ancienne classe |
+| D10 | **Changer le nom et l'e-mail d'un directeur** | Quand le directeur change (départ, remplacement) ou corrige son e-mail, le compte directeur prend le nom et l'e-mail du nouveau titulaire : ses encaissements suivants sont signés à son nom et il se connecte avec son propre e-mail | Piste proposée et validée par l'humain le 2026-11-13, après la livraison de F22 (aujourd'hui : un seul directeur par école, jamais désactivé ; seule la réinitialisation du mot de passe existe, dans `/admin`) | Existe déjà : `reinitialiser_mot_de_passe_directeur` (v1.26), « Encaissé par » figé sur chaque paiement (les anciens reçus gardent l'ancien nom). À trancher : qui fait le changement (`/admin` seulement, ou le directeur lui-même pour son e-mail) ; nouveau mot de passe provisoire imposé au même moment ou non ; session coupée ; e-mail déjà pris dans FayJàng ; trace de l'ancien titulaire |
 
-D02 (abonnement appliqué automatiquement) est livrée : voir F21. Son numéro n'est pas réattribué.
+D02 (abonnement appliqué automatiquement) est livrée : voir F21 ; D09 (plusieurs utilisateurs par école) est
+livrée : voir F22. Leurs numéros ne sont pas réattribués.
 
 ## 7. Pistes proposées (à trancher, rien n'est décidé)
 
@@ -225,12 +253,13 @@ ajout par la session après l'accord de l'humain), avec sa source dans la colonn
 
 | N° | Piste | Pourquoi | Ce qui existe déjà |
 |---|---|---|---|
-| P01 | **Plusieurs utilisateurs par école** (directeur, caissier) | Savoir qui a encaissé, limiter l'annulation au directeur | Colonne `paiements.encaisse_par`, un seul code par école |
 | P02 | **Réinscription en masse** à la nouvelle année | Réinscrire une classe entière en une fois | Liste « Non réinscrits », réinscription élève par élève |
 | P03 | **Relances automatiques** (WhatsApp ou SMS programmés) | Relancer sans ouvrir chaque lien à la main | Relance manuelle `wa.me` (F12) |
 | P04 | **Paiement en ligne par le parent** (Wave, Orange Money) | Le parent paie depuis sa page, le reçu est créé seul | Page parent en lecture seule, encaissement saisi par l'école |
 | P05 | **Paiement de l'abonnement FayJàng dans l'application** | L'école règle et son abonnement se prolonge seul | Numéro Wave affiché dans Paramètres, statut changé à la main |
 | P06 | **Clôture de caisse journalière** | Rapprocher l'encaissé du jour par mode, l'imprimer | Totaux du jour et par mode (F13) |
+
+P01 (plusieurs utilisateurs par école) est passée en besoin le 2026-11-12 : voir D09. Son numéro n'est pas réattribué.
 
 ## 8. Fiche d'une nouvelle feature : modèle et procédure
 
@@ -355,14 +384,29 @@ session ajoute une ligne ici après l'accord de l'humain, avec la date. Les bugs
   sans grâce. Sans date de fin = état normal, signalé dans `/admin` ; « Actif » exige une date de fin. Prolonger un
   essai = passer l'école en « Actif » avec une date. (2026-11-12)
 - **Lecture seule (F21)** — restent permis : consulter, reçus PDF, export, relance WhatsApp, régénérer le lien
-  d'un parent, changer le code d'accès. La page parent ne change pas ; la case « Active » décochée reste le
+  d'un parent, changer son mot de passe (« changer le code d'accès » avant D09, mis à jour le 2026-11-12). La page parent ne change pas ; la case « Active » décochée reste le
   blocage total. (2026-11-12)
+- **Session de l'Espace École : 30 jours, sans expiration par inactivité — risque accepté** (D09) : le cookie ouvre
+  désormais un compte nominatif (directeur ou caissier) ; la désactivation d'un utilisateur ou le changement de son
+  mot de passe coupe sa session au clic suivant. (review security tranche 1 D09, 2026-11-12)
 - **Après une review, seuls les bugs mineurs non corrigés sont consignés** (`BACKLOG.md`) ; un besoin ou une piste
   reste dans le rapport et ne va pas au feature spec. (2026-11-12)
+- **Comptes d'une école (F22)** — deux rôles fixes, directeur et caissier. Un seul directeur par école, jamais
+  désactivé ni créé par l'école ; un caissier désactivé peut être réactivé ; 20 comptes au plus par école, directeur
+  et désactivés compris. Changer le nom et l'e-mail d'un directeur : besoin D10. (2026-11-12 et 2026-11-13)
+- **Connexion (F22)** — e-mail + mot de passe personnel ; un e-mail = un seul compte dans tout FayJàng ; plus de
+  connexion par l'identifiant court de l'école. Mot de passe oublié : le directeur réinitialise celui d'un caissier,
+  FayJàng celui d'un directeur dans `/admin` ; pas d'obligation de changer un mot de passe provisoire. (2026-11-12)
+- **Traçabilité (F22)** — le nom de celui qui encaisse est figé sur le paiement (encaissement depuis la fiche et à
+  l'inscription) et visible aussi par le parent ; l'auteur d'une annulation n'est visible que dans l'Espace École ;
+  le nom « Reprise de l'existant » (et ses variantes) est interdit pour un utilisateur. (2026-11-12)
+- **Export Excel refusé au caissier par le serveur seulement — risque accepté (F22)** : l'export lit des tables
+  que le caissier doit lire pour travailler ; la base refuse toutes ses écritures interdites (classes, paramètres,
+  import, annulation). (2026-11-12)
 
 ## 10. Fiches validées (features en cours)
 
 Fiches validées par l'humain selon la section 8, en attente de plan ou en cours de développement. Une fiche
 livrée quitte cette section pour la section 4 (section 8.5).
 
-Aucune fiche en cours. La dernière (D02) est livrée : voir F21.
+Aucune fiche en cours. La dernière (D09) est livrée : voir F22.
