@@ -17,13 +17,13 @@ Deux mécanismes distincts, à ne pas confondre :
 
 1. **Les cookies de session** portent l'identité longue durée. Ils contiennent
    un id, l'heure d'émission et l'expiration, signés en HMAC-SHA256 (`sign()` de
-   `src/lib/ecole-session.ts`, secret `ECOLE_SESSION_SECRET`, 32 caractères
+   `src/lib/securite/ecole-session.ts`, secret `ECOLE_SESSION_SECRET`, 32 caractères
    minimum, **sans repli** sur une autre clé). Ils ne contiennent **pas** de JWT.
 
    | Cookie | Fichier | Contenu | Durée | Flags |
    |---|---|---|---|---|
-   | `fayjang_ecole` | `src/lib/ecole-session.ts` | `ecoleId.emisAt.exp.signature` | 30 j | HttpOnly, Secure en prod, SameSite=lax, path `/` |
-   | `fayjang_admin` | `src/lib/admin-session.ts` | `superadmin.exp.signature` | 12 h | HttpOnly, Secure en prod, SameSite=strict, path `/admin` |
+   | `fayjang_ecole` | `src/lib/securite/ecole-session.ts` | `ecoleId.emisAt.exp.signature` | 30 j | HttpOnly, Secure en prod, SameSite=lax, path `/` |
+   | `fayjang_admin` | `src/lib/securite/admin-session.ts` | `superadmin.exp.signature` | 12 h | HttpOnly, Secure en prod, SameSite=strict, path `/admin` |
 
    `getEcoleId()` vérifie en plus en base (`session_ecole_valide`) que l'école est
    active et que le code n'a pas changé depuis `emisAt` : changer le code
@@ -52,7 +52,7 @@ escalader vers `database-reviewer`.
 | Fichier | Pourquoi |
 |---|---|
 | `src/lib/supabase/jeton.ts` | Signature JWT ES256, clé privée, durée |
-| `src/lib/ecole-session.ts`, `admin-session.ts` | Cookies de session, HMAC, hachage des codes |
+| `src/lib/securite/ecole-session.ts`, `admin-session.ts` | Cookies de session, HMAC, hachage des codes |
 | `src/lib/supabase/admin.ts` | Seul fichier qui lit la clé admin |
 | `src/lib/supabase/server.ts`, `client-serveur.ts` | Client anon + JWT, fonctions d'échange, contrôle de session |
 | `src/app/**/actions.ts`, `src/app/ecole/actions/*.ts` | Points d'entrée appelables depuis le navigateur |
@@ -75,14 +75,14 @@ grep -L '"server-only"' src/lib/supabase/jeton.ts src/lib/supabase/admin.ts src/
 # Aucun résultat attendu
 ```
 
-`src/lib/scolarite.ts`, `dates.ts`, `libelles.ts`, `whatsapp.ts` et `utils.ts`
+`src/lib/metier/scolarite.ts`, `dates.ts`, `libelles.ts`, `whatsapp.ts` et `utils.ts`
 sont partagés avec le client **volontairement** (calcul affiché dans la fiche
 élève) : ils ne doivent contenir aucun secret ni appel Supabase.
 
 ### S2 — Cookie : `HttpOnly`, `Secure`, `SameSite`
 
 ```ts
-// ✅ modèle de src/lib/ecole-session.ts
+// ✅ modèle de src/lib/securite/ecole-session.ts
 cookieStore.set(COOKIE_NAME, `${payload}.${sign(payload)}`, {
   httpOnly: true,
   secure: process.env.NODE_ENV === "production",
@@ -172,12 +172,12 @@ Une Server Action est un point d'entrée HTTP : ses paramètres viennent du
 navigateur, quel que soit le type TypeScript. Le projet valide **à la main**
 (pas de Zod, non installé) :
 - `texte()` (trim + longueur maximale) sur les textes ;
-- téléphone via `normaliserTelephone()` (`src/lib/telephone.ts`) ;
+- téléphone via `normaliserTelephone()` (`src/lib/validation/telephone.ts`) ;
 - montants via `montant()` (entier, 0 à 50 000 000) ;
 - valeurs d'énumération contrôlées contre une liste (`MODES_PAIEMENT`, `NIVEAUX`, statuts) ;
 - dates via `isDateValide()` (refuse aussi une date inexistante, ex. 31 février),
   année scolaire via `isAnneeScolaireValide()` ;
-- identifiants via `estUuid()` (`src/lib/saisie.ts`) avant toute requête ;
+- identifiants via `estUuid()` (`src/lib/validation/saisie.ts`) avant toute requête ;
 - **jamais** d'`ecole_id` ou de `parent_id` d'appartenance reçu en paramètre :
   ils viennent de la session ou de l'échange de token ;
 - **jamais** de montant à encaisser cru depuis le client : l'action recalcule
@@ -256,7 +256,7 @@ grep -rn "console\.\(log\|error\).*\(token\|code\|jeton\|cookie\|telephone\|pren
 ```
 
 Ne jamais renvoyer `error.message` de Supabase brut au client : passer par
-`messageErreur()` (`src/lib/erreurs.ts`), qui ne laisse passer que les codes
+`messageErreur()` (`src/lib/securite/erreurs.ts`), qui ne laisse passer que les codes
 métier `FJ4xx` écrits pour l'utilisateur. En local, le code d'erreur est ajouté
 au message ; jamais en production.
 

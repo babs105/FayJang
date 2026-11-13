@@ -5,7 +5,7 @@ description: >
   dès qu'on audite une policy RLS, une fonction SECURITY DEFINER, une migration
   de schéma, un trigger, une Server Action qui appelle .from() sur ecoles /
   parents / eleves / inscriptions / paiements, un calcul de solde de
-  src/lib/scolarite.ts, ou une fonction d'échange (echanger_*).
+  src/lib/metier/scolarite.ts, ou une fonction d'échange (echanger_*).
   Contient les checklists C1-C15, H1-H8, M1-M5 avec exemples de code et
   commandes grep prêtes à l'emploi.
 ---
@@ -304,7 +304,7 @@ inscription verrouillé, reçu déjà émis), `FJ422` (motif d'annulation manqua
 reçu multi-élèves), `FJ429` (trop de tentatives). Chaque code doit être :
 
 1. Documenté dans un commentaire SQL au-dessus de la fonction
-2. Listé dans `CODES_METIER` de `src/lib/erreurs.ts` (sinon le message est masqué)
+2. Listé dans `CODES_METIER` de `src/lib/securite/erreurs.ts` (sinon le message est masqué)
 3. Testé en dev
 
 **Un code couvre plusieurs causes, et c'est voulu** : `FJ412` est levé à une
@@ -329,7 +329,7 @@ d'un `FJ4xx` (pas de nouvel essai automatique).
 
 ```bash
 grep -n "ERRCODE = 'FJ" supabase/schema.sql
-grep -n "CODES_METIER" src/lib/erreurs.ts
+grep -n "CODES_METIER" src/lib/securite/erreurs.ts
 grep -n "message.*includes(\|message.*startsWith(\|erreur\.startsWith(" src/app/*/actions.ts src/app/*/actions/*.ts   # cause reconnue par son texte = finding
 ```
 

@@ -7,12 +7,12 @@
 > Référencé par :
 > - `regles-database-reviewer/SKILL.md` §C14
 > - `CLAUDE.md` §Base de données
-> - `src/lib/erreurs.ts` (`CODES_METIER`)
+> - `src/lib/securite/erreurs.ts` (`CODES_METIER`)
 
 ## Comment ça marche
 
 1. Un trigger ou une fonction SQL fait `RAISE EXCEPTION '<message>' USING ERRCODE = 'FJxxx'`.
-2. `messageErreur()` (`src/lib/erreurs.ts`) vérifie que `FJxxx` est dans `CODES_METIER`.
+2. `messageErreur()` (`src/lib/securite/erreurs.ts`) vérifie que `FJxxx` est dans `CODES_METIER`.
 3. Si oui → le message Postgres est renvoyé au client (il est écrit en français).
 4. Si non → message générique (`défaut`), et le code est loggé en console.
 
@@ -40,6 +40,6 @@ parent, jamais pour un développeur. (« Motif obligatoire », pas « constraint
 
 1. Choisir un code `FJ4xx` libre (pas dans la liste ci-dessus).
 2. L'ajouter dans le tableau **avant** d'écrire la fonction SQL.
-3. L'ajouter dans `CODES_METIER` de `src/lib/erreurs.ts`.
+3. L'ajouter dans `CODES_METIER` de `src/lib/securite/erreurs.ts`.
 4. Commenter le `RAISE EXCEPTION` d'une ligne au-dessus de la fonction SQL.
 5. Tester en dev : le message apparaît, le code n'est pas fuité en production.

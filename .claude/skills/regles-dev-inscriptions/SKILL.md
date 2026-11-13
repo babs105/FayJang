@@ -5,7 +5,7 @@ description: >
   modifie eleves-panel.tsx, classes-panel.tsx, la partie inscription de fiche-eleve.tsx, les actions
   inscrireEleve / modifierInscription / modifierEleve / supprimerEleve / enregistrerClasse /
   archiverClasse / ajouterArticleInscription / retirerArticleInscription / regenererLienParent,
-  ou src/lib/inscription-initiale.ts, matricule.ts, classe-catalogue.ts. Contient les invariants
+  ou src/lib/metier/inscription-initiale.ts, matricule.ts, classe-catalogue.ts. Contient les invariants
   (tarifs figés, inscription atomique, parent par téléphone, on paie d'abord, départ), le modèle
   d'action, les tests manuels chiffrés et les anti-patterns.
 ---
@@ -26,9 +26,9 @@ régénéré. À venir : **changement de classe** (D01) et **réinscription en m
 - `src/components/ecole/classes-panel.tsx` : classes, tarifs, catalogue, archivage
 - `src/components/ecole/fiche-eleve.tsx` : partie identité / inscription / articles / départ / lien parent
 - `src/app/ecole/actions/` (`inscriptions.ts`, `classes.ts`, `articles.ts`, `parents.ts`) : actions listées dans la description
-- `src/lib/inscription-initiale.ts` : `selectionnerArticles()`, `lignesPaiementInscription()`
-- `src/lib/classe-catalogue.ts` : `lireArticles()`, `MAX_ARTICLES_CLASSE`
-- `src/lib/matricule.ts`, `src/lib/telephone.ts`, `src/lib/saisie.ts`
+- `src/lib/metier/inscription-initiale.ts` : `selectionnerArticles()`, `lignesPaiementInscription()`
+- `src/lib/metier/classe-catalogue.ts` : `lireArticles()`, `MAX_ARTICLES_CLASSE`
+- `src/lib/metier/matricule.ts`, `src/lib/validation/telephone.ts`, `src/lib/validation/saisie.ts`
 
 **Fonctions SQL (version active dans `.claude/SCHEMA-INDEX.md`) :**
 - `inscrire_eleve` : élève + parent + inscription + articles + paiement initial, une transaction
@@ -70,7 +70,7 @@ mois du départ inclus. `supprimerEleve` refuse dès qu'un paiement existe et or
 
 ### N7 — Droits
 Classes et catalogue : directeur seulement (`refusDroit(s, "classes")` + refus en base). Inscription,
-modification d'un élève, articles : caissier autorisé (vérifier `src/lib/droits.ts` avant d'affirmer).
+modification d'un élève, articles : caissier autorisé (vérifier `src/lib/securite/droits.ts` avant d'affirmer).
 
 ## Modèle d'action
 
@@ -133,7 +133,7 @@ sans accord. Référence : classe CM1, inscription 25 000, mensualité 20 000, 9
 grep -rn "createAdminClient\|service_role" src/app/ecole/
 grep -n 'from("inscriptions")' src/app/ecole/actions/*.ts | grep -E "insert|update"
 grep -n 'role === ' src/app/ecole/*.ts src/app/ecole/*.tsx
-grep -n "new Date()" src/app/ecole/actions/*.ts src/lib/inscription-initiale.ts
+grep -n "new Date()" src/app/ecole/actions/*.ts src/lib/metier/inscription-initiale.ts
 ```
 
 ## Reviews habituelles (grille de `.claude/WORKFLOW.md`)

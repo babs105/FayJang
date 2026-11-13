@@ -103,7 +103,7 @@ ajuster les colonnes obligatoires de `Insert`, et le type de retour d'une foncti
 ## 4. Lire et écrire la colonne
 
 Ajouter la colonne aux `.select(...)` des pages (`src/app/ecole/page.tsx`, `src/app/parent/[token]/page.tsx`),
-aux types de vue (`src/app/ecole/types.ts`) et aux actions concernées (`src/app/ecole/actions/*.ts`).
+aux types de vue (`src/types/ecole.ts`) et aux actions concernées (`src/app/ecole/actions/*.ts`).
 
 ## 5. S'arrêter et prévenir l'utilisateur
 

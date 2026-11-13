@@ -9,7 +9,7 @@ description: >
   les redirections ouvertes.
   Ne modifie jamais de fichier. Produit un rapport structuré avec sévérités.
   À invoquer dès qu'un changement touche : src/lib/supabase/**,
-  src/lib/ecole-session.ts, src/lib/admin-session.ts, src/app/api/**,
+  src/lib/securite/ecole-session.ts, src/lib/securite/admin-session.ts, src/app/api/**,
   src/app/**/route.ts, une page de login ou d'inscription, /parent/[token],
   ou un nouveau flow d'auth.
 tools: Read, Grep, Glob
@@ -162,7 +162,7 @@ BLOQUANT | À CORRIGER | APPROUVÉ
 - Lister un finding `impact: cosmétique` dans les sections 🔴/🟠/🟡 (il va dans « Notes mineures », en 1 ligne)
 - Dépasser 8 findings listés
 - Écrire « aucune validation » ou « aucun contrôle » sans avoir lu les helpers
-  appelés (`src/lib/saisie.ts`, `src/lib/encaissement.ts`, `session()`)
+  appelés (`src/lib/validation/saisie.ts`, `src/lib/metier/encaissement.ts`, `session()`)
 - Reprendre tel quel un finding d'une relecture externe
 
 ## Escalade

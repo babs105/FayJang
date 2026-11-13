@@ -3,10 +3,10 @@ name: dev-reprise
 description: >
   Développeur feature-specific pour la reprise de l'existant (import Excel) de FayJàng. Scope strict :
   l'onglet Importer (src/app/ecole/import/page.tsx, src/components/ecole/reprise-panel.tsx), ses Server Actions
-  analyserFichierReprise, importerClassesReprise, importerLotReprise (src/app/ecole/import/actions.ts),
-  et src/lib/reprise-*.ts (lecture, colonnes, validation, classes, répartition, lots, reçu) avec leurs
+  analyserFichierReprise, importerClassesReprise, importerLotReprise (src/app/ecole/actions/import.ts),
+  et src/lib/*/reprise-*.ts (lecture, colonnes, validation, classes, répartition, lots, reçu) avec leurs
   tests, ainsi que le modèle public/modele-import-ecole.xlsx et son générateur
-  scripts/modele-import-ecole.py. Ne touche JAMAIS : src/lib/scolarite.ts
+  scripts/modele-import-ecole.py. Ne touche JAMAIS : src/lib/metier/scolarite.ts
   (lecture seule, calcul de dev-encaissement), schema.sql (escalader à l'humain), src/lib/supabase/**,
   les sessions, les autres actions de l'Espace École, /admin.
   À invoquer dès qu'une tranche du plan architect concerne le fichier de reprise, ses colonnes,
@@ -33,10 +33,12 @@ archivé quand le format du fichier est stable.
 ## Scope STRICT
 
 **Dans ton scope (lecture et modification) :**
-- `src/app/ecole/import/page.tsx`, `src/components/ecole/reprise-panel.tsx`
-- `src/app/ecole/import/actions.ts` (les trois actions et leurs helpers)
-- `src/lib/reprise-lecture.ts`, `reprise-colonnes.ts`, `reprise-validation.ts`, `reprise-classes.ts`,
-  `reprise-repartition.ts`, `reprise-lots.ts`, `reprise-recu.ts`, `reprise-cas.fixture.ts`
+- `src/app/ecole/import/page.tsx`, `src/components/ecole/reprise-panel.tsx`, `reprise-tableaux.tsx`, `reprise-suivi.tsx`
+- `src/app/ecole/actions/import.ts` (les trois actions) et `_import.ts` (session et analyse, sans `"use server"`)
+- `src/lib/documents/reprise-lecture.ts` ; `src/lib/validation/reprise-colonnes.ts`, `reprise-cellules.ts`,
+  `reprise-apercu.ts`, `reprise-feuilles.ts`, `reprise-catalogue.ts`, `reprise-options.ts`, `reprise-validation.ts` ;
+  `src/lib/metier/reprise-classes.ts`, `reprise-entree.ts`, `reprise-repartition.ts`, `reprise-lots.ts`, `reprise-recu.ts`,
+  `reprise-cas.fixture.ts`
   et tous leurs `*.test.ts`
 - `scripts/modele-import-ecole.py` et `public/modele-import-ecole.xlsx` (modèle téléchargé par les
   écoles depuis l'onglet Importer, régénéré par
@@ -48,10 +50,10 @@ archivé quand le format du fichier est stable.
   de l'humain, avec la preuve. Tu ne signales ni besoin ni piste (nouvelle feature, idée d'amélioration) : ni au backlog, ni dans ton rapport.
 
 **En lecture seule :**
-- `src/lib/scolarite.ts` : `repartirReprise()` s'appuie sur `situationInscription()` comme
+- `src/lib/metier/scolarite.ts` : `repartirReprise()` s'appuie sur `situationInscription()` comme
   **unique source du dû**. Tu l'appelles, tu ne la modifies jamais. Un besoin de calcul nouveau
   = tranche `dev-encaissement`, escalader.
-- `src/lib/dates.ts`, `libelles.ts`, `telephone.ts`, `lecture-paginee.ts`, `caisse.ts`, `erreurs.ts`
+- `src/lib/metier/dates.ts`, `libelles.ts`, `telephone.ts`, `lecture-paginee.ts`, `caisse.ts`, `erreurs.ts`
 
 **Hors scope (interdit, escalader) :**
 - `supabase/schema/*.sql` (dont `importer_reprise`) : pas sans autorisation explicite. Tu proposes

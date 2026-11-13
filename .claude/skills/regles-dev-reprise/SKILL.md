@@ -2,8 +2,8 @@
 name: regles-dev-reprise
 description: >
   Règles d'implémentation de la reprise de l'existant (import Excel) de FayJàng. Charger ce skill dès
-  qu'on modifie src/app/ecole/import/** (page, actions analyserFichierReprise /
-  importerClassesReprise / importerLotReprise), src/lib/reprise-*.ts, le fixture reprise-cas.fixture.ts
+  qu'on modifie src/app/ecole/import/page.tsx, src/app/ecole/actions/import.ts, _import.ts (page, actions analyserFichierReprise /
+  importerClassesReprise / importerLotReprise), src/lib/*/reprise-*.ts, le fixture reprise-cas.fixture.ts
   ou le modèle public/modele-import-ecole.xlsx. Contient le pipeline (lecture → colonnes → validation →
   répartition → lots → RPC), les invariants (fichier hostile, dû unique, rejeu sûr, reçu hors caisse),
   les tests chiffrés, les tests manuels et les anti-patterns.
@@ -104,9 +104,9 @@ Avec l'école de test seulement (`docs/compte-test.local.md`), jamais une vraie 
 ## Commandes de diagnostic rapide
 
 ```bash
-grep -rn "createAdminClient\|service_role" src/app/ecole/import/ src/lib/reprise-*.ts
-grep -n "\.insert(\|\.upsert(" src/app/ecole/import/actions.ts      # aucun résultat attendu
-grep -n "console\." src/app/ecole/import/actions.ts src/lib/reprise-*.ts
+grep -rn "createAdminClient\|service_role" src/app/ecole/actions/import.ts src/app/ecole/actions/_import.ts src/lib/*/reprise-*.ts
+grep -n "\.insert(\|\.upsert(" src/app/ecole/actions/import.ts      # aucun résultat attendu
+grep -n "console\." src/app/ecole/actions/import.ts src/lib/*/reprise-*.ts
 npx vitest run src/lib/reprise-                                     # tests de la reprise seuls
 ```
 
