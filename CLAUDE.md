@@ -40,9 +40,9 @@ Répondre et écrire en **français** : messages, commentaires de code, libellé
 - `src/app/**/route.ts` : téléchargements et API (`/ecole/recu/[id]`, `/ecole/export`, `/parent/[token]/recu/[id]`, `/api/diagnostic`)
 - `src/lib/` : logique partagée, en cinq dossiers
   - `supabase/` : clients `server.ts` (RLS, JWT école/parent), `client.ts` (navigateur, ne lit rien), `admin.ts` (service_role,
-    admin seulement), `jeton.ts` (JWT ES256), `lecture-paginee.ts`
+    admin seulement), `jeton.ts` (JWT ES256)
   - `validation/` : saisie des formulaires, téléphone, création d'école, paramètres, fichier de reprise (`reprise-validation.ts` et ses parties)
-  - `metier/` : logique **pure** et testée (`scolarite.ts` (soldes), `tranches.ts`, `a-encaisser.ts`, `dates.ts`, `whatsapp.ts`, reprise, ...)
+  - `metier/` : logique **pure** et testée (`lecture-paginee.ts` (lecture complète malgré la limite de 1000 lignes), `scolarite.ts` (soldes), `tranches.ts`, `a-encaisser.ts`, `dates.ts`, `whatsapp.ts`, reprise, ...)
   - `documents/` : PDF et Excel côté serveur (`recu-pdf.ts`, `recu-donnees.ts`, `export-excel.ts`, `export-sur.ts`, `reprise-lecture.ts`)
   - `securite/` : auth et sessions (`ecole-session.ts`, `admin-session.ts`, `session-cookie.ts`), droits, erreurs, mots de passe, `ip.ts`
   - à la racine : `config.ts` (URL de l'app, jetons aléatoires) et `utils.ts` (`cn()`, `formatFCFA()`)

@@ -108,7 +108,7 @@ _Aucun bug à planifier en attente._
   lieu de tronquer (doublons écartés aussi en base par `importer_reprise`) ; boucles de création des classes et des
   élèves protégées (`try/catch`, `revalidatePath` dans un `finally`, `maxDuration = 60`). Commits `fb07b06`, `4d1dad0`.
   (2026-11-11)
-- [x] **Espace École et export lus en entier** — lecture par curseur sur l'id (`src/lib/supabase/lecture-paginee.ts`), `.in()`
+- [x] **Espace École et export lus en entier** — lecture par curseur sur l'id (`src/lib/metier/lecture-paginee.ts`), `.in()`
   par paquets de 150 inscriptions, plafond de 50 000 lignes : plus de liste ni de solde tronqué à 1000 lignes, et une
   écriture pendant la lecture ne duplique ni ne saute de ligne. L'import utilise le même helper. Commit `4d1dad0`. (2026-11-11)
 - [x] **Reçus de reprise hors des totaux de caisse** — `totauxCaisse` (`src/lib/metier/caisse.ts`) : la reprise ne compte ni

@@ -2,7 +2,7 @@ import { getSessionEcole } from "@/lib/securite/ecole-session";
 import { peutFaire } from "@/lib/securite/droits";
 import { createClientEcole } from "@/lib/supabase/server";
 import { todayDakar } from "@/lib/config";
-import { LectureTropLongue, TAILLE_PAGE, comparer, toutLire, toutLireParIds } from "@/lib/supabase/lecture-paginee";
+import { LectureTropLongue, TAILLE_PAGE, comparer, toutLire, toutLireParIds } from "@/lib/metier/lecture-paginee";
 import { classeurEcole, TYPE_XLSX } from "@/lib/documents/export-excel";
 
 export const dynamic = "force-dynamic";

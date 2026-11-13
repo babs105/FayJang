@@ -8,7 +8,7 @@ import { peutFaire } from "@/lib/securite/droits";
 import { todayDakar } from "@/lib/config";
 import { moisScolaires } from "@/lib/metier/dates";
 import { ErreurAffichable } from "@/lib/securite/erreurs";
-import { LectureTropLongue, TAILLE_PAGE, toutLire as toutLirePartage } from "@/lib/supabase/lecture-paginee";
+import { LectureTropLongue, TAILLE_PAGE, toutLire as toutLirePartage } from "@/lib/metier/lecture-paginee";
 import { verifierReglages } from "@/lib/metier/scolarite";
 import { normaliserTelephone } from "@/lib/validation/telephone";
 import { LIMITES, lireClasseur } from "@/lib/documents/reprise-lecture";

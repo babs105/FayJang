@@ -4,7 +4,7 @@ import "server-only";
 import { revalidatePath } from "next/cache";
 import { isAdmin } from "@/lib/securite/admin-session";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { LectureTropLongue, TAILLE_PAGE, toutLire } from "@/lib/supabase/lecture-paginee";
+import { LectureTropLongue, TAILLE_PAGE, toutLire } from "@/lib/metier/lecture-paginee";
 import { todayDakar } from "@/lib/metier/dates";
 import { lireSituationAbonnement } from "@/lib/metier/abonnement";
 import type { EcoleAdmin, ResultatAdmin } from "@/types/admin";

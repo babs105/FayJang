@@ -6,7 +6,7 @@ import { getAppBaseUrl, todayDakar } from "@/lib/config";
 import { situationInscription } from "@/lib/metier/scolarite";
 import { lireAbonnementEcole } from "@/lib/securite/abonnement-ecole";
 import { derniereModification } from "@/lib/metier/modifications";
-import { LectureTropLongue, TAILLE_PAGE, comparer, toutLire, toutLireParIds } from "@/lib/supabase/lecture-paginee";
+import { LectureTropLongue, TAILLE_PAGE, comparer, toutLire, toutLireParIds } from "@/lib/metier/lecture-paginee";
 import { EcoleDashboardClient } from "@/components/ecole/ecole-dashboard-client";
 import type { ClasseVue, EcoleVue, EleveVue, PaiementVue, UtilisateurListeVue } from "@/types/ecole";
 

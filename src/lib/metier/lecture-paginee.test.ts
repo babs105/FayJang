@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { LectureTropLongue, PREMIER_ID, TAILLE_PAGE, paquets, toutLire, toutLireParIds } from "@/lib/supabase/lecture-paginee";
+import { LectureTropLongue, PREMIER_ID, TAILLE_PAGE, paquets, toutLire, toutLireParIds } from "@/lib/metier/lecture-paginee";
 
 const id = (n: number) => `00000000-0000-0000-0000-${String(n).padStart(12, "0")}`;
 
