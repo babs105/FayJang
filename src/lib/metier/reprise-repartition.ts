@@ -2,6 +2,7 @@
 // articles). Fonction pure, sans accès à la base. Le dû vient d'une seule source, situationInscription(), appelée sans
 // paiement : les « bacs » reprennent ses lignes, le versé les remplit dans l'ordre où l'école les aurait encaissés. Un
 // second appel sur les paiements produits donne l'arriéré et le reste de l'année que l'app affichera après l'import.
+// Entrée, sortie et contrôle de l'entrée : reprise-entree.ts.
 import { echeanceDuMois, moisScolaires } from "@/lib/metier/dates";
 import { libellePaiement } from "@/lib/metier/libelles";
 import {
@@ -12,79 +13,13 @@ import {
   moisDesTranches,
   partEchue,
   situationInscription,
-  verifierReglages,
   type ArticleCalcul,
-  type CalendrierEcole,
   type InfoTranches,
 } from "@/lib/metier/scolarite";
 import { formatFCFA } from "@/lib/utils";
-import type { NatureArticle, StatutInscription } from "@/types/database";
+import { controler, type ArticlePrevu, type EntreeRepartition, type PaiementPrevu, type ResultatRepartition } from "@/lib/metier/reprise-entree";
 
-/** Article du catalogue d'une classe ; l'ordre du tableau est l'ordre du catalogue */
-export interface ArticleCatalogueRep {
-  libelle: string;
-  nature: NatureArticle;
-  prix: number;
-  quantiteDefaut: number;
-  obligatoire: boolean;
-}
-
-export interface EntreeRepartition {
-  anneeScolaire: string;
-  /** Date de l'import (Dakar), AAAA-MM-JJ */
-  aujourdhui: string;
-  /** Paramètres de l'école */
-  ecole: CalendrierEcole;
-  /** Tarifs de l'inscription (classe en base, ou classe du fichier) */
-  tarifs: { frais: number; mensualite: number; dernierMois: number | null };
-  reduction: number | null;
-  catalogue: ArticleCatalogueRep[];
-  statut: StatutInscription;
-  dateDepart: string | null;
-  verseScolarite: number | null;
-  verseArticles: number | null;
-  /** Options choisies ; quantite null = quantité par défaut ; debut = premier mois (AAAA-MM-01) d'un service mensuel,
-   *  null ou absent = règle par défaut ; fin = dernier mois d'un service arrêté, null ou absent = en cours (ou jusqu'au
-   *  départ). Un service arrêté puis repris est cité une fois par période, chacune avec son début. */
-  options: { libelle: string; quantite: number | null; debut?: string | null; fin?: string | null }[];
-}
-
-export interface PaiementPrevu {
-  type: "inscription" | "mensualite" | "autre";
-  /** AAAA-MM-01 : mois de la mensualité ou du service ; null pour l'inscription et un frais unique */
-  mois: string | null;
-  /** Libellé de l'article du catalogue pour le type « autre » */
-  article: string | null;
-  /** Type « autre » : position de la ligne dans `articles` (un service repris a une ligne par période) */
-  articleIndex: number | null;
-  montant: number;
-  /** Texte affiché (« Mensualité de novembre 2026 », « Tenue × 2 », « Tranches 1 à 2/3 de mai 2027 ») */
-  libelle: string;
-  /** Libellé de tranche à enregistrer, ou null */
-  libelleTranche: string | null;
-}
-
-/** Article à rattacher à l'inscription, avec la période de son service */
-export interface ArticlePrevu {
-  libelle: string;
-  nature: NatureArticle;
-  prix: number;
-  quantite: number;
-  obligatoire: boolean;
-  moisDebut: string | null;
-  moisFin: string | null;
-}
-
-export interface ResumeRepartition {
-  /** Ce que l'app affichera après l'import, calculé par situationInscription sur les paiements produits */
-  arriere: number;
-  resteAnnee: number;
-  totalPaye: number;
-}
-
-export type ResultatRepartition =
-  | { ok: false; erreur: string }
-  | { ok: true; paiements: PaiementPrevu[]; articles: ArticlePrevu[]; resume: ResumeRepartition; avertissements: string[] };
+export type * from "@/lib/metier/reprise-entree";
 
 interface Bac {
   /** Clé du cumul : « ins », ou le mois (YYYY-MM-01) */
@@ -93,21 +28,6 @@ interface Bac {
   echeance: string;
   /** À date égale, la mensualité (0) passe avant la tranche (1) */
   rang: number;
-}
-
-const entier = (n: number | null | undefined) => n === null || n === undefined || (Number.isInteger(n) && n >= 0);
-
-function controler(e: EntreeRepartition): string | null {
-  const reglages = verifierReglages(e.anneeScolaire, e.ecole);
-  if (reglages) return `Paramètres de l'école incohérents : ${reglages}`;
-  const montants = [e.tarifs.frais, e.tarifs.mensualite, e.tarifs.dernierMois, e.reduction, e.verseScolarite, e.verseArticles];
-  for (const a of e.catalogue) montants.push(a.prix, a.quantiteDefaut);
-  if (!montants.every(entier)) return "Les montants doivent être des nombres entiers de FCFA, positifs ou nuls.";
-  if ((e.reduction ?? 0) > e.tarifs.mensualite) {
-    return `La réduction mensuelle (${formatFCFA(e.reduction ?? 0)}) dépasse la mensualité de la classe (${formatFCFA(e.tarifs.mensualite)}).`;
-  }
-  if (e.statut !== "active" && !e.dateDepart) return "Date de départ obligatoire pour un abandon ou un transfert.";
-  return null;
 }
 
 export function repartirReprise(e: EntreeRepartition): ResultatRepartition {
