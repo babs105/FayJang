@@ -157,6 +157,8 @@ export type Paiement = {
   encaisse_par: string | null;
   annule: boolean;
   motif_annulation: string | null;
+  /** Nom de la personne qui a annulé le reçu (Espace École seulement, jamais côté parent) */
+  annule_par: string | null;
   annule_at: string | null;
   created_at: string;
 }

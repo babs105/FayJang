@@ -15,6 +15,7 @@ import { normaliserTelephone } from "@/lib/telephone";
 import { lireArticles, type SaisieArticle } from "@/lib/classe-catalogue";
 import { estUuid, montant, texte } from "@/lib/saisie";
 import { lireResultatParametres, messageParametres } from "@/lib/parametres";
+import { peutFaire } from "@/lib/droits";
 import { refusLectureSeule } from "@/lib/abonnement-ecole";
 import { erreurMotDePasse, MOT_DE_PASSE_MAX } from "@/lib/mot-de-passe";
 import type { ModePaiement, Niveau, StatutInscription } from "@/types/database";
@@ -727,6 +728,10 @@ export async function retirerArticleInscription(id: string): Promise<Resultat> {
 export async function annulerPaiement(id: string, motif: string): Promise<Resultat> {
   const s = await sessionEcriture();
   if (typeof s === "string") return { success: false, message: s };
+  // D09 : seul le directeur annule (la base applique le même refus : policy ecole_annule)
+  if (!peutFaire(s.utilisateur.role, "annuler")) {
+    return { success: false, message: "Seul le directeur peut annuler un reçu. Demandez-lui de le faire." };
+  }
   const m = texte(motif, 200);
   if (m.length < 3) return { success: false, message: "Indiquez le motif de l'annulation." };
   // Un reçu est un document : l'annulation porte sur toutes ses lignes (même lot)

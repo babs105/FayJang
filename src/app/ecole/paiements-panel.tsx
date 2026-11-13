@@ -124,7 +124,7 @@ export function PaiementsPanel({ paiements, aujourdhui, ouvrirEleve }: DonneesEc
                         {estRecuDeReprise(p.encaisse_par) && <span className="ml-1"><Badge ton="gris">Reprise de l&apos;existant</Badge></span>}
                         {p.encaisse_par && !estRecuDeReprise(p.encaisse_par) && <p className="text-[11px] text-neutral-500">Encaissé par {p.encaisse_par}</p>}
                         {r.annule && <span className="ml-1"><Badge ton="rouge">Annulé</Badge></span>}
-                        {r.annule && r.motif_annulation && <p className="text-[11px] text-neutral-500">{r.motif_annulation}</p>}
+                        {r.annule && r.motif_annulation && <p className="text-[11px] text-neutral-500">{r.motif_annulation}{r.premiere.annule_par ? ` · annulé par ${r.premiere.annule_par}` : ""}</p>}
                       </td>
                       <td className="px-4 py-2.5 hidden md:table-cell">
                         {LIBELLE_MODE[p.mode]}
