@@ -85,6 +85,15 @@ export interface EleveVue {
   situation: Situation | null;
 }
 
+/** Membre de l'administration listé pour le directeur (lister_utilisateurs_ecole, bloc v1.23 ; jamais le hash) */
+export interface UtilisateurListeVue {
+  id: string;
+  nom: string;
+  email: string;
+  role: RoleUtilisateur;
+  actif: boolean;
+}
+
 /** Utilisateur connecté, tel que l'écran le voit (jamais de hash ni d'identifiant de session) */
 export interface UtilisateurVue {
   nom: string;
