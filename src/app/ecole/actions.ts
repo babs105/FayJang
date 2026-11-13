@@ -15,10 +15,10 @@ import { normaliserTelephone } from "@/lib/telephone";
 import { lireArticles, type SaisieArticle } from "@/lib/classe-catalogue";
 import { estUuid, montant, texte } from "@/lib/saisie";
 import { lireResultatParametres, messageParametres } from "@/lib/parametres";
-import { peutFaire } from "@/lib/droits";
+import { peutFaire, type Droit } from "@/lib/droits";
 import { refusLectureSeule } from "@/lib/abonnement-ecole";
 import { erreurMotDePasse, MOT_DE_PASSE_MAX } from "@/lib/mot-de-passe";
-import type { ModePaiement, Niveau, StatutInscription } from "@/types/database";
+import type { ModePaiement, Niveau, RoleUtilisateur, StatutInscription } from "@/types/database";
 
 export interface Resultat<T = undefined> {
   success: boolean;
@@ -44,6 +44,11 @@ async function sessionEcriture() {
   const s = await session();
   if (!s) return SESSION_EXPIREE;
   return (await refusLectureSeule(s.supabase, "ecole/actions")) ?? s;
+}
+
+/** D09 : message de refus si le rôle connecté n'a pas ce droit (la base refuse aussi), sinon null */
+function refusDroit(s: { utilisateur: { role: RoleUtilisateur } }, droit: Droit): string | null {
+  return peutFaire(s.utilisateur.role, droit) ? null : "Réservé au directeur de l'école.";
 }
 
 async function lireEcole(supabase: ReturnType<typeof createClientEcole>, ecoleId: string) {
@@ -128,6 +133,8 @@ export interface SaisieClasse {
 export async function enregistrerClasse(saisie: SaisieClasse): Promise<Resultat> {
   const s = await sessionEcriture();
   if (typeof s === "string") return { success: false, message: s };
+  const refus = refusDroit(s, "classes");
+  if (refus) return { success: false, message: refus };
 
   const nom = texte(saisie.nom, 40);
   const niveau = saisie.niveau as Niveau;
@@ -168,6 +175,8 @@ export async function enregistrerClasse(saisie: SaisieClasse): Promise<Resultat>
 export async function archiverClasse(id: string, actif: boolean): Promise<Resultat> {
   const s = await sessionEcriture();
   if (typeof s === "string") return { success: false, message: s };
+  const refus = refusDroit(s, "classes");
+  if (refus) return { success: false, message: refus };
   const { error } = await s.supabase.from("classes").update({ is_active: actif }).eq("id", id).eq("ecole_id", s.ecoleId);
   if (error) return { success: false, message: messageErreur("classes", error) };
   revalidatePath("/ecole");
@@ -781,6 +790,8 @@ export interface SaisieParametres {
 export async function enregistrerParametres(saisie: SaisieParametres): Promise<Resultat> {
   const s = await sessionEcriture();
   if (typeof s === "string") return { success: false, message: s };
+  const refus = refusDroit(s, "parametres");
+  if (refus) return { success: false, message: refus };
 
   const nom = texte(saisie.nom, 100);
   const annee = texte(saisie.annee_scolaire, 9);

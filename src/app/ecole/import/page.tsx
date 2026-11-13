@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft, Lock, Upload } from "lucide-react";
 import { getSessionEcole } from "@/lib/ecole-session";
+import { peutFaire } from "@/lib/droits";
 import { createClientEcole } from "@/lib/supabase/server";
 import { ReprisePanel } from "./reprise-panel";
 import { lireAbonnementEcole } from "@/lib/abonnement-ecole";
@@ -15,6 +16,8 @@ export const maxDuration = 60;
 export default async function ImportPage() {
   const session = await getSessionEcole();
   if (!session) redirect("/ecole/login");
+  // D09 : la reprise de l'existant est réservée au directeur
+  if (!peutFaire(session.role, "importer")) redirect("/ecole");
   const { ecoleId } = session;
 
   const supabase = createClientEcole(session);

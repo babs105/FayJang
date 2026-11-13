@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClientEcole } from "@/lib/supabase/server";
 import { getSessionEcole } from "@/lib/ecole-session";
+import { peutFaire } from "@/lib/droits";
 import { getAppBaseUrl, todayDakar } from "@/lib/config";
 import { situationInscription } from "@/lib/scolarite";
 import { lireAbonnementEcole } from "@/lib/abonnement-ecole";
@@ -48,7 +49,7 @@ export default async function EcolePage({ searchParams }: PageProps) {
   // Comptes de l'école (D09) : lus pour le directeur seulement, par une fonction qui ne renvoie jamais le hash.
   // Lecture en échec (bloc v1.23 pas encore appliqué) : liste vide plutôt qu'une page en erreur.
   let utilisateurs: UtilisateurListeVue[] | null = null;
-  if (session.role === "directeur") {
+  if (peutFaire(session.role, "utilisateurs")) {
     const { data: comptes, error: erreurComptes } = await (supabase as any).rpc("lister_utilisateurs_ecole");
     if (erreurComptes) console.error("[ecole/page] lecture des utilisateurs :", erreurComptes.code ?? "erreur");
     utilisateurs = ((comptes ?? []) as UtilisateurListeVue[]).map(({ id, nom, email, role, actif }) => ({ id, nom, email, role, actif }));
