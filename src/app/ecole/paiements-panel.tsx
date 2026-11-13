@@ -7,10 +7,11 @@ import { formatDate } from "@/lib/dates";
 import { LIBELLE_MODE, MODES_PAIEMENT, libellePaiement } from "@/lib/libelles";
 import { regrouperParRecu, resumeRecu } from "@/lib/regrouper-recus";
 import { Badge, Carte, champ } from "@/components/ui";
+import { peutFaire } from "@/lib/droits";
 import type { DonneesEcole } from "./ecole-dashboard-client";
 import { estRecuDeReprise } from "@/lib/reprise-recu";
 
-export function PaiementsPanel({ paiements, aujourdhui, ouvrirEleve }: DonneesEcole & { ouvrirEleve: (id: string) => void }) {
+export function PaiementsPanel({ paiements, aujourdhui, utilisateur, ouvrirEleve }: DonneesEcole & { ouvrirEleve: (id: string) => void }) {
   const [periode, setPeriode] = useState<"jour" | "mois" | "annee">("mois");
   const [mode, setMode] = useState("");
   const [annules, setAnnules] = useState(false);
@@ -66,9 +67,11 @@ export function PaiementsPanel({ paiements, aujourdhui, ouvrirEleve }: DonneesEc
         <label className="text-xs flex items-center gap-1.5 text-neutral-600">
           <input type="checkbox" checked={annules} onChange={(e) => setAnnules(e.target.checked)} /> Afficher les annulés
         </label>
-        <a href="/ecole/export" className="ml-auto inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold bg-neutral-900 text-white">
-          <Download className="w-4 h-4" /> Export Excel
-        </a>
+        {peutFaire(utilisateur.role, "exporter") && (
+          <a href="/ecole/export" className="ml-auto inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold bg-neutral-900 text-white">
+            <Download className="w-4 h-4" /> Export Excel
+          </a>
+        )}
       </div>
 
       <Carte className="flex justify-between items-center py-4">
@@ -122,8 +125,9 @@ export function PaiementsPanel({ paiements, aujourdhui, ouvrirEleve }: DonneesEc
                       <td className="px-4 py-2.5 hidden md:table-cell">
                         {resumeRecu(r.lignes)}
                         {estRecuDeReprise(p.encaisse_par) && <span className="ml-1"><Badge ton="gris">Reprise de l&apos;existant</Badge></span>}
+                        {p.encaisse_par && !estRecuDeReprise(p.encaisse_par) && <p className="text-[11px] text-neutral-500">Encaissé par {p.encaisse_par}</p>}
                         {r.annule && <span className="ml-1"><Badge ton="rouge">Annulé</Badge></span>}
-                        {r.annule && r.motif_annulation && <p className="text-[11px] text-neutral-500">{r.motif_annulation}</p>}
+                        {r.annule && r.motif_annulation && <p className="text-[11px] text-neutral-500">{r.motif_annulation}{r.premiere.annule_par ? ` · annulé par ${r.premiere.annule_par}` : ""}</p>}
                       </td>
                       <td className="px-4 py-2.5 hidden md:table-cell">
                         {LIBELLE_MODE[p.mode]}

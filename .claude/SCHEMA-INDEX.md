@@ -3,7 +3,7 @@
 > **Fichier généré automatiquement.** Ne pas éditer à la main.
 > Régénérer : `bash scripts/schema-index.sh`
 
-**Total : 3777 lignes.**
+**Total : 5345 lignes.**
 
 ## Tables
 
@@ -19,6 +19,7 @@
 - `parents` — L81
 - `schema_migrations` — L25
 - `tentatives_connexion` — L163
+- `utilisateurs_ecole` — L3811
 
 ## Vues
 
@@ -27,32 +28,45 @@
 
 - `abonnement_ecole` — L3711
 - `changer_code_ecole` — L344
+- `changer_mon_mot_de_passe` — L3958
+- `changer_statut_utilisateur` — L4728
 - `code_correspond` — L244
 - `controler_tentatives` — L186
+- `creer_utilisateur_ecole` — L4688
 - `echanger_acces_ecole` — L270
 - `echanger_jeton_parent` — L332
+- `echanger_utilisateur_ecole` — L3892
 - `effacer_tentatives` — L227
-- `encaisser_paiement` — L2300 **(active)** · remplace L1276
+- `encaisser_paiement` — L4045 **(active)** · remplace L1276, L2300
 - `enregistrer_classe` — L1538
 - `enregistrer_parametres` — L1973
+- `exiger_directeur` — L4651
 - `exiger_ecriture_ecole` — L3737
 - `exiger_ecriture_parent` — L3746
 - `hacher_code_bcrypt` — L257
-- `importer_reprise` — L3276 **(active)** · remplace L2583
-- `inscrire_eleve` — L2980 **(active)** · remplace L994, L1693
+- `hacher_mot_de_passe_utilisateur` — L3832
+- `importer_reprise` — L4927 **(active)** · remplace L2583, L3276
+- `inscrire_eleve` — L4329 **(active)** · remplace L994, L1693, L2980
 - `interdire_suppression_paiement` — L3639
 - `ip_pour_cle` — L237
 - `jwt_ecole_id` — L179
 - `jwt_parent_id` — L182
 - `jwt_role_app` — L176
+- `jwt_role_utilisateur` — L3887
+- `jwt_utilisateur_id` — L3884
+- `lister_utilisateurs_ecole` — L4671
+- `nom_utilisateur_courant` — L4035
 - `noter_echec_plafonne` — L198
-- `numeroter_recu` — L786 **(active)** · remplace L417
+- `numeroter_recu` — L4791 **(active)** · remplace L417, L786
 - `prochain_matricule` — L2954
 - `proteger_article_inscription` — L2114 **(active)** · remplace L958
 - `proteger_colonnes_ecole` — L377
 - `proteger_inscription` — L465
-- `proteger_paiement` — L925 **(active)** · remplace L436, L826
+- `proteger_paiement` — L4832 **(active)** · remplace L436, L826, L925, L4297
+- `reinitialiser_mot_de_passe_directeur` — L5310
+- `reinitialiser_mot_de_passe_utilisateur` — L4748
 - `session_ecole_valide` — L318
+- `session_utilisateur_valide` — L3944
 - `set_updated_at` — L2264
 - `situation_abonnement` — L3686
 - `verifier_ecriture_ecole` — L3723
@@ -60,7 +74,9 @@
 
 ## Policies
 
-- `ecole_annule` sur `paiements` — L549
+- `ecole_annule` sur `paiements` — L4867 **(active)** · remplace L549
+- `ecole_cree_ses_articles_classe` sur `articles_classe` — L4917
+- `ecole_cree_ses_classes` sur `classes` — L4901
 - `ecole_encaisse` sur `paiements` — L546
 - `ecole_gere_ses_articles_classe` sur `articles_classe` — L861
 - `ecole_gere_ses_articles_inscription` sur `articles_inscription` — L866
@@ -69,8 +85,14 @@
 - `ecole_gere_ses_inscriptions` sur `inscriptions` — L532
 - `ecole_gere_ses_parents` sur `parents` — L513
 - `ecole_lit_sa_fiche` sur `ecoles` — L495
+- `ecole_lit_ses_articles_classe` sur `articles_classe` — L4914
+- `ecole_lit_ses_classes` sur `classes` — L4898
 - `ecole_lit_ses_paiements` sur `paiements` — L543
-- `ecole_modifie_sa_fiche` sur `ecoles` — L498
+- `ecole_modifie_sa_fiche` sur `ecoles` — L4891 **(active)** · remplace L498
+- `ecole_modifie_ses_articles_classe` sur `articles_classe` — L4920
+- `ecole_modifie_ses_classes` sur `classes` — L4904
+- `ecole_supprime_ses_articles_classe` sur `articles_classe` — L4924
+- `ecole_supprime_ses_classes` sur `classes` — L4908
 - `parent_lit_les_classes` sur `classes` — L508
 - `parent_lit_les_inscriptions` sur `inscriptions` — L536
 - `parent_lit_sa_fiche` sur `parents` — L517
@@ -82,6 +104,7 @@
 
 - `trg_abonnement_ecriture` sur `ecoles` — L3768
 - `trg_abonnement_ecriture` sur `parents` — L3772
+- `trg_abonnement_ecriture` sur `utilisateurs_ecole` — L3851
 - `trg_abonnement_modification` sur `parents` — L3776
 - `trg_interdire_suppression_paiement` sur `paiements` — L3649
 - `trg_meme_ecole` sur `articles_classe` — L915
@@ -114,6 +137,9 @@
 - `idx_paiements_article` — L717
 - `idx_articles_inscription_article_classe` — L2248
 - `idx_eleves_matricule_ancien` — L2561
+- `idx_utilisateurs_ecole_email` — L3825
+- `idx_utilisateurs_ecole_directeur` — L3826
+- `idx_utilisateurs_ecole_ecole` — L3828
 
 ## Contraintes CHECK
 
@@ -140,6 +166,12 @@
 - L2565 : v1.18 : import des élèves d'une école existante par lots (fonction importer_reprise, tranche 5).
 - L2935 : v1.19 : durcissements de l'inscription et de l'import, matricule factorisé, paiement protégé de la suppression.
 - L3653 : v1.20 : abonnement appliqué automatiquement (feature D02, tranche 1).
+- L3780 : v1.21 : plusieurs utilisateurs par école, tranche 1 (feature D09) : connexion par e-mail + mot de passe.
+- L4001 : v1.22 : chaque reçu dit qui l'a encaissé (D09, tranche 2).
+- L4627 : v1.23 : plusieurs utilisateurs par école, tranche 3 (feature D09) : le directeur gère ses caissiers.
+- L4775 : v1.24 : seul le directeur annule un reçu, et on sait qui (D09, tranche 4).
+- L4872 : v1.25 : plusieurs utilisateurs par école, tranche 5 (feature D09) : le caissier ne touche ni aux paramètres de
+- L5297 : v1.26 : plusieurs utilisateurs par école, tranche 6 (feature D09) : le SuperAdmin réinitialise le mot de passe
 
 ## Notes pour l'agent
 

@@ -49,6 +49,7 @@ export async function lireDonneesRecu(supabase: SupabaseServeur, ecoleId: string
     mode: p.mode,
     reference: p.reference,
     reprise: estRecuDeReprise(p.encaisse_par),
+    encaissePar: p.encaisse_par,
     annule: lignes.every((l) => l.annule),
     lignes: lignes.map((l) => ({ type: l.type, mois: l.mois, libelle: l.libelle, montant: l.montant, annule: l.annule })),
     eleve,

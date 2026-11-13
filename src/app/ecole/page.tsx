@@ -1,13 +1,14 @@
 import { redirect } from "next/navigation";
 import { createClientEcole } from "@/lib/supabase/server";
-import { getEcoleId } from "@/lib/ecole-session";
+import { getSessionEcole } from "@/lib/ecole-session";
+import { peutFaire } from "@/lib/droits";
 import { getAppBaseUrl, todayDakar } from "@/lib/config";
 import { situationInscription } from "@/lib/scolarite";
 import { lireAbonnementEcole } from "@/lib/abonnement-ecole";
 import { derniereModification } from "@/lib/modifications";
 import { LectureTropLongue, TAILLE_PAGE, comparer, toutLire, toutLireParIds } from "@/lib/lecture-paginee";
 import { EcoleDashboardClient } from "./ecole-dashboard-client";
-import type { ClasseVue, EcoleVue, EleveVue, PaiementVue } from "./types";
+import type { ClasseVue, EcoleVue, EleveVue, PaiementVue, UtilisateurListeVue } from "./types";
 
 export const dynamic = "force-dynamic";
 
@@ -16,11 +17,12 @@ interface PageProps {
 }
 
 export default async function EcolePage({ searchParams }: PageProps) {
-  const ecoleId = await getEcoleId();
-  if (!ecoleId) redirect("/ecole/login");
+  const session = await getSessionEcole();
+  if (!session) redirect("/ecole/login");
+  const { ecoleId } = session;
 
   const { bienvenue } = await searchParams;
-  const supabase = createClientEcole(ecoleId);
+  const supabase = createClientEcole(session);
   const aujourdhui = todayDakar();
   const appBaseUrl = getAppBaseUrl();
 
@@ -43,6 +45,15 @@ export default async function EcolePage({ searchParams }: PageProps) {
   // Lecture en échec (ou bloc v1.20 pas encore appliqué) : pas de bandeau plutôt qu'une page en erreur,
   // le refus des écritures ne dépend pas de cet affichage.
   const abonnement = (await lireAbonnementEcole(supabase, "ecole/page")) ?? { etat: "normal" as const, fin: null, finGrace: null, joursRestants: null };
+
+  // Comptes de l'école (D09) : lus pour le directeur seulement, par une fonction qui ne renvoie jamais le hash.
+  // Lecture en échec (bloc v1.23 pas encore appliqué) : liste vide plutôt qu'une page en erreur.
+  let utilisateurs: UtilisateurListeVue[] | null = null;
+  if (peutFaire(session.role, "utilisateurs")) {
+    const { data: comptes, error: erreurComptes } = await (supabase as any).rpc("lister_utilisateurs_ecole");
+    if (erreurComptes) console.error("[ecole/page] lecture des utilisateurs :", erreurComptes.code ?? "erreur");
+    utilisateurs = ((comptes ?? []) as UtilisateurListeVue[]).map(({ id, nom, email, role, actif }) => ({ id, nom, email, role, actif }));
+  }
 
   const annee = ecole.annee_scolaire;
   // Lectures paginées (PostgREST renvoie 1000 lignes au plus) avec un ordre stable terminé par l'id ;
@@ -101,7 +112,7 @@ export default async function EcolePage({ searchParams }: PageProps) {
       toutLireParIds(idsInscriptions, (paquet, apres) =>
         supabase
           .from("paiements")
-          .select("id, inscription_id, lot_id, numero_recu, type, mois, montant, mode, reference, libelle, paye_le, annule, motif_annulation, article_id, encaisse_par, created_at")
+          .select("id, inscription_id, lot_id, numero_recu, type, mois, montant, mode, reference, libelle, paye_le, annule, motif_annulation, annule_par, article_id, encaisse_par, created_at")
           .eq("ecole_id", ecoleId)
           .in("inscription_id", paquet)
           .gt("id", apres)
@@ -201,6 +212,7 @@ export default async function EcolePage({ searchParams }: PageProps) {
       paye_le: p.paye_le,
       annule: p.annule,
       motif_annulation: p.motif_annulation,
+      annule_par: p.annule_par,
       encaisse_par: p.encaisse_par,
       eleve_id: e?.eleveId ?? "",
       eleve_nom: e?.nom ?? "Élève retiré",
@@ -226,6 +238,8 @@ export default async function EcolePage({ searchParams }: PageProps) {
       paiements={paiementsVue}
       aujourdhui={aujourdhui}
       abonnement={abonnement}
+      utilisateur={{ nom: session.nom, email: session.email, role: session.role }}
+      utilisateurs={utilisateurs}
       bienvenue={bienvenue === "1"}
       numeroWave={process.env.WAVE_NUMERO_PAIEMENT || null}
     />

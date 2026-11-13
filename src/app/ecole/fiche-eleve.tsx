@@ -41,6 +41,7 @@ export function FicheEleve({
   aujourdhui,
   paiements,
   lectureSeule,
+  peutAnnuler,
   onClose,
 }: {
   eleve: EleveVue;
@@ -50,6 +51,8 @@ export function FicheEleve({
   paiements: PaiementVue[];
   /** Abonnement expiré ou suspendu : les gestes d'écriture hors argent sont retirés (encaisser et annuler : tranche 3) */
   lectureSeule: boolean;
+  /** Droit d'annuler un reçu (directeur seulement) */
+  peutAnnuler: boolean;
   onClose: () => void;
 }) {
   const [retour, setRetour] = useState<{ ok: boolean; texte: string } | null>(null);
@@ -658,13 +661,14 @@ export function FicheEleve({
                           {p.numero_recu} · {formatDate(p.paye_le)} · {LIBELLE_MODE[p.mode]}
                           {p.reference ? ` (${p.reference})` : ""}
                           {estRecuDeReprise(p.encaisse_par) && <> · <Badge ton="bleu">Reprise de l'existant</Badge></>}
-                          {r.annule && <> · <Badge ton="rouge">Annulé</Badge>{r.motif_annulation ? ` ${r.motif_annulation}` : ""}</>}
+                          {p.encaisse_par && !estRecuDeReprise(p.encaisse_par) && ` · Encaissé par ${p.encaisse_par}`}
+                          {r.annule && <> · <Badge ton="rouge">Annulé</Badge>{r.motif_annulation ? ` ${r.motif_annulation}` : ""}{p.annule_par ? ` · annulé par ${p.annule_par}` : ""}</>}
                         </p>
                       </div>
                       <a href={`/ecole/recu/${p.id}`} target="_blank" className="p-1.5 rounded-lg hover:bg-neutral-100" title="Reçu PDF">
                         <FileText className="w-4 h-4 text-neutral-600" />
                       </a>
-                      {!r.annule && !lectureSeule && (
+                      {!r.annule && !lectureSeule && peutAnnuler && (
                         <button
                           title="Annuler ce reçu"
                           className="p-1.5 rounded-lg hover:bg-red-50"

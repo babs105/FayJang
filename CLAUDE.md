@@ -46,13 +46,14 @@ Le processus de livraison (plan → tranche → dev → reviews → merge) est d
 Aucune requête ne passe par la clé admin, sauf exceptions ci-dessous. Pattern « token → JWT court » :
 l'identifiant reçu est échangé par une fonction SQL `SECURITY DEFINER` (`echanger_*`), puis le serveur signe un JWT
 de 5 min en ES256 (`SUPABASE_JWT_PRIVATE_KEY`, importée comme clé de signature dans Supabase) dont les claims
-`role_app` (`ecole` | `parent` | `connexion`) / `ecole_id` / `parent_id` filtrent chaque table (section 9 de `schema.sql`).
+`role_app` (`ecole` | `parent` | `connexion`) / `ecole_id` / `parent_id` / `utilisateur_id` / `role_utilisateur`
+(`directeur` | `caissier`) filtrent chaque table (section 9 de `schema.sql`).
 Le JWT ne quitte jamais le serveur.
 
 | Qui | Client |
 |---|---|
-| École (cookie de session) | `createClientEcole(ecoleId)` après `getEcoleId()` |
-| Connexion École | `echangerAccesEcole(identifiant, code)` |
+| Utilisateur de l'école (cookie de session) | `createClientEcole(session)` après `getSessionEcole()` (`getEcoleId()` si seul l'id sert) |
+| Connexion École (e-mail + mot de passe) | `echangerUtilisateurEcole(email, motDePasse)` |
 | Parent `/p/[token]` | `echangerJetonParent(token)` → `{ supabase, parentId, ecoleId }` |
 | SuperAdmin, inscription d'une école, diagnostic | `createAdminClient()` (`admin.ts`, contourne la RLS) |
 
@@ -64,8 +65,8 @@ Il n'y a **pas de `src/middleware.ts`** : chaque page, Server Action et route v�
 
 ### Server Actions (sécurité)
 Toute action École suit ce modèle, dans cet ordre :
-1. `const ecoleId = await getEcoleId(); if (!ecoleId) return { success: false, message: SESSION_EXPIREE }` (helper `session()`)
-2. `createClientEcole(ecoleId)` puis requêtes **filtrées** par `.eq("ecole_id", ecoleId)` en plus de la RLS
+1. `const session = await getSessionEcole(); if (!session) return { success: false, message: SESSION_EXPIREE }` (helper `session()`)
+2. `createClientEcole(session)` puis requêtes **filtrées** par `.eq("ecole_id", ecoleId)` en plus de la RLS
 3. `revalidatePath("/ecole")` après une écriture
 4. Retour `{ success: boolean; message?: string; data? }`, message en français lisible par l'administration
 

@@ -13,8 +13,9 @@ import { ClassesPanel } from "./classes-panel";
 import { ParametresPanel } from "./parametres-panel";
 import { FicheEleve } from "./fiche-eleve";
 import { BandeauAbonnement } from "./bandeau-abonnement";
+import { peutFaire } from "@/lib/droits";
 import { peutEcrire, type SituationAbonnement } from "@/lib/abonnement";
-import type { ClasseVue, EcoleVue, EleveVue, PaiementVue } from "./types";
+import type { ClasseVue, EcoleVue, EleveVue, PaiementVue, UtilisateurListeVue, UtilisateurVue } from "./types";
 
 export type Onglet = "tableau" | "eleves" | "paiements" | "impayes" | "classes" | "parametres";
 
@@ -35,10 +36,18 @@ export interface DonneesEcole {
   aujourdhui: string;
   /** État de l'abonnement calculé par le serveur (alerte, grâce, lecture seule) */
   abonnement: SituationAbonnement;
+  /** Membre de l'administration connecté (D09) */
+  utilisateur: UtilisateurVue;
+  /** Comptes de l'école, lus pour le directeur seulement (null pour un caissier) */
+  utilisateurs: UtilisateurListeVue[] | null;
 }
 
 export function EcoleDashboardClient(props: DonneesEcole & { bienvenue: boolean; numeroWave: string | null }) {
-  const [onglet, setOnglet] = useState<Onglet>(props.classes.length === 0 ? "classes" : "tableau");
+  const role = props.utilisateur.role;
+  // D09 : les onglets d'un geste réservé (Classes) ne s'affichent pas pour le caissier ; Paramètres reste visible
+  // (chacun y change son mot de passe), le formulaire de l'école y est masqué. Le serveur et la base refusent aussi.
+  const onglets = ONGLETS.filter(({ id }) => id !== "classes" || peutFaire(role, "classes"));
+  const [onglet, setOnglet] = useState<Onglet>(props.classes.length === 0 && peutFaire(role, "classes") ? "classes" : "tableau");
   const [eleveOuvert, setEleveOuvert] = useState<string | null>(null);
   const [bienvenue, setBienvenue] = useState(props.bienvenue);
   const nbImpayes = props.eleves.filter((e) => (e.situation?.arriere ?? 0) > 0).length;
@@ -57,6 +66,9 @@ export function EcoleDashboardClient(props: DonneesEcole & { bienvenue: boolean;
               <p className="text-[11px] text-neutral-500">
                 Espace École · Année {props.ecole.annee_scolaire}
               </p>
+              <p className="text-[11px] text-neutral-500 truncate">
+                {props.utilisateur.nom} · {props.utilisateur.role === "directeur" ? "Directeur" : "Caissier"}
+              </p>
             </div>
           </div>
           <form action={logoutEcoleAction}>
@@ -66,7 +78,7 @@ export function EcoleDashboardClient(props: DonneesEcole & { bienvenue: boolean;
           </form>
         </div>
         <nav className="max-w-6xl mx-auto px-2 flex gap-1 overflow-x-auto no-scrollbar">
-          {ONGLETS.map(({ id, label, icone: Icone }) => (
+          {onglets.map(({ id, label, icone: Icone }) => (
             <button
               key={id}
               onClick={() => setOnglet(id)}
@@ -82,7 +94,7 @@ export function EcoleDashboardClient(props: DonneesEcole & { bienvenue: boolean;
               )}
             </button>
           ))}
-          {peutEcrire(props.abonnement.etat) && (
+          {peutEcrire(props.abonnement.etat) && peutFaire(role, "importer") && (
             <Link
               href="/ecole/import"
               className="flex items-center gap-1.5 px-3 py-2.5 text-xs font-bold border-b-2 border-transparent whitespace-nowrap text-neutral-500 hover:text-neutral-800 transition"
@@ -110,7 +122,7 @@ export function EcoleDashboardClient(props: DonneesEcole & { bienvenue: boolean;
         {onglet === "eleves" && <ElevesPanel {...props} ouvrirEleve={setEleveOuvert} />}
         {onglet === "paiements" && <PaiementsPanel {...props} ouvrirEleve={setEleveOuvert} />}
         {onglet === "impayes" && <ImpayesPanel {...props} ouvrirEleve={setEleveOuvert} />}
-        {onglet === "classes" && <ClassesPanel {...props} />}
+        {onglet === "classes" && peutFaire(role, "classes") && <ClassesPanel {...props} />}
         {onglet === "parametres" && <ParametresPanel {...props} />}
       </main>
 
@@ -122,6 +134,7 @@ export function EcoleDashboardClient(props: DonneesEcole & { bienvenue: boolean;
           aujourdhui={props.aujourdhui}
           paiements={props.paiements.filter((p) => p.eleve_id === eleve.id)}
           lectureSeule={!peutEcrire(props.abonnement.etat)}
+          peutAnnuler={peutFaire(role, "annuler")}
           onClose={() => setEleveOuvert(null)}
         />
       )}

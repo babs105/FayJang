@@ -36,4 +36,14 @@ describe("totauxCaisse", () => {
     expect(estEncaissementDeCaisse({ annule: false, encaisse_par: ENCAISSE_PAR_REPRISE })).toBe(false);
     expect(estEncaissementDeCaisse({ annule: true, encaisse_par: null })).toBe(false);
   });
+
+  it("un paiement nommé compte en caisse, une reprise non : total 20 000", () => {
+    const lignes = [p(20000, "2026-11-12", { mode: "wave", encaisse_par: "Moussa" }), p(20000, "2026-11-12", { encaisse_par: ENCAISSE_PAR_REPRISE })];
+    expect(estEncaissementDeCaisse(lignes[0])).toBe(true);
+    expect(estEncaissementDeCaisse(lignes[1])).toBe(false);
+    const t = totauxCaisse(lignes, "2026-11-12");
+    expect(t.jour).toBe(20000);
+    expect(t.mois).toBe(20000);
+    expect(t.reprise).toBe(20000);
+  });
 });

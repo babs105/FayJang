@@ -586,3 +586,26 @@ describe("paiementLibreAutorise", () => {
   it("refuse un élève en abandon", () => expect(paiementLibreAutorise("abandon")).toBe(false));
   it("refuse un élève transféré", () => expect(paiementLibreAutorise("transfert")).toBe(false));
 });
+
+// ---------- Traçabilité : « Encaissé par » n'a aucun effet sur les soldes (D09, tranche 2) ----------
+
+describe("novembre encaissé par un utilisateur nommé", () => {
+  it("arriéré 0 et reste sur l'année 7 x 20 000 = 140 000 (octobre et novembre payés)", () => {
+    const payes: P[] = [
+      { type: "mensualite", mois: "2026-10-01", montant: 20000, annule: false },
+      { type: "mensualite", mois: "2026-11-01", montant: 20000, annule: false },
+    ];
+    const s = sit("2026-11-12", payes, { ins: { frais_inscription: 0 }, articles: [], ecole: { ...ECOLE, premier_mois_a_linscription: false, dernier_mois_a_linscription: false } });
+    expect(s.arriere).toBe(0);
+    expect(s.resteAnnee).toBe(140000);
+  });
+  it("après l'annulation de novembre : arriéré 20 000 et reste 160 000", () => {
+    const payes: P[] = [
+      { type: "mensualite", mois: "2026-10-01", montant: 20000, annule: false },
+      { type: "mensualite", mois: "2026-11-01", montant: 20000, annule: true },
+    ];
+    const s = sit("2026-11-12", payes, { ins: { frais_inscription: 0 }, articles: [], ecole: { ...ECOLE, premier_mois_a_linscription: false, dernier_mois_a_linscription: false } });
+    expect(s.arriere).toBe(20000);
+    expect(s.resteAnnee).toBe(160000);
+  });
+});

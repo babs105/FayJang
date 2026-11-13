@@ -1,4 +1,4 @@
-import type { ArticleClasse, Classe, Ecole, ModePaiement, StatutInscription, TypePaiement } from "@/types/database";
+import type { ArticleClasse, Classe, Ecole, ModePaiement, StatutInscription, TypePaiement, RoleUtilisateur } from "@/types/database";
 import type { Situation } from "@/lib/scolarite";
 
 /** Données préparées par page.tsx (serveur) pour l'Espace École (client) */
@@ -51,6 +51,8 @@ export interface PaiementVue {
   paye_le: string;
   annule: boolean;
   motif_annulation: string | null;
+  /** Qui a annulé le reçu (Espace École seulement) */
+  annule_par: string | null;
   /** « Reprise de l'existant » pour un reçu importé, sinon null */
   encaisse_par: string | null;
   eleve_id: string;
@@ -83,4 +85,20 @@ export interface EleveVue {
   /** Dernière modification de l'élève, de son inscription, de son parent ou de ses articles (ISO) ; null si jamais modifié */
   derniere_modification: string | null;
   situation: Situation | null;
+}
+
+/** Membre de l'administration listé pour le directeur (lister_utilisateurs_ecole, bloc v1.23 ; jamais le hash) */
+export interface UtilisateurListeVue {
+  id: string;
+  nom: string;
+  email: string;
+  role: RoleUtilisateur;
+  actif: boolean;
+}
+
+/** Utilisateur connecté, tel que l'écran le voit (jamais de hash ni d'identifiant de session) */
+export interface UtilisateurVue {
+  nom: string;
+  email: string;
+  role: RoleUtilisateur;
 }

@@ -2,7 +2,7 @@
 
 import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
-import { getEcoleId, hashCode } from "@/lib/ecole-session";
+import { getSessionEcole, hashCode } from "@/lib/ecole-session";
 import { createClientEcole } from "@/lib/supabase/server";
 import { generateToken, todayDakar } from "@/lib/config";
 import { isAnneeScolaireValide, isDateValide, moisScolaires } from "@/lib/dates";
@@ -15,8 +15,10 @@ import { normaliserTelephone } from "@/lib/telephone";
 import { lireArticles, type SaisieArticle } from "@/lib/classe-catalogue";
 import { estUuid, montant, texte } from "@/lib/saisie";
 import { lireResultatParametres, messageParametres } from "@/lib/parametres";
+import { peutFaire, type Droit } from "@/lib/droits";
 import { refusLectureSeule } from "@/lib/abonnement-ecole";
-import type { ModePaiement, Niveau, StatutInscription } from "@/types/database";
+import { erreurMotDePasse, MOT_DE_PASSE_MAX } from "@/lib/mot-de-passe";
+import type { ModePaiement, Niveau, RoleUtilisateur, StatutInscription } from "@/types/database";
 
 export interface Resultat<T = undefined> {
   success: boolean;
@@ -27,10 +29,11 @@ export interface Resultat<T = undefined> {
 const SESSION_EXPIREE = "Session expirée : reconnectez-vous à l'Espace École.";
 const DATE_NAISSANCE_FUTURE = "La date de naissance ne peut pas être dans le futur.";
 
+/** Utilisateur connecté et son client (JWT portant l'école, l'utilisateur et son rôle), ou null */
 async function session() {
-  const ecoleId = await getEcoleId();
-  if (!ecoleId) return null;
-  return { ecoleId, supabase: createClientEcole(ecoleId) };
+  const utilisateur = await getSessionEcole();
+  if (!utilisateur) return null;
+  return { ecoleId: utilisateur.ecoleId, utilisateur, supabase: createClientEcole(utilisateur) };
 }
 
 /**
@@ -41,6 +44,11 @@ async function sessionEcriture() {
   const s = await session();
   if (!s) return SESSION_EXPIREE;
   return (await refusLectureSeule(s.supabase, "ecole/actions")) ?? s;
+}
+
+/** D09 : message de refus si le rôle connecté n'a pas ce droit (la base refuse aussi), sinon null */
+function refusDroit(s: { utilisateur: { role: RoleUtilisateur } }, droit: Droit): string | null {
+  return peutFaire(s.utilisateur.role, droit) ? null : "Réservé au directeur de l'école.";
 }
 
 async function lireEcole(supabase: ReturnType<typeof createClientEcole>, ecoleId: string) {
@@ -125,6 +133,8 @@ export interface SaisieClasse {
 export async function enregistrerClasse(saisie: SaisieClasse): Promise<Resultat> {
   const s = await sessionEcriture();
   if (typeof s === "string") return { success: false, message: s };
+  const refus = refusDroit(s, "classes");
+  if (refus) return { success: false, message: refus };
 
   const nom = texte(saisie.nom, 40);
   const niveau = saisie.niveau as Niveau;
@@ -165,6 +175,8 @@ export async function enregistrerClasse(saisie: SaisieClasse): Promise<Resultat>
 export async function archiverClasse(id: string, actif: boolean): Promise<Resultat> {
   const s = await sessionEcriture();
   if (typeof s === "string") return { success: false, message: s };
+  const refus = refusDroit(s, "classes");
+  if (refus) return { success: false, message: refus };
   const { error } = await s.supabase.from("classes").update({ is_active: actif }).eq("id", id).eq("ecole_id", s.ecoleId);
   if (error) return { success: false, message: messageErreur("classes", error) };
   revalidatePath("/ecole");
@@ -725,6 +737,10 @@ export async function retirerArticleInscription(id: string): Promise<Resultat> {
 export async function annulerPaiement(id: string, motif: string): Promise<Resultat> {
   const s = await sessionEcriture();
   if (typeof s === "string") return { success: false, message: s };
+  // D09 : seul le directeur annule (la base applique le même refus : policy ecole_annule)
+  if (!peutFaire(s.utilisateur.role, "annuler")) {
+    return { success: false, message: "Seul le directeur peut annuler un reçu. Demandez-lui de le faire." };
+  }
   const m = texte(motif, 200);
   if (m.length < 3) return { success: false, message: "Indiquez le motif de l'annulation." };
   // Un reçu est un document : l'annulation porte sur toutes ses lignes (même lot)
@@ -774,6 +790,8 @@ export interface SaisieParametres {
 export async function enregistrerParametres(saisie: SaisieParametres): Promise<Resultat> {
   const s = await sessionEcriture();
   if (typeof s === "string") return { success: false, message: s };
+  const refus = refusDroit(s, "parametres");
+  if (refus) return { success: false, message: refus };
 
   const nom = texte(saisie.nom, 100);
   const annee = texte(saisie.annee_scolaire, 9);
@@ -840,15 +858,17 @@ export async function enregistrerParametres(saisie: SaisieParametres): Promise<R
   }
 }
 
-export async function changerCodeAcces(ancien: string, nouveau: string): Promise<Resultat> {
+/** Changement de son propre mot de passe (directeur ou caissier) ; permis en lecture seule (décision F21) */
+export async function changerMonMotDePasse(ancien: string, nouveau: string): Promise<Resultat> {
   const s = await session();
   if (!s) return { success: false, message: SESSION_EXPIREE };
-  if (nouveau.trim().length < 8) return { success: false, message: "Le nouveau code doit faire au moins 8 caractères." };
-  const { data, error } = await (s.supabase as any).rpc("changer_code_ecole", {
-    p_ancien_hash: hashCode(ancien),
+  const refus = erreurMotDePasse(String(nouveau ?? ""));
+  if (refus) return { success: false, message: refus };
+  const { data, error } = await (s.supabase as any).rpc("changer_mon_mot_de_passe", {
+    p_ancien_hash: hashCode(String(ancien ?? "").slice(0, MOT_DE_PASSE_MAX)),
     p_nouveau_hash: hashCode(nouveau),
   });
-  if (error) return { success: false, message: messageErreur("code", error) };
-  if (data !== true) return { success: false, message: "Code actuel incorrect." };
-  return { success: true, message: "Code changé : reconnectez-vous avec le nouveau code." };
+  if (error) return { success: false, message: messageErreur("mot-de-passe", error) };
+  if (data !== true) return { success: false, message: "Mot de passe actuel incorrect." };
+  return { success: true, message: "Mot de passe changé : reconnectez-vous avec le nouveau mot de passe." };
 }

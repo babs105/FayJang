@@ -7,6 +7,7 @@ import { anneeScolaireDe } from "@/lib/dates";
 import { todayDakar } from "@/lib/config";
 import { ipVisiteur } from "@/lib/ip";
 import { normaliserTelephone } from "@/lib/telephone";
+import { erreurMotDePasse } from "@/lib/mot-de-passe";
 
 /** Identifiant de connexion lisible : « Cours Sainte-Marie de Hann » → « cours-sainte-marie-de-hann » */
 function slugifier(nom: string): string {
@@ -37,7 +38,8 @@ export async function inscrireEcoleAction(_prev: { error?: string } | undefined,
   if (!responsable) return { error: "Indiquez le nom du responsable." };
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return { error: "Adresse e-mail invalide." };
   if (!telephone || !/^\+\d{9,15}$/.test(telephone)) return { error: "Numéro de téléphone invalide (ex : 77 123 45 67)." };
-  if (code.trim().length < 8) return { error: "Le code d'accès doit faire au moins 8 caractères." };
+  const refusMotDePasse = erreurMotDePasse(code);
+  if (refusMotDePasse) return { error: refusMotDePasse };
 
   const supabase = createAdminClient();
   const cleIp = `inscription:${(await ipVisiteur()) ?? "inconnue"}`;
@@ -45,8 +47,13 @@ export async function inscrireEcoleAction(_prev: { error?: string } | undefined,
   if (erreurLimite) return { error: "Trop d'inscriptions depuis cette connexion. Réessayez dans 15 minutes." };
   await (supabase as any).rpc("noter_echec_plafonne", { p_cle: cleIp, p_seuil: 5 });
 
-  const { data: emailPris } = await supabase.from("ecoles").select("id").ilike("email_contact", email).maybeSingle();
-  if (emailPris) return { error: "Un compte existe déjà avec cet e-mail : connectez-vous à l'Espace École." };
+  // Un e-mail = un seul compte dans tout FayJàng (D09) : ni une autre école, ni un utilisateur d'une école
+  const [{ data: emailPris }, { data: utilisateurPris }] = await Promise.all([
+    // ilike pour les anciens e-mails en casse mixte ; % et _ échappés (sinon jokers : oracle sur un domaine)
+    supabase.from("ecoles").select("id").ilike("email_contact", email.replace(/[\\%_]/g, "\\$&")).maybeSingle(),
+    supabase.from("utilisateurs_ecole").select("id").eq("email", email).maybeSingle(),
+  ]);
+  if (emailPris || utilisateurPris) return { error: "Un compte existe déjà avec cet e-mail : connectez-vous à l'Espace École." };
 
   const base = slugifier(nom);
   const { data: existants } = await supabase.from("ecoles").select("slug").like("slug", `${base}%`);
@@ -79,6 +86,18 @@ export async function inscrireEcoleAction(_prev: { error?: string } | undefined,
     return { error: "Création du compte impossible pour le moment, réessayez." };
   }
 
-  await createEcoleSession(ecole.id);
+  // Compte du directeur (D09) : c'est lui qui se connecte. acces_ecole reste rempli pour un retour arrière.
+  const { data: directeur, error: erreurDirecteur } = await supabase
+    .from("utilisateurs_ecole")
+    .insert({ ecole_id: ecole.id, nom: responsable, email, code_hash: hashCode(code), role: "directeur" })
+    .select("id")
+    .single();
+  if (erreurDirecteur || !directeur) {
+    console.error("[inscription] compte directeur :", erreurDirecteur?.code ?? "erreur");
+    await supabase.from("ecoles").delete().eq("id", ecole.id);
+    return { error: "Création du compte impossible pour le moment, réessayez." };
+  }
+
+  await createEcoleSession(directeur.id);
   redirect("/ecole?bienvenue=1");
 }

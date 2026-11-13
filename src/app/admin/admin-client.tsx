@@ -7,7 +7,8 @@ import { formatDate } from "@/lib/dates";
 import { Badge, Bouton, Carte, Kpi, champ } from "@/components/ui";
 import type { SituationAbonnement } from "@/lib/abonnement";
 import type { Ecole, PlanId, StatutAbonnement } from "@/types/database";
-import { logoutAdminAction, modifierAbonnement } from "./actions";
+import { logoutAdminAction, modifierAbonnement, reinitialiserMotDePasseDirecteur } from "./actions";
+import { MOT_DE_PASSE_MIN } from "@/lib/mot-de-passe";
 
 export type EcoleAdmin = Pick<
   Ecole,
@@ -66,6 +67,7 @@ function LigneEcole({ ecole }: { ecole: EcoleAdmin }) {
     is_active: ecole.is_active,
   });
   const [message, setMessage] = useState<string | null>(null);
+  const [reinit, setReinit] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   return (
@@ -108,8 +110,36 @@ function LigneEcole({ ecole }: { ecole: EcoleAdmin }) {
         >
           Enregistrer
         </Bouton>
+        <Bouton variante="secondaire" disabled={isPending} onClick={() => setReinit(reinit === null ? "" : null)}>
+          Mot de passe du directeur
+        </Bouton>
         {message && <span className="text-[11px] text-neutral-500">{message}</span>}
       </div>
+      {reinit !== null && (
+        <form
+          className="flex flex-wrap gap-2 items-center"
+          onSubmit={(e) => {
+            e.preventDefault();
+            startTransition(async () => {
+              const r = await reinitialiserMotDePasseDirecteur(ecole.id, reinit);
+              setMessage(r.message ?? null);
+              if (r.success) setReinit(null);
+            });
+          }}
+        >
+          <input
+            type="password"
+            autoComplete="new-password"
+            placeholder={`Nouveau mot de passe provisoire (${MOT_DE_PASSE_MIN} min.)`}
+            value={reinit}
+            onChange={(e) => setReinit(e.target.value)}
+            className={`${champ} w-auto`}
+          />
+          <Bouton type="submit" variante="sombre" disabled={isPending || reinit.trim().length < MOT_DE_PASSE_MIN}>
+            Réinitialiser
+          </Bouton>
+        </form>
+      )}
     </Carte>
   );
 }

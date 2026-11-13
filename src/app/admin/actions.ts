@@ -6,6 +6,9 @@ import { createAdminSession, destroyAdminSession, isAdmin, isAdminConfigure, ver
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isDateValide } from "@/lib/dates";
 import { controlerAbonnementAdmin } from "@/lib/abonnement";
+import { hashCode } from "@/lib/ecole-session";
+import { erreurMotDePasse } from "@/lib/mot-de-passe";
+import { estUuid } from "@/lib/saisie";
 import type { PlanId, StatutAbonnement } from "@/types/database";
 
 export async function loginAdminAction(_prev: { error?: string } | undefined, formData: FormData): Promise<{ error?: string }> {
@@ -54,4 +57,26 @@ export async function modifierAbonnement(
   }
   revalidatePath("/admin");
   return { success: true, message: "Abonnement mis à jour." };
+}
+
+/**
+ * Réinitialise le mot de passe du directeur d'une école (D09, tranche 6 : oubli du directeur → FayJàng).
+ * La fonction SQL n'est exécutable que par le client admin ; elle coupe la session du directeur et renvoie son
+ * e-mail de connexion. Le mot de passe provisoire n'est ni journalisé ni renvoyé.
+ */
+export async function reinitialiserMotDePasseDirecteur(ecoleId: string, nouveau: string): Promise<{ success: boolean; message?: string }> {
+  if (!(await isAdmin())) return { success: false, message: "Session expirée." };
+  if (!estUuid(ecoleId)) return { success: false, message: "École introuvable." };
+  const refus = erreurMotDePasse(String(nouveau ?? ""));
+  if (refus) return { success: false, message: refus };
+
+  const { data, error } = await (createAdminClient() as any).rpc("reinitialiser_mot_de_passe_directeur", {
+    p_ecole_id: ecoleId,
+    p_nouveau_hash: hashCode(nouveau),
+  });
+  if (error) {
+    console.error("[admin] mot de passe directeur :", error.code);
+    return { success: false, message: error.code === "FJ404" ? "Aucun compte directeur pour cette école." : "Réinitialisation impossible." };
+  }
+  return { success: true, message: `Mot de passe réinitialisé : le directeur se connecte avec ${String(data)} et le nouveau mot de passe.` };
 }
